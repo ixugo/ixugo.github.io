@@ -1,0 +1,176 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Golang on ixugo</title>
+    <link>http://blog.golang.space/categories/golang/</link>
+    <description>Recent content in Golang on ixugo</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>zh-cn</language>
+    <lastBuildDate>Mon, 04 Nov 2019 00:00:00 +0000</lastBuildDate><atom:link href="http://blog.golang.space/categories/golang/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>9.结构体</title>
+      <link>http://blog.golang.space/p/2019/golang/8.map.md/</link>
+      <pubDate>Mon, 04 Nov 2019 00:00:00 +0000</pubDate>
+      
+      <guid>http://blog.golang.space/p/2019/golang/8.map.md/</guid>
+      <description>结构体 定义结构体
+type Employee struct { ID int Name string Address string DoB time.Time } var dilbert Employee 结构体类型的零值是每个成员都是零值。
+使用 . 操作符可以对每个成员赋值 , 取地址
+指针也可以直接使用 . 操作符, 相当于 (*p).param
+如果结构体成员名字是以大写字母开头的，那么该成员就是导出的；可以被 json 序列化
+一个聚合的值 , 不能包含它本身, 同样适用于数组, 所以 a 结构体不能嵌套 a 结构体 , 但可以包含 *a , 这样可以创建递归的数据结构, 比如链表和树
+例题 使用二叉树排序
+type tree struct { value int left, right *tree } // Sort sorts values in place. func Sort(values []int) { var root *tree for _, v := range values { root = add(root, v) } appendValues(values[:0], root) } // appendValues appends the elements of t to values in order // and returns the resulting slice.</description>
+    </item>
+    
+    <item>
+      <title>8.map</title>
+      <link>http://blog.golang.space/p/2019/golang/8.map.md/</link>
+      <pubDate>Sun, 03 Nov 2019 00:00:00 +0000</pubDate>
+      
+      <guid>http://blog.golang.space/p/2019/golang/8.map.md/</guid>
+      <description>[toc]
+map 1. 基础知识 1.1. 声明方式 区分: 数组定义了长度, 就会自动初始化, map make 时定义了长度, 也是 0
+无论 map 是否初始化, 都可以使用 len 进行判断长度
+仅仅声明一个 map , 没有初始化, 是 nil map , 不能使用
+m := map[string]string{ &amp;#34;name&amp;#34;:&amp;#34;ccmouse&amp;#34;, &amp;#34;course&amp;#34;:&amp;#34;golang&amp;#34;, } m2 := make(map[string]int) // m2 == {} 即 len(m2) == 0 var m3 map[string]int // m3 == nil 也可以 len(m3) == 0 注意不能对 map 中的元素进行取址 , map的key必须是可比较的类型
+_ = &amp;amp;ages[&amp;#34;bob&amp;#34;] // ❌ 禁止对map元素取址的原因是map可能随着元素数量的增长而重新分配更大的内存空间，从而可能导致之前的地址无效。
+1.2. 遍历数据 Map的迭代顺序是不确定的, 在实践中，遍历的顺序是随机的，每一次遍历的顺序都不相同。这是故意的，每次都使用随机的遍历顺序可以强制要求程序不会依赖具体的哈希函数实现。如果要按顺序遍历key/value对，我们必须显式地对key进行排序，可以使用sort包的Strings函数对字符串slice进行排序。</description>
+    </item>
+    
+    <item>
+      <title>10.json</title>
+      <link>http://blog.golang.space/p/2019/golang/10.json.md/</link>
+      <pubDate>Sat, 02 Nov 2019 00:00:00 +0000</pubDate>
+      
+      <guid>http://blog.golang.space/p/2019/golang/10.json.md/</guid>
+      <description>golang 语言标准库 encoding/json 结构体slice 转 JSON 叫编组
+编码时 , 通过反射技术 , 只有导出(首字母大写)的成员才会被编码
+通道、复数、函数类型的值不能编码进json。
+json.Marshal 编码
+返回没有空格的紧凑字节数组
+data, err := json.Marshal(movies) json.MarshalIndent 格式化编码
+返回包含空格的格式化字节数组
+参数 2 : 每一行的输出前缀
+参数 3 : 层级缩进
+data, err := json.MarshalIndent(movies, &amp;#34;&amp;#34;, &amp;#34; &amp;#34;) **Unmarshal ** 解码
+首先处理json数据是json字面值null的情况。此时，函数将指针设为nil；否则，函数将json数据解码写入指针指向的值；如果指针本身是nil，函数会先申请一个值并使指针指向它。
+var titles []struct{ Title string } if err := json.Unmarshal(data, &amp;amp;titles); err != nil { log.Fatalf(&amp;#34;JSON unmarshaling failed: %s&amp;#34;, err) } 结构体中只有Title成员。通过定义合适的Go语言数据结构，我们可以选择性地解码JSON中感兴趣的成员。
+Decoder 流解码器
+还有 Encoder 流编码器
+type IssuesSearchResult struct { TotalCount int `json:&amp;#34;total_count&amp;#34;` Items []*Issue } var result IssuesSearchResult // 发起网络请求, 拿到 resp.</description>
+    </item>
+    
+    <item>
+      <title>4.赋值与类型</title>
+      <link>http://blog.golang.space/p/2019/golang/4.%E8%B5%8B%E5%80%BC%E4%B8%8E%E7%B1%BB%E5%9E%8B.md/</link>
+      <pubDate>Sat, 02 Nov 2019 00:00:00 +0000</pubDate>
+      
+      <guid>http://blog.golang.space/p/2019/golang/4.%E8%B5%8B%E5%80%BC%E4%B8%8E%E7%B1%BB%E5%9E%8B.md/</guid>
+      <description>元组赋值 a,b := b,a // 实现变量交换 i, j, k = 2, 3, 5 // 赋值 q, w, e = 2, &amp;#39;3&amp;#39;, true // 不同类型赋值 _, err = io.Copy(dst, src) // 丢弃字节数 _, ok = x.(T) // 只检测类型，忽略具体值 最大公约数
+func gcd(x, y int) int { for y != 0 { x, y = y, x%y } return x } 斐波那契数列
+func fib(n int) int { x, y := 0, 1 for i := 0; i &amp;lt; n; i++ { x, y = y, x+y } return x } v = m[key] // map查找，失败时返回零值 v = x.</description>
+    </item>
+    
+    <item>
+      <title>5.包和文件</title>
+      <link>http://blog.golang.space/p/2019/golang/5.%E5%8C%85%E5%92%8C%E6%96%87%E4%BB%B6.md/</link>
+      <pubDate>Sat, 02 Nov 2019 00:00:00 +0000</pubDate>
+      
+      <guid>http://blog.golang.space/p/2019/golang/5.%E5%8C%85%E5%92%8C%E6%96%87%E4%BB%B6.md/</guid>
+      <description>包和文件 Go 文件中的内部信息, 根据是否大写字母开头判断是否导出
+var Str string // 其他类导入包后可以调用 var str string // 包内可调用  按照惯例，一个包的名字和包的导入路径的最后一个字段相同，例如gopl.io/ch2/tempconv包的名字一般是tempconv。
+  如果导入了一个包，但是又没有使用该包将被当作一个编译错误处理。这种强制规则可以有效减少不必要的依赖
+  使用 golang.org/x/tools/cmd/goimports 自动添加删除导入包
+ 1. 包的初始化  包的初始化首先是解决包级变量的依赖顺序，然后按照包级变量声明出现的顺序依次初始化：
+ var a = b + c // a 第三个初始化, 为 3 var b = f() // b 第二个初始化, 为 2, 通过调用 f (依赖c) var c = 1 // c 第一个初始化, 为 1  func f() int { return c + 1 }  如果包中含有多个.</description>
+    </item>
+    
+    <item>
+      <title>6.条件</title>
+      <link>http://blog.golang.space/p/2019/golang/6.%E6%9D%A1%E4%BB%B6.md/</link>
+      <pubDate>Sat, 02 Nov 2019 00:00:00 +0000</pubDate>
+      
+      <guid>http://blog.golang.space/p/2019/golang/6.%E6%9D%A1%E4%BB%B6.md/</guid>
+      <description>循环 for initialization; condition; post { } 无限循环
+for {} 条件循环
+for condition {} 遍历数组 , i 是下标
+for i := range arr{ } 遍历数组, 下标和值
+for index,value := range arr{ } range的语法要求，要处理元素，必须处理索引。会拷贝一个新的变量 value , 对 value 做修改不会影响 arr
+在 for 多重循环中可以使用 break end 跳出最外层循环, 这里的 eng 是关键字, 有点像是 goto 语句一样
+跳出并结束嵌套循环
+end: for i := 0; i &amp;lt; 5; i++ { for i := 0; i &amp;lt; 10; i++ { if i == 2 { break end } fmt.</description>
+    </item>
+    
+    <item>
+      <title>7.数组和切片</title>
+      <link>http://blog.golang.space/p/2019/golang/7.%E6%95%B0%E7%BB%84%E5%92%8C%E5%88%87%E7%89%87.md/</link>
+      <pubDate>Sat, 02 Nov 2019 00:00:00 +0000</pubDate>
+      
+      <guid>http://blog.golang.space/p/2019/golang/7.%E6%95%B0%E7%BB%84%E5%92%8C%E5%88%87%E7%89%87.md/</guid>
+      <description>1. 数组 array 数组是定长的，长度一单定义，不能再更改。
+1.1. 如何声明? 声明数组，注意要指定长度。如果未指定长度可使用省略号，将会按长度初始化值的个数进行计算。
+var a [3]int v := [...]int{1,2,3} q := [3]int{1, 2, 3, 4} // 编译错误: cannot assign [4]int to [3]int 多维数组初始化
+var grid [4][5]int{{1,2},{4,5}} 指定索引初始化
+v1 := [...]string{1:&amp;#34;1&amp;#34;,5:&amp;#34;5&amp;#34;,9:&amp;#34;9&amp;#34;} 1.2. 零值 数组是值类型
+声明数组后不赋值，则每个元素都被初始化零值，比如 int 类型会初始化为 0。
+1.3. 特性 Go 语言中数组在初始化之后大小就无法改变，存储元素类型相同、但是大小不同的数组类型在 Go 语言看来也是完全不同的，只有两个条件都相同才是同一个类型。
+var a1 [3]int var a2 [5]int fmt.Printf(&amp;#34;%T != %T&amp;#34;, a1, a2) 两种不同的优化 cmd/compile/internal/gc.anylit
+ 当元素数量小于或者等于 4 个时，会直接将数组中的元素放置在栈上； 当元素数量大于 4 个时，会将数组中的元素放置到静态区并在运行时取出；  1.4. 元素比较  如果数组的元素类型可比较，则数组也可以比较 维数相同，含有元素个数相同  1.</description>
+    </item>
+    
+    <item>
+      <title>1.命名规则</title>
+      <link>http://blog.golang.space/p/2019/golang/1.%E5%91%BD%E5%90%8D.md/</link>
+      <pubDate>Fri, 01 Nov 2019 00:00:00 +0000</pubDate>
+      
+      <guid>http://blog.golang.space/p/2019/golang/1.%E5%91%BD%E5%90%8D.md/</guid>
+      <description>名字很重要 起名要有可读性, 好变量名的特点是
+ 一致 (容易猜测) 简短 (易于输出) 准备 (易于理解)  通常来说，如果一个名字的作用域比较大，生命周期也比较长，那么用长的名字将会更有意义。但是局部变量还是参考以上三点
+1. 项目目录名 使用中划线组合
+# BAD blog_server # GOOD blog-server 2. 包名  使用 bytes.Buffer and strings.Reader，而没有 bytes.ByteBuffer and strings.StringReader 导出的软件包名要有意义, 避免 util ，common 等 避免使用大写字母, 且不要有重复的单词  # BAD import ( &amp;#34;MyUtils&amp;#34; &amp;#34;blog_server&amp;#34; &amp;#34;blog-server&amp;#34; &amp;#34;blog server&amp;#34; ) # GOOD import ( &amp;#34;cmd5&amp;#34; &amp;#34;blog&amp;#34; ) 3. 文件或文件夹名 文件或文件夹名建议使用 蛇形命名，一些系统并不会对文件名区分大小写
+# BAD buildTest.go # GOOD build_test.go 避免和保留特定用法的后缀冲突
+# 测试文件 _test.go # 系统相关 _386.</description>
+    </item>
+    
+    <item>
+      <title>2.变量</title>
+      <link>http://blog.golang.space/p/2019/golang/2.%E5%8F%98%E9%87%8F.md/</link>
+      <pubDate>Fri, 01 Nov 2019 00:00:00 +0000</pubDate>
+      
+      <guid>http://blog.golang.space/p/2019/golang/2.%E5%8F%98%E9%87%8F.md/</guid>
+      <description>变量 Golang 有四种声明
+var	// 声明变量 const	// 声明常量 type	// 声明类型 func	// 声明函数 1. 基础内容 1.1. 变量的基本用法 var {variable} {type} = {表达式} // 其中类型 或表达式可以省略一个 var {variable} = {表达式} var {variable} {type} 表达式省略时，将初始化零值
+// 各个类型的零值 var INT int = 0 var STRING string = &amp;#34;&amp;#34; var BOOL bool = false var INTERFACE interface{} = nil // 引用类型(slice,map,chan,func,point,interface{}) 零值都是 nil Go开发者应该让聚合类型的零值也具有意义，可以保证任何类型变量总有合理有效的零值状态。
+1.2. 多参数声明 var i,j,k int // int,int,int var b,f,s = true,2.</description>
+    </item>
+    
+    <item>
+      <title>3.指针</title>
+      <link>http://blog.golang.space/p/2019/golang/3.%E6%8C%87%E9%92%88.md/</link>
+      <pubDate>Fri, 01 Nov 2019 00:00:00 +0000</pubDate>
+      
+      <guid>http://blog.golang.space/p/2019/golang/3.%E6%8C%87%E9%92%88.md/</guid>
+      <description>指针 任何指针的零值都是 nil
+1. 基础内容 1.1. 指针的基本用法 指针不能运算，Go 语言只有值传递一种方式，引用类型，也会拷贝引用的地址
+var a int = 2 var pa *int = &amp;amp;a *pa = 3 fmt.Println(a) 1.2. 指针相等的条件  都是 nil 指向同一个变量  在 Go 语言中，返回函数中局部变量的地址也是安全的
+1.3.new 预定义函数 new(T) 将创建一个 T 类型的匿名变量，初始化T 类型零值，返回变量地址，类型是 *T
+new 是预定义函数，并非关键字，可以更改类型，声明为变量等操作，但不建议这样干!
+p := new(int) // p, *int 类型, 指向匿名的 int 变量 fmt.Println(*p) // &amp;#34;0&amp;#34; *p = 2 // 设置 int 匿名变量的值为 2 fmt.Println(*p) // &amp;#34;2&amp;#34; struct{}和[0]int是大小为 0 的类型，(请谨慎使用大小为0的类型，因为这样可能会导致Go语言的自动垃圾回收器有不同的行为，具体请查看runtime.SetFinalizer函数相关文档）。</description>
+    </item>
+    
+    <item>
+      <title>singleflight</title>
+      <link>http://blog.golang.space/p/2019/golang/singleflight.md/</link>
+      <pubDate>Mon, 18 Mar 2019 00:00:00 +0000</pubDate>
+      
+      <guid>http://blog.golang.space/p/2019/golang/singleflight.md/</guid>
+      <description>什么是 SingleFlight? 应对并发的利器! 常用场景有: 缓存穿透
+100 个并发，普通的加锁方式会导致队列执行。
+而 SingleFlight 会缓存一瞬间的并发请求函数返回值。第 1 个访问的函数去执行，其余 99 个进入协程等待，当第一个函数执行结果出来，剩下 99 个直接返回该结果。最后删除 map 中缓存的结果。
+如何使用 SingleFlight? func TestSingleFlight(t *testing.T){ var g singleflight.Group g.Do(&amp;#34;key&amp;#34;,func() (interface{}, error){ return &amp;#34;test&amp;#34;,nil }) } 看看源码 singleflight
+package singleflight import &amp;#34;sync&amp;#34; type call struct { wg sync.WaitGroup // 阻塞并发函数请求 	val interface{}	// 函数返回值 	err error	// 函数返回值 } // 一类工作 type Group struct { mu sync.Mutex m map[string]*call // 延迟初始化,用于临时存储函数 } // 判断 key 是否第一次调用 // 是则调用函数获取结果 // 不是, 则阻塞在 c.</description>
+    </item>
+    
+  </channel>
+</rss>

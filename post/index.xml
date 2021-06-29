@@ -1,0 +1,473 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Posts on ixugo</title>
+    <link>http://blog.golang.space/post/</link>
+    <description>Recent content in Posts on ixugo</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>zh-cn</language>
+    <lastBuildDate>Mon, 04 Nov 2019 00:00:00 +0000</lastBuildDate><atom:link href="http://blog.golang.space/post/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>9.结构体</title>
+      <link>http://blog.golang.space/p/2019/golang/8.map.md/</link>
+      <pubDate>Mon, 04 Nov 2019 00:00:00 +0000</pubDate>
+      
+      <guid>http://blog.golang.space/p/2019/golang/8.map.md/</guid>
+      <description>结构体 定义结构体
+type Employee struct { ID int Name string Address string DoB time.Time } var dilbert Employee 结构体类型的零值是每个成员都是零值。
+使用 . 操作符可以对每个成员赋值 , 取地址
+指针也可以直接使用 . 操作符, 相当于 (*p).param
+如果结构体成员名字是以大写字母开头的，那么该成员就是导出的；可以被 json 序列化
+一个聚合的值 , 不能包含它本身, 同样适用于数组, 所以 a 结构体不能嵌套 a 结构体 , 但可以包含 *a , 这样可以创建递归的数据结构, 比如链表和树
+例题 使用二叉树排序
+type tree struct { value int left, right *tree } // Sort sorts values in place. func Sort(values []int) { var root *tree for _, v := range values { root = add(root, v) } appendValues(values[:0], root) } // appendValues appends the elements of t to values in order // and returns the resulting slice.</description>
+    </item>
+    
+    <item>
+      <title>8.map</title>
+      <link>http://blog.golang.space/p/2019/golang/8.map.md/</link>
+      <pubDate>Sun, 03 Nov 2019 00:00:00 +0000</pubDate>
+      
+      <guid>http://blog.golang.space/p/2019/golang/8.map.md/</guid>
+      <description>[toc]
+map 1. 基础知识 1.1. 声明方式 区分: 数组定义了长度, 就会自动初始化, map make 时定义了长度, 也是 0
+无论 map 是否初始化, 都可以使用 len 进行判断长度
+仅仅声明一个 map , 没有初始化, 是 nil map , 不能使用
+m := map[string]string{ &amp;#34;name&amp;#34;:&amp;#34;ccmouse&amp;#34;, &amp;#34;course&amp;#34;:&amp;#34;golang&amp;#34;, } m2 := make(map[string]int) // m2 == {} 即 len(m2) == 0 var m3 map[string]int // m3 == nil 也可以 len(m3) == 0 注意不能对 map 中的元素进行取址 , map的key必须是可比较的类型
+_ = &amp;amp;ages[&amp;#34;bob&amp;#34;] // ❌ 禁止对map元素取址的原因是map可能随着元素数量的增长而重新分配更大的内存空间，从而可能导致之前的地址无效。
+1.2. 遍历数据 Map的迭代顺序是不确定的, 在实践中，遍历的顺序是随机的，每一次遍历的顺序都不相同。这是故意的，每次都使用随机的遍历顺序可以强制要求程序不会依赖具体的哈希函数实现。如果要按顺序遍历key/value对，我们必须显式地对key进行排序，可以使用sort包的Strings函数对字符串slice进行排序。</description>
+    </item>
+    
+    <item>
+      <title>10.json</title>
+      <link>http://blog.golang.space/p/2019/golang/10.json.md/</link>
+      <pubDate>Sat, 02 Nov 2019 00:00:00 +0000</pubDate>
+      
+      <guid>http://blog.golang.space/p/2019/golang/10.json.md/</guid>
+      <description>golang 语言标准库 encoding/json 结构体slice 转 JSON 叫编组
+编码时 , 通过反射技术 , 只有导出(首字母大写)的成员才会被编码
+通道、复数、函数类型的值不能编码进json。
+json.Marshal 编码
+返回没有空格的紧凑字节数组
+data, err := json.Marshal(movies) json.MarshalIndent 格式化编码
+返回包含空格的格式化字节数组
+参数 2 : 每一行的输出前缀
+参数 3 : 层级缩进
+data, err := json.MarshalIndent(movies, &amp;#34;&amp;#34;, &amp;#34; &amp;#34;) **Unmarshal ** 解码
+首先处理json数据是json字面值null的情况。此时，函数将指针设为nil；否则，函数将json数据解码写入指针指向的值；如果指针本身是nil，函数会先申请一个值并使指针指向它。
+var titles []struct{ Title string } if err := json.Unmarshal(data, &amp;amp;titles); err != nil { log.Fatalf(&amp;#34;JSON unmarshaling failed: %s&amp;#34;, err) } 结构体中只有Title成员。通过定义合适的Go语言数据结构，我们可以选择性地解码JSON中感兴趣的成员。
+Decoder 流解码器
+还有 Encoder 流编码器
+type IssuesSearchResult struct { TotalCount int `json:&amp;#34;total_count&amp;#34;` Items []*Issue } var result IssuesSearchResult // 发起网络请求, 拿到 resp.</description>
+    </item>
+    
+    <item>
+      <title>4.赋值与类型</title>
+      <link>http://blog.golang.space/p/2019/golang/4.%E8%B5%8B%E5%80%BC%E4%B8%8E%E7%B1%BB%E5%9E%8B.md/</link>
+      <pubDate>Sat, 02 Nov 2019 00:00:00 +0000</pubDate>
+      
+      <guid>http://blog.golang.space/p/2019/golang/4.%E8%B5%8B%E5%80%BC%E4%B8%8E%E7%B1%BB%E5%9E%8B.md/</guid>
+      <description>元组赋值 a,b := b,a // 实现变量交换 i, j, k = 2, 3, 5 // 赋值 q, w, e = 2, &amp;#39;3&amp;#39;, true // 不同类型赋值 _, err = io.Copy(dst, src) // 丢弃字节数 _, ok = x.(T) // 只检测类型，忽略具体值 最大公约数
+func gcd(x, y int) int { for y != 0 { x, y = y, x%y } return x } 斐波那契数列
+func fib(n int) int { x, y := 0, 1 for i := 0; i &amp;lt; n; i++ { x, y = y, x+y } return x } v = m[key] // map查找，失败时返回零值 v = x.</description>
+    </item>
+    
+    <item>
+      <title>5.包和文件</title>
+      <link>http://blog.golang.space/p/2019/golang/5.%E5%8C%85%E5%92%8C%E6%96%87%E4%BB%B6.md/</link>
+      <pubDate>Sat, 02 Nov 2019 00:00:00 +0000</pubDate>
+      
+      <guid>http://blog.golang.space/p/2019/golang/5.%E5%8C%85%E5%92%8C%E6%96%87%E4%BB%B6.md/</guid>
+      <description>包和文件 Go 文件中的内部信息, 根据是否大写字母开头判断是否导出
+var Str string // 其他类导入包后可以调用 var str string // 包内可调用  按照惯例，一个包的名字和包的导入路径的最后一个字段相同，例如gopl.io/ch2/tempconv包的名字一般是tempconv。
+  如果导入了一个包，但是又没有使用该包将被当作一个编译错误处理。这种强制规则可以有效减少不必要的依赖
+  使用 golang.org/x/tools/cmd/goimports 自动添加删除导入包
+ 1. 包的初始化  包的初始化首先是解决包级变量的依赖顺序，然后按照包级变量声明出现的顺序依次初始化：
+ var a = b + c // a 第三个初始化, 为 3 var b = f() // b 第二个初始化, 为 2, 通过调用 f (依赖c) var c = 1 // c 第一个初始化, 为 1  func f() int { return c + 1 }  如果包中含有多个.</description>
+    </item>
+    
+    <item>
+      <title>6.条件</title>
+      <link>http://blog.golang.space/p/2019/golang/6.%E6%9D%A1%E4%BB%B6.md/</link>
+      <pubDate>Sat, 02 Nov 2019 00:00:00 +0000</pubDate>
+      
+      <guid>http://blog.golang.space/p/2019/golang/6.%E6%9D%A1%E4%BB%B6.md/</guid>
+      <description>循环 for initialization; condition; post { } 无限循环
+for {} 条件循环
+for condition {} 遍历数组 , i 是下标
+for i := range arr{ } 遍历数组, 下标和值
+for index,value := range arr{ } range的语法要求，要处理元素，必须处理索引。会拷贝一个新的变量 value , 对 value 做修改不会影响 arr
+在 for 多重循环中可以使用 break end 跳出最外层循环, 这里的 eng 是关键字, 有点像是 goto 语句一样
+跳出并结束嵌套循环
+end: for i := 0; i &amp;lt; 5; i++ { for i := 0; i &amp;lt; 10; i++ { if i == 2 { break end } fmt.</description>
+    </item>
+    
+    <item>
+      <title>7.数组和切片</title>
+      <link>http://blog.golang.space/p/2019/golang/7.%E6%95%B0%E7%BB%84%E5%92%8C%E5%88%87%E7%89%87.md/</link>
+      <pubDate>Sat, 02 Nov 2019 00:00:00 +0000</pubDate>
+      
+      <guid>http://blog.golang.space/p/2019/golang/7.%E6%95%B0%E7%BB%84%E5%92%8C%E5%88%87%E7%89%87.md/</guid>
+      <description>1. 数组 array 数组是定长的，长度一单定义，不能再更改。
+1.1. 如何声明? 声明数组，注意要指定长度。如果未指定长度可使用省略号，将会按长度初始化值的个数进行计算。
+var a [3]int v := [...]int{1,2,3} q := [3]int{1, 2, 3, 4} // 编译错误: cannot assign [4]int to [3]int 多维数组初始化
+var grid [4][5]int{{1,2},{4,5}} 指定索引初始化
+v1 := [...]string{1:&amp;#34;1&amp;#34;,5:&amp;#34;5&amp;#34;,9:&amp;#34;9&amp;#34;} 1.2. 零值 数组是值类型
+声明数组后不赋值，则每个元素都被初始化零值，比如 int 类型会初始化为 0。
+1.3. 特性 Go 语言中数组在初始化之后大小就无法改变，存储元素类型相同、但是大小不同的数组类型在 Go 语言看来也是完全不同的，只有两个条件都相同才是同一个类型。
+var a1 [3]int var a2 [5]int fmt.Printf(&amp;#34;%T != %T&amp;#34;, a1, a2) 两种不同的优化 cmd/compile/internal/gc.anylit
+ 当元素数量小于或者等于 4 个时，会直接将数组中的元素放置在栈上； 当元素数量大于 4 个时，会将数组中的元素放置到静态区并在运行时取出；  1.4. 元素比较  如果数组的元素类型可比较，则数组也可以比较 维数相同，含有元素个数相同  1.</description>
+    </item>
+    
+    <item>
+      <title>1.命名规则</title>
+      <link>http://blog.golang.space/p/2019/golang/1.%E5%91%BD%E5%90%8D.md/</link>
+      <pubDate>Fri, 01 Nov 2019 00:00:00 +0000</pubDate>
+      
+      <guid>http://blog.golang.space/p/2019/golang/1.%E5%91%BD%E5%90%8D.md/</guid>
+      <description>名字很重要 起名要有可读性, 好变量名的特点是
+ 一致 (容易猜测) 简短 (易于输出) 准备 (易于理解)  通常来说，如果一个名字的作用域比较大，生命周期也比较长，那么用长的名字将会更有意义。但是局部变量还是参考以上三点
+1. 项目目录名 使用中划线组合
+# BAD blog_server # GOOD blog-server 2. 包名  使用 bytes.Buffer and strings.Reader，而没有 bytes.ByteBuffer and strings.StringReader 导出的软件包名要有意义, 避免 util ，common 等 避免使用大写字母, 且不要有重复的单词  # BAD import ( &amp;#34;MyUtils&amp;#34; &amp;#34;blog_server&amp;#34; &amp;#34;blog-server&amp;#34; &amp;#34;blog server&amp;#34; ) # GOOD import ( &amp;#34;cmd5&amp;#34; &amp;#34;blog&amp;#34; ) 3. 文件或文件夹名 文件或文件夹名建议使用 蛇形命名，一些系统并不会对文件名区分大小写
+# BAD buildTest.go # GOOD build_test.go 避免和保留特定用法的后缀冲突
+# 测试文件 _test.go # 系统相关 _386.</description>
+    </item>
+    
+    <item>
+      <title>2.变量</title>
+      <link>http://blog.golang.space/p/2019/golang/2.%E5%8F%98%E9%87%8F.md/</link>
+      <pubDate>Fri, 01 Nov 2019 00:00:00 +0000</pubDate>
+      
+      <guid>http://blog.golang.space/p/2019/golang/2.%E5%8F%98%E9%87%8F.md/</guid>
+      <description>变量 Golang 有四种声明
+var	// 声明变量 const	// 声明常量 type	// 声明类型 func	// 声明函数 1. 基础内容 1.1. 变量的基本用法 var {variable} {type} = {表达式} // 其中类型 或表达式可以省略一个 var {variable} = {表达式} var {variable} {type} 表达式省略时，将初始化零值
+// 各个类型的零值 var INT int = 0 var STRING string = &amp;#34;&amp;#34; var BOOL bool = false var INTERFACE interface{} = nil // 引用类型(slice,map,chan,func,point,interface{}) 零值都是 nil Go开发者应该让聚合类型的零值也具有意义，可以保证任何类型变量总有合理有效的零值状态。
+1.2. 多参数声明 var i,j,k int // int,int,int var b,f,s = true,2.</description>
+    </item>
+    
+    <item>
+      <title>3.指针</title>
+      <link>http://blog.golang.space/p/2019/golang/3.%E6%8C%87%E9%92%88.md/</link>
+      <pubDate>Fri, 01 Nov 2019 00:00:00 +0000</pubDate>
+      
+      <guid>http://blog.golang.space/p/2019/golang/3.%E6%8C%87%E9%92%88.md/</guid>
+      <description>指针 任何指针的零值都是 nil
+1. 基础内容 1.1. 指针的基本用法 指针不能运算，Go 语言只有值传递一种方式，引用类型，也会拷贝引用的地址
+var a int = 2 var pa *int = &amp;amp;a *pa = 3 fmt.Println(a) 1.2. 指针相等的条件  都是 nil 指向同一个变量  在 Go 语言中，返回函数中局部变量的地址也是安全的
+1.3.new 预定义函数 new(T) 将创建一个 T 类型的匿名变量，初始化T 类型零值，返回变量地址，类型是 *T
+new 是预定义函数，并非关键字，可以更改类型，声明为变量等操作，但不建议这样干!
+p := new(int) // p, *int 类型, 指向匿名的 int 变量 fmt.Println(*p) // &amp;#34;0&amp;#34; *p = 2 // 设置 int 匿名变量的值为 2 fmt.Println(*p) // &amp;#34;2&amp;#34; struct{}和[0]int是大小为 0 的类型，(请谨慎使用大小为0的类型，因为这样可能会导致Go语言的自动垃圾回收器有不同的行为，具体请查看runtime.SetFinalizer函数相关文档）。</description>
+    </item>
+    
+    <item>
+      <title>singleflight</title>
+      <link>http://blog.golang.space/p/2019/golang/singleflight.md/</link>
+      <pubDate>Mon, 18 Mar 2019 00:00:00 +0000</pubDate>
+      
+      <guid>http://blog.golang.space/p/2019/golang/singleflight.md/</guid>
+      <description>什么是 SingleFlight? 应对并发的利器! 常用场景有: 缓存穿透
+100 个并发，普通的加锁方式会导致队列执行。
+而 SingleFlight 会缓存一瞬间的并发请求函数返回值。第 1 个访问的函数去执行，其余 99 个进入协程等待，当第一个函数执行结果出来，剩下 99 个直接返回该结果。最后删除 map 中缓存的结果。
+如何使用 SingleFlight? func TestSingleFlight(t *testing.T){ var g singleflight.Group g.Do(&amp;#34;key&amp;#34;,func() (interface{}, error){ return &amp;#34;test&amp;#34;,nil }) } 看看源码 singleflight
+package singleflight import &amp;#34;sync&amp;#34; type call struct { wg sync.WaitGroup // 阻塞并发函数请求 	val interface{}	// 函数返回值 	err error	// 函数返回值 } // 一类工作 type Group struct { mu sync.Mutex m map[string]*call // 延迟初始化,用于临时存储函数 } // 判断 key 是否第一次调用 // 是则调用函数获取结果 // 不是, 则阻塞在 c.</description>
+    </item>
+    
+    <item>
+      <title>图床</title>
+      <link>http://blog.golang.space/p/2019/%E4%B8%83%E7%89%9B%E4%BA%91%E5%81%9A%E5%9B%BE%E5%BA%8A.md/</link>
+      <pubDate>Wed, 13 Mar 2019 00:00:00 +0000</pubDate>
+      
+      <guid>http://blog.golang.space/p/2019/%E4%B8%83%E7%89%9B%E4%BA%91%E5%81%9A%E5%9B%BE%E5%BA%8A.md/</guid>
+      <description>图床 七牛云免费赠送用户 10G 存储空间，用来做图床绰绰有余
+1. 使用 PicGo 上传图片 注册登录七牛云，绑定相关信息。在 密钥管理 页面复制 「AK」和「SK」。
+PicGo帮助文档
+如果使用快捷键上传, 要使用到 xclip, 必须安装
+存储空间名似乎不能用 - ，第一次配置的时候一直上传失败，更换空间名后搞定
+2. 更换自定义域名 七牛云的融合域名只能使用 30 天, 这里更换成自己的二级域名
+2.1. 进入页面后添加域名 这里创建时，多次提示域名未备案，域名错误等，多尝试几次即可创建
+在对象存储中将该域名设置为默认路径
+在域名商处设置 dns 解析
+其中的记录值来自于下图
+最后，将域名拷贝至 PicGo
+2.2. 使用 HTTPS 使用新版本谷歌浏览器 http 的图片不能加载，升级更安全的 https。
+创建证书，上传到七牛云，部署 CDN 即可。
+3. 更换了uPic 在 20 年初使用 PicGo 遇到了上传偶尔失效的 bug，因此切换成 uPic，免费，强大!
+保存路径:
+PicGo/{since_millisecond}-{filename}{.suffix} </description>
+    </item>
+    
+    <item>
+      <title>关于 markdown 风格</title>
+      <link>http://blog.golang.space/p/2019/%E5%85%B3%E4%BA%8E-markdown-%E4%B9%A6%E5%86%99%E8%A7%84%E8%8C%83.md/</link>
+      <pubDate>Tue, 12 Mar 2019 00:00:00 +0000</pubDate>
+      
+      <guid>http://blog.golang.space/p/2019/%E5%85%B3%E4%BA%8E-markdown-%E4%B9%A6%E5%86%99%E8%A7%84%E8%8C%83.md/</guid>
+      <description>记录笔记的风格
+文件名风格  后缀使用小写 同时有中英文，英文两边加空格 使用连字符 -，而非下划线或驼峰，连字符是现在最流行的网址分隔符  主题风格  建议 ## 二级标题之间可多加一行空格 名称由 {大标题序号}.{小标题序号}.{标题} 组成，若文章无序从任意位置查看都可以 ( 比如这篇 ) 可不要序号  # Title 引言 ## 1.相关见闻 	介绍、说明 ### 1.1.小标题 ## 2.基础内容 	### 2.1.小标题 ### 2.2.小标题 ## 3.使用案例 	### 3.1.小标题 ### 3.2.小标题 代码块 Golang 代码块示例
+func main(){ fmt.Println(&amp;#34;hi&amp;#34;) } Golang 代码 markdown 格式，注意右上角标明 go 语言
+​```go func main(){ fmt.Println(&amp;#34;hi&amp;#34;) } ​``` Javascript 代码格式
+​```js console.log(&amp;#34;hi&amp;#34;) ​``` html 代码格式</description>
+    </item>
+    
+    <item>
+      <title>图记创建博客的过程</title>
+      <link>http://blog.golang.space/p/2019/%E5%88%9B%E5%BB%BA%E5%8D%9A%E5%AE%A2.md/</link>
+      <pubDate>Mon, 11 Mar 2019 00:00:00 +0000</pubDate>
+      
+      <guid>http://blog.golang.space/p/2019/%E5%88%9B%E5%BB%BA%E5%8D%9A%E5%AE%A2.md/</guid>
+      <description>以前用的是 Spring boot 创建的博客，现在转 Golang 这么久了，想换个与之相关技术的，于是乎有了这个 hugo 创建的博客
+1. 开始 下载安装包, 写此篇文章时版本为 0.81
+解压缩后放入 /usr/bin 文件夹
+创建博客
+hugo new site blog git init &amp;amp;&amp;amp; git add . git commit -m &amp;#34;create blog&amp;#34; 添加主题，首次创建可以使用该主题下的例子，将 exampleSite 文件夹下的 config.yaml ， content，plugins 拷贝到 blog 目录
+git submodule add https://github.com/CaiJimmy/hugo-theme-stack ./themes/hugo-theme-stack cd ./themes/hugo-theme-stack/exampleSite rm LICENSE README.md mv * ../../../ 回到 blog 目录，commit 代码后，创建服务器查看博客
+git add . git commit -m &amp;#34;add theme&amp;#34; hugo server 2. 部署到公网 这里部署到 Github</description>
+    </item>
+    
+    <item>
+      <title></title>
+      <link>http://blog.golang.space/p/</link>
+      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+      
+      <guid>http://blog.golang.space/p/</guid>
+      <description>函数 函数声明
+func f(i, j, k int, s, t string) { /* ... */ } func f(i int, j int, k int, s string, t string) { /* ... */ } 函数签名
+ 函数的类型被称为函数的签名。如果两个函数形式参数列表和返回值列表中的变量类型一一对应，那么这两个函数被认为有相同的类型或签名。
+ 函数返回值
+ 可以返回多个值 不需要的值可以使用下划线接收  返回的是值类型变量, 分配在栈上, 返回的是引用类型分配在堆上, 当不再需要时, gc 自动回收
+如果一个函数所有的返回值都有显式的变量名，那么该函数的return语句可以省略操作数。这称之为bare return。
+这样会使代码不易理解 , 不宜过度使用
+func sub(x, y int) (z int) { z = x - y; return // 此处等价于 return z } 实参通过值的方式传递，包括引用类型, 也是值传递 , 因此函数的形参是实参的拷贝。</description>
+    </item>
+    
+    <item>
+      <title></title>
+      <link>http://blog.golang.space/p/</link>
+      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+      
+      <guid>http://blog.golang.space/p/</guid>
+      <description>error 可预知的错误
+有些预料中的错误 , 会作为函数的第二个返回值 , 可以使用 fmt.Errorf(&#39;%v&#39;,err) 封装错误, 使用 Unwrap 来获取上一层的错误
+由于错误信息经常是以链式组合在一起的，所以错误信息中应避免大写和换行符。
+不可预知的 , 偶然的
+一个明智的选择是重新尝试失败的操作。在重试时，我们需要限制重试的时间间隔或重试的次数，防止无限制的重试。
+func WaitForServer(url string) error { const timeout = 1 * time.Minute deadline := time.Now().Add(timeout) for tries := 0; time.Now().Before(deadline); tries++ { _, err := http.Head(url) if err == nil { return nil // success  } log.Printf(&amp;#34;server not responding (%s);retrying…&amp;#34;, err) time.Sleep(time.Second &amp;lt;&amp;lt; uint(tries)) // exponential back-off  } return fmt.Errorf(&amp;#34;server %s failed to respond after %s&amp;#34;, url, timeout) } 当你想忽略某个错误时 , 应该清晰的写下意图</description>
+    </item>
+    
+    <item>
+      <title></title>
+      <link>http://blog.golang.space/p/</link>
+      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+      
+      <guid>http://blog.golang.space/p/</guid>
+      <description>defer  os.Exit 退出时不会调用 defer 指定的函数 os.Exit 退出时不输出当前调用栈信息   defer语句经常被用于处理成对的操作，如打开、关闭、连接、断开连接、加锁、释放锁。通过defer机制，不论函数逻辑多复杂，都能保证在任何执行路径下，资源被释放。
+ defer 执行时间 : return语句更新返回值变量之后，函数返回之前
+若defer语句中嵌套了多层函数调用，只是最后一层函数调用才延后执行defer un(trace(&amp;quot;b&amp;quot;)) 会优先执行 trace(&amp;quot;B&amp;quot;)
+若遇到 panic , 先执行 defer , 再 panic
+多个 defer , 会按注册的先后顺序, 逆序执行, 类型栈,后进后出, 递归是正序
+一个函数控制出入口
+func bigSlowOperation() { defer trace(&amp;#34;bigSlowOperation&amp;#34;)() // don&amp;#39;t forget the extra parentheses  // ...lots of work…  time.Sleep(10 * time.Second) // simulate slow operation by sleeping } func trace(msg string) func() { start := time.</description>
+    </item>
+    
+    <item>
+      <title></title>
+      <link>http://blog.golang.space/p/</link>
+      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+      
+      <guid>http://blog.golang.space/p/</guid>
+      <description>panic   用于不可用恢复的严重错误
+  panic 退出前会执行 defer 指定内容
+   当panic异常发生时，程序会中断运行，并立即执行在该goroutine中被延迟的函数（defer 机制）, 随后，程序崩溃并输出日志信息。
+  考虑regexp.Compile函数，该函数将正则表达式编译成有效的可匹配格式。当输入的正则表达式不合法时，该函数会返回一个错误。当调用者明确的知道正确的输入不会引起函数错误时，要求调用者检查这个错误是不必要和累赘的。我们应该假设函数的输入一直合法，就如前面的断言一样：当调用者输入了不应该出现的输入时，触发panic异常。
+ 输出堆栈信息
+func main() { defer printStack() f(3) } func printStack() { var buf [4096]byte n := runtime.Stack(buf[:], false) os.Stdout.Write(buf[:n]) } 正则
+regexp.MustCompile 检查输入的合法性
+var httpSchemeRE = regexp.MustCompile(`^https?:`) //&amp;#34;http:&amp;#34; or &amp;#34;https:&amp;#34; </description>
+    </item>
+    
+    <item>
+      <title></title>
+      <link>http://blog.golang.space/p/</link>
+      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+      
+      <guid>http://blog.golang.space/p/</guid>
+      <description>recover  仅在 defer 调用中使用 获取 panic 的 值 如果无法处理, 可重新 panic   通常来说，不应该对panic异常做任何处理，但有时，也许我们可以从异常中恢复，至少我们可以在程序崩溃前，做一些操作。
+在未发生panic时调用recover，recover会返回nil。
+不加区分的恢复所有的panic异常，不是可取的做法；虽然把对panic的处理都集中在一个包下，有助于简化对复杂和不可以预料问题的处理，但作为被广泛遵守的规范，你不应该试图去恢复其他包引起的panic。
+ defer func() { switch p := recover(); p { case nil: // 没有异常  case bailout{}: // 发现异常  err = fmt.Errorf(&amp;#34;multiple title elements&amp;#34;) default: panic(p) //未知异常  } }() func tryRecover(){ defer func(){ r := recover() if err,ok := r.(error); ok { fmt.Println(&amp;#34;error occurred:&amp;#34;,err) }else{ panic(r) } }() panic(errors.New(&amp;#34;this is an error&amp;#34;)) } func main(){ tryRecover() } </description>
+    </item>
+    
+    <item>
+      <title></title>
+      <link>http://blog.golang.space/p/</link>
+      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+      
+      <guid>http://blog.golang.space/p/</guid>
+      <description>跟结构体绑定的函数, 称为方法
+type fire struct{} func (f fire) Play(){ } Java 中对象里使用 this , python 对象里使用 self , 而 golang 建议可以使用其类型的第一个字母，比如这里使用了Point的首字母p。可以任意选择变量名
+方法不能与结构体的属性重名, 编译器会报错
+ 当调用一个函数时，会对其每一个参数值进行拷贝，如果一个函数需要更新一个变量，或者函数的其中一个参数实在太大我们希望能够避免进行这种默认的拷贝，这种情况下我们就需要用到指针了。对应到我们这里用来更新接收器的对象的方法，当这个接受者变量本身比较大时，我们就可以用其指针而不是对象来声明方法
+ func (p *Point) ScaleBy(factor float64) { p.X *= factor p.Y *= factor }  在现实的程序里，一般会约定如果Point这个类有一个指针作为接收器的方法，那么所有Point的方法都必须有一个指针接收器,即使是那些并不需要这个指针接收器的函数。
+在声明方法时，如果一个类型名本身是一个指针的话，是不允许其出现在接收器中的，比如下面这个例子：
+type P *int func (P) f() { /* ... */ } // compile error: invalid receiver type  如果方法使用指针作为接收器, 那么要提供一个该类型的指针进行调用方法, 幸运的是 , 如果接收器 p 是point 类型变量 , 编译器会隐式的用 &amp;amp;p.</description>
+    </item>
+    
+    <item>
+      <title></title>
+      <link>http://blog.golang.space/p/</link>
+      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+      
+      <guid>http://blog.golang.space/p/</guid>
+      <description>接口  接口只有当有两个或两个以上的具体类型必须以相同的方式进行处理时才需要。
+当一个接口只被一个单一的具体类型实现时有一个例外，就是由于它的依赖，这个具体类型不能和这个接口存在在一个相同的包中。这种情况下，一个接口是解耦这两个包的一个好方式。
+ 使用 %T 打印接口的动态类型
+var w io.Writer fmt.Printf(&amp;#34;%T\n&amp;#34;, w) // &amp;#34;&amp;lt;nil&amp;gt;&amp;#34;  一个不包含任何值的nil接口值和一个刚好包含nil指针的接口值是不同的。
+ 一个包含nil指针的接口不是nil接口 容易难到程序员的陷阱
+接口类型包含 type 和 value 两个参数
+const debug = true func TestInterface(t *testing.T){ var buf *bytes.Buffer if debug { buf = new(bytes.Buffer) } f(buf) } f(out io.Writer){ // 函数被调用 , out 参数赋值一个指针  // 此时 out 是不为 nil 的, 但其值, 指针可能为 nil  // 所以永远为 true  if out != nil{ // 对 nil指针调用方法,panic 异常  out.</description>
+    </item>
+    
+    <item>
+      <title></title>
+      <link>http://blog.golang.space/p/</link>
+      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+      
+      <guid>http://blog.golang.space/p/</guid>
+      <description>Goroutines 第一个小例子
+ 主函数返回时，所有的goroutine都会被直接打断，程序退出。
+除了从主函数退出或者直接终止程序之外，没有其它的编程方法能够让一个goroutine来打断另一个的执行，但是之后可以看到一种方式来实现这个目的，通过goroutine之间的通信来让一个goroutine请求其它的goroutine，并让被请求的goroutine自行结束执行。
+ package main import ( &amp;#34;fmt&amp;#34; &amp;#34;time&amp;#34; ) func main() { go spinner(100 * time.Millisecond) const n = 45 fibN := fib(n) // slow 	fmt.Printf(&amp;#34;\rFibonacci(%d) = %d\n&amp;#34;, n, fibN) } func spinner(delay time.Duration) { for { for _, r := range `-\|/` { fmt.Printf(&amp;#34;\r%c&amp;#34;, r) time.Sleep(delay) } } } func fib(x int) int { if x &amp;lt; 2 { return x } return fib(x-1) + fib(x-2) } func T1() { go T2() fmt.</description>
+    </item>
+    
+    <item>
+      <title></title>
+      <link>http://blog.golang.space/p/</link>
+      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+      
+      <guid>http://blog.golang.space/p/</guid>
+      <description>channels channel 是一个通信机制，它可以让一个 goroutine 通过它给另一个goroutine 发送值信息。
+channel 是线程安全的, 多个协程操作同一管道, 不会发生资源争抢
+[toc]
+1. 基础知识 1.1. 创建 channel channel 的零值也是 nil , 和 map 类似，channel 也对应一个make创建的底层数据结构的引用。当我们复制一个 channel 或用于函数参数传递时，我们只是拷贝了一个 channel 引用，因此调用者和被调用者将引用同一个channel对象。
+ch := make(chan int) // 无缓存 ch2 := make(chan int,1) // 有缓冲 1.2. 读写操作 ch &amp;lt;- x // 发送 x := &amp;lt;-ch // 接收 &amp;lt;-ch // 接收,丢弃结果 1.3. 关闭 关闭channel，随后对该 channel 的任何发送都将导致panic异常;
+对一个已经被close过的 channel 进行接收操作依然可以接受到之前已经成功发送的数据；如果channel中已经没有数据的话将产生一个零值的数据。
+close(ch) result, ok := &amp;lt;- ch 第二个结果是一个布尔值ok，ture表示成功从channels接收到值，false表示channels已经被关闭并且里面没有值可接收。</description>
+    </item>
+    
+    <item>
+      <title></title>
+      <link>http://blog.golang.space/p/</link>
+      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+      
+      <guid>http://blog.golang.space/p/</guid>
+      <description>共享变量的并发  一个函数在并发调用时没法工作的原因太多了，比如死锁（deadlock）、活锁（livelock）和饿死（resource starvation）。我们没有空去讨论所有的问题，这里我们只聚焦在竞争条件上。
+ 无论任何时候，只要有两个goroutine并发访问同一变量，且至少其中的一个是写操作的时候就会发生数据竞争。
+数据竞争会在两个以上的goroutine并发访问相同的变量且至少其中一个为写操作时发生。根据上述定义，有三种方式可以避免数据竞争:
+1. 不要去写变量
+使用 map 判断是否有改变量
+2. 避免从多个 goruntine 访问变量
+不要使用共享数据来通信；使用通信来共享数据 , 仅使用一个 goruntine 访问变量, 提供对一个指定的变量通过channel来请求的goroutine叫做这个变量的monitor（监控）goroutine。
+例如:
+package bank import ( &amp;#34;fmt&amp;#34; &amp;#34;sync&amp;#34; &amp;#34;testing&amp;#34; ) var deposits = make(chan int) // 汇款 var balances = make(chan int) // 余额  // Deposit 存款 func Deposit(amount int) { deposits &amp;lt;- amount } // Balance 余额 func Balance() int { return &amp;lt;-balances } type draw struct { amount int succeed chan bool } var withdraws = make(chan draw) // 取款  // Withdraw 取款 func Withdraw(amount int) bool { succeed := make(chan bool) withdraws &amp;lt;- draw{amount, succeed} return &amp;lt;-succeed } func teller() { var balance int for { select { case amount := &amp;lt;-deposits: // 存款 	balance += amount case balances &amp;lt;- balance: // 余额 	case draw := &amp;lt;-withdraws: if draw.</description>
+    </item>
+    
+    <item>
+      <title></title>
+      <link>http://blog.golang.space/p/</link>
+      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+      
+      <guid>http://blog.golang.space/p/</guid>
+      <description>包和工具 查看标准包数量
+go list std | wc -l 检索包地址
+前言 特性 : 快
+Go语言的闪电般的编译速度主要得益于三个语言特性。
+ 导包在文件开头显示声明 禁止包环装依赖 , 形成有向无环图 记录包的依赖关系, 无需遍历所有依赖文件 ( 解决重复依赖 )  main 包
+名字为main的包是给go build 构建命令一个信息，这个包编译完之后必须调用连接器生成一个可执行程序。
+_test.go 为后缀的包
+_ 和 . 开头的源文件会被构建工具忽略
+所有以_test为后缀包名的测试外部扩展包都由go test命令独立编译
+1. 包 1.1. 导入包  在包声明语句后 , 添加导包声明 , 可以使用圆括号同时导入多个 包之间可添加空行分组, 每个分组的导入顺序会被 gofmt 格式化成字母顺序 循环依赖构建工具会报错  本地化导入
+import . &amp;#34;strings&amp;#34; Swap(1,3) 别名导入 用于解决包重名, 或长包名
+import st &amp;#34;strings&amp;#34; st.Swap(1,3) 匿名导入 它会计算包级变量的初始化表达式和执行导入包的init初始化函数
+import _ &amp;#34;strings&amp;#34; 1.</description>
+    </item>
+    
+    <item>
+      <title></title>
+      <link>http://blog.golang.space/p/</link>
+      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+      
+      <guid>http://blog.golang.space/p/</guid>
+      <description>测试 在包目录内，所有以_test.go为后缀名的源文件在执行go build时不会被构建成包的一部分，它们是go test测试的一部分。
+在*_test.go文件中，有三种类型的函数：测试函数 (Text)、基准测试（benchmark）函数、示例 (Example) 函数。
+go test命令会遍历所有的*_test.go文件中符合上述命名规则的函数，生成一个临时的main包用于调用相应的测试函数，接着构建并运行、报告测试结果，最后清理测试中生成的临时文件。
+避免脆弱测试代码的方法是只检测你真正关心的属性。保持测试代码的简洁和内部结构的稳定。特别是对断言部分要有所选择。不要对字符串进行全字匹配，而是针对那些在项目的发展中是比较稳定不变的子串。很多时候值得花力气来编写一个从复杂输出中提取用于断言的必要信息的函数，虽然这可能会带来很多前期的工作，但是它可以帮助迅速及时修复因为项目演化而导致的不合逻辑的失败测试。
+1. 测试函数 以Test为函数名前缀的函数，用于测试程序的一些逻辑行为是否正确；go test命令会调用这些测试函数并报告测试结果是PASS或FAIL。
+ 文件名必须以 _test.go 结尾 函数名必须以 Test 开头 参数类型必须是 *testing.T* 测试单个文件, 一定要带上被测试的源文件 go test -v cal_test.go cal.go 测试全部文件go test -v 测试单个方法 go test -v &amp;lt;file_name.go&amp;gt; -test.run TestAddUpper  1.1. 函数签名 测试函数的名字必须以Test开头，可选的后缀名必须以大写字母开头
+其中t参数用于报告测试失败和附加的日志信息。
+import &amp;#34;testing&amp;#34; func TestName(t *testing.T) { // ... } 1.2. 构建和运行测试 go test 参数-v可用于打印每个测试函数的名字和运行时间
+参数-run对应一个正则表达式，只有测试函数名被它正确匹配的测试函数才会
+go test -v -run=&amp;#34;French|Canal&amp;#34; === RUN TestFrenchPalindrome ... === RUN TestCanalPalindrome 1.</description>
+    </item>
+    
+    <item>
+      <title></title>
+      <link>http://blog.golang.space/p/</link>
+      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+      
+      <guid>http://blog.golang.space/p/</guid>
+      <description>反射 请远离reflect和unsafe包，除非你确实需要它们。原因有三
+ 基于反射的代码是比较脆弱的。反射在真正运行代码时才可能抛出异常, 可能是写完代码很久以后, 而且程序也可能运行了很长的时间。 即使对应类型提供了相同文档，但是反射的操作不能做静态类型检查，而且大量反射的代码通常难以理解。总是需要小心翼翼地为每个导出的类型和其它接受interface{}或reflect.Value类型参数的函数维护说明文档。 基于反射的代码通常比正常的代码运行速度慢一到两个数量级。对于一个典型的项目，大部分函数的性能和程序的整体性能关系不大，所以当反射能使程序更加清晰的时候可以考虑使用。测试是一个特别适合使用反射的场景，因为每个测试的数据集都很小。但是对于性能关键路径的函数，最好避免使用反射。  Go语言提供了一种机制，能够在运行时更新变量和检查它们的值、调用它们的方法和它们支持的内在操作，而不需要在编译时就知道这些变量的具体类型。这种机制被称为反射。
+1. 为什么需要反射? // Sprint 这是仿的 fmt 包的同名函数,功能不全, 且如果输入 map/array 等类型 // 分支还需要补充这些代码,若是需要导入的组合类型,将会产生依赖 // 所以需要反射 func Sprint(x interface{}) string { type stringer interface { String() string } switch x := x.(type) { case stringer: return x.String() case string: return x case int: return strconv.Itoa(x) case bool: if x { return &amp;#34;true&amp;#34; } return &amp;#34;false&amp;#34; default: // array, chan, func, map, pointer, slice, struct 	return &amp;#34;?</description>
+    </item>
+    
+    <item>
+      <title></title>
+      <link>http://blog.golang.space/p/</link>
+      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+      
+      <guid>http://blog.golang.space/p/</guid>
+      <description>atomic 1. 基础知识 1.1. 概念 原子性：一个或多个操作在CPU的执行过程中不被中断的特性，称为原子性。这些操作对外表现成一个不可分割的整体，他们要么都执行，要么都不执行，外界不会看到他们只执行到一半的状态。
+原子操作：进行过程中不能被中断的操作，原子操作由底层硬件支持，而锁则是由操作系统提供的API实现，若实现相同的功能，前者通常会更有效率
+1.2. 介绍 atomic包提供了底层的原子级内存操作，对于同步算法的实现很有用。
+这些函数必须谨慎地保证正确使用。除了某些特殊的底层应用，使用通道或者sync包的函数/类型实现同步更好。
+应通过通信来共享内存，而不通过共享内存实现通信。
+被SwapT系列函数实现的交换操作，在原子性上等价于：
+old = *addr *addr = new return old CompareAndSwapT系列函数实现的比较-交换操作，在原子性上等价于：
+if *addr == old { *addr = new return true } return false AddT 系列函数实现加法操作，在原子性上等价于：
+*addr += delta return *addr LoadT和StoreT系列函数实现的加载和保持操作，在原子性上等价于：&amp;ldquo;return *addr&amp;quot;和&amp;rdquo;*addr = val&amp;quot;。
+1.3. 类型与函数 atomic包中支持六种类型
+ int32 uint32 int64 uint64 uintptr unsafe.Pointer  对于每一种类型，提供了五类原子操作：
+LoadXXX(addr): 原子性的获取*addr的值，等价于：
+return *addr StoreXXX(addr, val): 原子性的将val的值保存到*addr，等价于：
+addr = val AddXXX(addr, delta): 原子性的将delta的值添加到*addr并返回新值（unsafe.</description>
+    </item>
+    
+    <item>
+      <title></title>
+      <link>http://blog.golang.space/p/</link>
+      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+      
+      <guid>http://blog.golang.space/p/</guid>
+      <description>[toc]
+字符串 1. 基础知识 1.1. 编码方式 Go 语言默认编码方式是 UTF-8。
+8 个 bit 表示一个 byte (字节) :
+ 0000 0000 表示 数字 0。 1111 1111 表示数字 255。  unicode 是定长编码，表示如下
+   字符 编码     e 0000 0000 0000 0000 0000 0000 0110 0101   世 0000 0000 0000 0000 0100 1110 0001 0111    由于 unicode 占用较多空间，于是有了 变长编码，这就是 UTF-8
+   编号 编码模板 说明     [0,127] 0?</description>
+    </item>
+    
+    <item>
+      <title></title>
+      <link>http://blog.golang.space/p/</link>
+      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+      
+      <guid>http://blog.golang.space/p/</guid>
+      <description>编写测试  func TestAccess(t *testing.T){ a := Access{ Price:100, } err := a.Deposit(100) if err!=nil{ t.Error(err) } if a.Price != 100 { t.Error(&amp;#34;a.Price is error&amp;#34;) } } 补充测试中的结构体和方法  type Access struct{ Price float64 } // 存款 func (a *Access) Deposit(number float64) error { a.Price += number }  运行测试完善程序，直至测试正确
+  补充测试，负数情况等，考虑多种实际场景，增加测试函数
+  引入数据库
+type DBClient struct{ db *postgresql.db } func (db *DBClient) Update(id int, bean interface) { db.</description>
+    </item>
+    
+  </channel>
+</rss>

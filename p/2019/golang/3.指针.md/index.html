@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="zh-cn">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='指针 任何指针的零值都是 nil
+1. 基础内容 1.1. 指针的基本用法 指针不能运算，Go 语言只有值传递一种方式，引用类型，也会拷贝引用的地址
+var a int = 2 var pa *int = &amp;amp;a *pa = 3 fmt.Println(a) 1.2. 指针相等的条件  都是 nil 指向同一个变量  在 Go 语言中，返回函数中局部变量的地址也是安全的
+1.3.new 预定义函数 new(T) 将创建一个 T 类型的匿名变量，初始化T 类型零值，返回变量地址，类型是 *T
+new 是预定义函数，并非关键字，可以更改类型，声明为变量等操作，但不建议这样干!
+p := new(int) // p, *int 类型, 指向匿名的 int 变量 fmt.Println(*p) // &amp;#34;0&amp;#34; *p = 2 // 设置 int 匿名变量的值为 2 fmt.Println(*p) // &amp;#34;2&amp;#34; struct{}和[0]int是大小为 0 的类型，(请谨慎使用大小为0的类型，因为这样可能会导致Go语言的自动垃圾回收器有不同的行为，具体请查看runtime.SetFinalizer函数相关文档）。'><title>3.指针</title>
+
+<link rel='canonical' href='http://blog.golang.space/p/2019/golang/3.%E6%8C%87%E9%92%88.md/'>
+
+<link rel="stylesheet" href="/scss/style.min.css"><meta property='og:title' content='3.指针'>
+<meta property='og:description' content='指针 任何指针的零值都是 nil
+1. 基础内容 1.1. 指针的基本用法 指针不能运算，Go 语言只有值传递一种方式，引用类型，也会拷贝引用的地址
+var a int = 2 var pa *int = &amp;amp;a *pa = 3 fmt.Println(a) 1.2. 指针相等的条件  都是 nil 指向同一个变量  在 Go 语言中，返回函数中局部变量的地址也是安全的
+1.3.new 预定义函数 new(T) 将创建一个 T 类型的匿名变量，初始化T 类型零值，返回变量地址，类型是 *T
+new 是预定义函数，并非关键字，可以更改类型，声明为变量等操作，但不建议这样干!
+p := new(int) // p, *int 类型, 指向匿名的 int 变量 fmt.Println(*p) // &amp;#34;0&amp;#34; *p = 2 // 设置 int 匿名变量的值为 2 fmt.Println(*p) // &amp;#34;2&amp;#34; struct{}和[0]int是大小为 0 的类型，(请谨慎使用大小为0的类型，因为这样可能会导致Go语言的自动垃圾回收器有不同的行为，具体请查看runtime.SetFinalizer函数相关文档）。'>
+<meta property='og:url' content='http://blog.golang.space/p/2019/golang/3.%E6%8C%87%E9%92%88.md/'>
+<meta property='og:site_name' content='ixugo'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:published_time' content='2019-11-01T00:00:00&#43;00:00'/><meta property='article:modified_time' content='2019-11-01T00:00:00&#43;00:00'/>
+<meta name="twitter:site" content="ixugo"><meta name="twitter:title" content="3.指针">
+<meta name="twitter:description" content="指针 任何指针的零值都是 nil
+1. 基础内容 1.1. 指针的基本用法 指针不能运算，Go 语言只有值传递一种方式，引用类型，也会拷贝引用的地址
+var a int = 2 var pa *int = &amp;amp;a *pa = 3 fmt.Println(a) 1.2. 指针相等的条件  都是 nil 指向同一个变量  在 Go 语言中，返回函数中局部变量的地址也是安全的
+1.3.new 预定义函数 new(T) 将创建一个 T 类型的匿名变量，初始化T 类型零值，返回变量地址，类型是 *T
+new 是预定义函数，并非关键字，可以更改类型，声明为变量等操作，但不建议这样干!
+p := new(int) // p, *int 类型, 指向匿名的 int 变量 fmt.Println(*p) // &amp;#34;0&amp;#34; *p = 2 // 设置 int 匿名变量的值为 2 fmt.Println(*p) // &amp;#34;2&amp;#34; struct{}和[0]int是大小为 0 的类型，(请谨慎使用大小为0的类型，因为这样可能会导致Go语言的自动垃圾回收器有不同的行为，具体请查看runtime.SetFinalizer函数相关文档）。">
+    <link rel="shortcut icon" href="img/favicon.ico" />
+
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'G-LV6238KQFE', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+    </head>
+    <body class="">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.body.dataset.scheme = 'dark';
+        } else {
+            document.body.dataset.scheme = 'light';
+        }
+    })();
+</script><div class="container main-container flex on-phone--column extended article-page with-toolbar">
+            <aside class="sidebar left-sidebar sticky">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="切换菜单">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header class="site-info">
+        
+            <figure class="site-avatar">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu0b04ba6d7249c9f90c92db974439eb8c_208246_300x0_resize_box_2.png" width="300"
+                            height="321" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+
+                
+            </figure>
+        
+        <h1 class="site-name"><a href="http://blog.golang.space">ixugo</a></h1>
+        <h2 class="site-description">码农</h2>
+    </header>
+
+    <ol class="menu" id="main-menu">
+        
+        
+        
+
+        <li >
+            <a href='/'>
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>Home</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/about/'>
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>About</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/archives/'>
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>Archives</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/search/'>
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>Search</span>
+            </a>
+        </li>
+        
+
+        
+            <li id="dark-mode-toggle">
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                <span>暗色模式</span>
+            </li>
+        
+    </ol>
+</aside>
+
+            <main class="main full-width">
+    <div id="article-toolbar">
+        <a href="http://blog.golang.space" class="back-home">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-chevron-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="15 6 9 12 15 18" />
+</svg>
+
+
+
+            <span>Back</span>
+        </a>
+    </div>
+
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+    <header class="article-category">
+        
+            <a href="/categories/golang/" >
+                Golang
+            </a>
+        
+    </header>
+    
+
+    <h2 class="article-title">
+        <a href="/p/2019/golang/3.%E6%8C%87%E9%92%88.md/">3.指针</a>
+    </h2>
+
+    <footer class="article-time">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+        <time class="article-time--published">Nov 01, 2019</time>
+    </footer></div>
+</header>
+
+    <section class="article-content">
+    <h1 id="指针">指针</h1>
+<p>任何指针的零值都是 <code>nil</code></p>
+<h2 id="1-基础内容">1. 基础内容</h2>
+<h3 id="11-指针的基本用法">1.1. 指针的基本用法</h3>
+<p>指针不能运算，Go 语言只有值传递一种方式，引用类型，也会拷贝引用的地址</p>
+<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">var</span> <span class="nx">a</span> <span class="kt">int</span> <span class="p">=</span> <span class="mi">2</span>
+<span class="kd">var</span> <span class="nx">pa</span> <span class="o">*</span><span class="kt">int</span> <span class="p">=</span> <span class="o">&amp;</span><span class="nx">a</span>
+<span class="o">*</span><span class="nx">pa</span> <span class="p">=</span> <span class="mi">3</span>
+<span class="nx">fmt</span><span class="p">.</span><span class="nf">Println</span><span class="p">(</span><span class="nx">a</span><span class="p">)</span>
+</code></pre></div><h3 id="12-指针相等的条件">1.2. 指针相等的条件</h3>
+<ul>
+<li>都是 <code>nil</code></li>
+<li>指向同一个变量</li>
+</ul>
+<p>在 Go 语言中，返回函数中局部变量的地址也是安全的</p>
+<h3 id="13new-预定义函数">1.3.new 预定义函数</h3>
+<p><code>new(T)</code>  将创建一个 T 类型的匿名变量，初始化T 类型零值，返回变量地址，类型是 <code>*T</code></p>
+<p><code>new</code> 是预定义函数，并非关键字，可以更改类型，声明为变量等操作，但不建议这样干!</p>
+<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="nx">p</span> <span class="o">:=</span> <span class="nb">new</span><span class="p">(</span><span class="kt">int</span><span class="p">)</span>   <span class="c1">// p, *int 类型, 指向匿名的 int 变量
+</span><span class="c1"></span><span class="nx">fmt</span><span class="p">.</span><span class="nf">Println</span><span class="p">(</span><span class="o">*</span><span class="nx">p</span><span class="p">)</span> <span class="c1">// &#34;0&#34;
+</span><span class="c1"></span><span class="o">*</span><span class="nx">p</span> <span class="p">=</span> <span class="mi">2</span>          <span class="c1">// 设置 int 匿名变量的值为 2
+</span><span class="c1"></span><span class="nx">fmt</span><span class="p">.</span><span class="nf">Println</span><span class="p">(</span><span class="o">*</span><span class="nx">p</span><span class="p">)</span> <span class="c1">// &#34;2&#34;
+</span></code></pre></div><p><code>struct{}</code>和<code>[0]int</code>是大小为 0 的类型，(请谨慎使用大小为0的类型，因为这样可能会导致Go语言的自动垃圾回收器有不同的行为，具体请查看<code>runtime.SetFinalizer</code>函数相关文档）。</p>
+<h3 id="14变量的生命周期">1.4.变量的生命周期</h3>
+<p>包级别的变量，生命周期和程序的运行周期一致</p>
+<p>函数的参数和返回值都是局部变量，在函数被调用的时候创建，函数的生命周期(栈帧)结束销毁</p>
+<p>Golang 语言的自动垃圾回收，这里避开实现细节，说一下思路 :</p>
+<blockquote>
+<p>从每个包级的变量和每个当前运行函数的每一个局部变量开始，通过指针或引用的访问路径遍历，是否可以找到该变量。如果不存在这样的访问路径，那么说明该变量是不可达的，也就是说它是否存在并不会影响程序后续的计算结果。</p>
+<p>因为一个变量的有效周期只取决于是否可达，因此一个循环迭代内部的局部变量的生命周期可能超出其局部作用域。同时，局部变量可能在函数返回之后依然存在。</p>
+<p>编译器会自动选择在栈上还是在堆上分配局部变量的存储空间，选择并不是由用var还是new声明变量的方式决定</p>
+</blockquote>
+<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">var</span> <span class="nx">global</span> <span class="o">*</span><span class="kt">int</span>
+
+<span class="kd">func</span> <span class="nf">f</span><span class="p">()</span> <span class="p">{</span>
+    <span class="kd">var</span> <span class="nx">x</span> <span class="kt">int</span>
+    <span class="nx">x</span> <span class="p">=</span> <span class="mi">1</span>
+    <span class="nx">global</span> <span class="p">=</span> <span class="o">&amp;</span><span class="nx">x</span>     <span class="c1">// 堆上, 因为包级别还在引用, 从 f 函数中逃逸了
+</span><span class="c1"></span><span class="p">}</span>
+
+<span class="kd">func</span> <span class="nf">g</span><span class="p">()</span> <span class="p">{</span>
+    <span class="nx">y</span> <span class="o">:=</span> <span class="nb">new</span><span class="p">(</span><span class="kt">int</span><span class="p">)</span>   <span class="c1">// 外部没有引用, 编辑器可以选择栈或堆上分配,
+</span><span class="c1"></span>    <span class="o">*</span><span class="nx">y</span> <span class="p">=</span> <span class="mi">1</span>
+<span class="p">}</span>
+</code></pre></div><blockquote>
+<p>其实在任何时候，你并不需为了编写正确的代码而要考虑变量的逃逸行为，要记住的是，逃逸的变量需要额外分配内存，同时对性能的优化可能会产生细微的影响。</p>
+<p>如果将指向短生命周期对象的指针保存到具有长生命周期的对象中，特别是保存到全局变量时，会阻止对短生命周期对象的垃圾回收（从而可能影响程序的性能）。</p>
+</blockquote>
+<h2 id="2-使用案例">2. 使用案例</h2>
+<h3 id="21-使用指针实现-echo-命令">2.1. 使用指针实现 Echo 命令</h3>
+<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">// Echo4 prints its command-line arguments.
+</span><span class="c1"></span><span class="kn">package</span> <span class="nx">main</span>
+
+<span class="kn">import</span> <span class="p">(</span>
+    <span class="s">&#34;flag&#34;</span>
+    <span class="s">&#34;fmt&#34;</span>
+    <span class="s">&#34;strings&#34;</span>
+<span class="p">)</span>
+
+<span class="c1">// 创建布尔变量 , 参数 : 命令行参数,默认值,描述信息
+</span><span class="c1"></span><span class="kd">var</span> <span class="nx">n</span> <span class="p">=</span> <span class="nx">flag</span><span class="p">.</span><span class="nf">Bool</span><span class="p">(</span><span class="s">&#34;n&#34;</span><span class="p">,</span> <span class="kc">false</span><span class="p">,</span> <span class="s">&#34;omit trailing newline&#34;</span><span class="p">)</span>
+<span class="kd">var</span> <span class="nx">sep</span> <span class="p">=</span> <span class="nx">flag</span><span class="p">.</span><span class="nf">String</span><span class="p">(</span><span class="s">&#34;s&#34;</span><span class="p">,</span> <span class="s">&#34; &#34;</span><span class="p">,</span> <span class="s">&#34;separator&#34;</span><span class="p">)</span>
+
+<span class="kd">func</span> <span class="nf">main</span><span class="p">()</span> <span class="p">{</span>
+    <span class="c1">// 获取参数之前必须解析
+</span><span class="c1"></span>    <span class="nx">flag</span><span class="p">.</span><span class="nf">Parse</span><span class="p">()</span>
+  <span class="c1">// flag.Args() 普通命令行参数
+</span><span class="c1"></span>    <span class="nx">fmt</span><span class="p">.</span><span class="nf">Print</span><span class="p">(</span><span class="nx">strings</span><span class="p">.</span><span class="nf">Join</span><span class="p">(</span><span class="nx">flag</span><span class="p">.</span><span class="nf">Args</span><span class="p">(),</span> <span class="o">*</span><span class="nx">sep</span><span class="p">))</span>
+    <span class="k">if</span> <span class="p">!</span><span class="o">*</span><span class="nx">n</span> <span class="p">{</span>
+        <span class="nx">fmt</span><span class="p">.</span><span class="nf">Println</span><span class="p">()</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div><h3 id="22-使用指针来交换变量">2.2. 使用指针来交换变量</h3>
+<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="nf">swap</span><span class="p">(</span><span class="nx">a</span><span class="p">,</span><span class="nx">b</span> <span class="o">*</span><span class="kt">int</span><span class="p">){</span>
+  <span class="o">*</span><span class="nx">a</span><span class="p">,</span><span class="o">*</span><span class="nx">b</span> <span class="p">=</span> <span class="o">*</span><span class="nx">b</span><span class="p">,</span><span class="o">*</span><span class="nx">a</span>
+<span class="p">}</span>
+
+<span class="kd">func</span> <span class="nf">main</span><span class="p">(){</span>
+  <span class="kd">var</span> <span class="nx">a</span><span class="p">,</span><span class="nx">b</span> <span class="kt">int</span> <span class="p">=</span> <span class="mi">2</span><span class="p">,</span><span class="mi">4</span>
+  <span class="nf">swap</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">a</span><span class="p">,</span><span class="o">&amp;</span><span class="nx">b</span><span class="p">)</span>
+  <span class="nx">fmt</span><span class="p">.</span><span class="nf">Println</span><span class="p">(</span><span class="nx">a</span><span class="p">,</span><span class="nx">b</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div><div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">var</span> <span class="nx">a</span> <span class="o">*</span><span class="kt">int</span>
+<span class="nx">unsafe</span><span class="p">.</span><span class="nf">Sizeof</span><span class="p">(</span><span class="nx">a</span><span class="p">)</span>    <span class="c1">// 对指针求大小, 64位系统=8 
+</span></code></pre></div><ul>
+<li>要改变内容必须使用指针接收者</li>
+<li>结构过大也考虑使用指针接收者( 避免大量拷贝浪费性能 )</li>
+<li>一致性: 如有指针接收者, 都使用指针接收者 ( 纯属为方便 )</li>
+</ul>
+
+</section>
+
+
+    <footer class="article-footer">
+    
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+    
+</article>
+
+    <aside class="related-contents--wrapper">
+    
+    
+        <h2 class="section-title">相关文章</h2>
+        <div class="related-contents">
+            <div class="flex article-list--tile">
+                
+                    
+<article class="">
+    <a href="/p/2019/golang/8.map.md/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">9.结构体</h2>
+        </div>
+    </a>
+</article>
+                
+                    
+<article class="">
+    <a href="/p/2019/golang/8.map.md/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">8.map</h2>
+        </div>
+    </a>
+</article>
+                
+                    
+<article class="">
+    <a href="/p/2019/golang/10.json.md/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">10.json</h2>
+        </div>
+    </a>
+</article>
+                
+                    
+<article class="">
+    <a href="/p/2019/golang/4.%E8%B5%8B%E5%80%BC%E4%B8%8E%E7%B1%BB%E5%9E%8B.md/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">4.赋值与类型</h2>
+        </div>
+    </a>
+</article>
+                
+                    
+<article class="">
+    <a href="/p/2019/golang/5.%E5%8C%85%E5%92%8C%E6%96%87%E4%BB%B6.md/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">5.包和文件</h2>
+        </div>
+    </a>
+</article>
+                
+            </div>
+        </div>
+    
+</aside>
+
+
+    
+        
+    <script src="https://utteranc.es/client.js" 
+        repo="ixugo/ixugo.github.io"
+        issue-term="pathname"
+        
+        crossorigin="anonymous"
+        async
+        >
+</script>
+
+<style>
+    .utterances {
+        max-width: unset;
+    }
+</style>
+
+<script>
+    function setUtterancesTheme(theme) {
+        let utterances = document.querySelector('.utterances iframe');
+        if (utterances) {
+            utterances.contentWindow.postMessage(
+                {
+                    type: 'set-theme',
+                    theme: `github-${theme}`
+                },
+                'https://utteranc.es'
+            );
+        }
+    }
+
+    addEventListener('message', event => {
+        if (event.origin !== 'https://utteranc.es') return;
+        setUtterancesTheme(document.body.dataset.scheme)
+    });
+
+    window.addEventListener('onColorSchemeChange', (e) => {
+        setUtterancesTheme(e.detail)
+    })
+</script>
+
+    
+
+    <footer class="site-footer">
+    <section class="copyright">
+        &copy; 
+        
+        2021 ixugo
+    </section>
+    
+    <section class="powerby">
+        Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> <br />
+        Theme <b><a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener" data-version="2.2.0">Stack</a></b> designed by <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a>
+    </section>
+</footer>
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer="true"
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer="true"
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.css"integrity="sha256-c0uckgykQ9v5k&#43;IqViZOZKc47Jn7KQil4/MP3ySA3F8="crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.css"integrity="sha256-SBLU4vv6CA6lHsZ1XyTdhyjJxCjPif/TRkjnsyGAGnE="crossorigin="anonymous"
+            >
+            </main>
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.5/dist/vibrant.min.js"integrity="sha256-5NovOZc4iwiAWTYIFiIM7DxKUXKWvpVEuMEPLzcm5/g="crossorigin="anonymous"
+                defer="false"
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

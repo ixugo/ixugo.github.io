@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="zh-cn">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='什么是 SingleFlight? 应对并发的利器! 常用场景有: 缓存穿透
+100 个并发，普通的加锁方式会导致队列执行。
+而 SingleFlight 会缓存一瞬间的并发请求函数返回值。第 1 个访问的函数去执行，其余 99 个进入协程等待，当第一个函数执行结果出来，剩下 99 个直接返回该结果。最后删除 map 中缓存的结果。
+如何使用 SingleFlight? func TestSingleFlight(t *testing.T){ var g singleflight.Group g.Do(&amp;#34;key&amp;#34;,func() (interface{}, error){ return &amp;#34;test&amp;#34;,nil }) } 看看源码 singleflight
+package singleflight import &amp;#34;sync&amp;#34; type call struct { wg sync.WaitGroup // 阻塞并发函数请求 	val interface{}	// 函数返回值 	err error	// 函数返回值 } // 一类工作 type Group struct { mu sync.Mutex m map[string]*call // 延迟初始化,用于临时存储函数 } // 判断 key 是否第一次调用 // 是则调用函数获取结果 // 不是, 则阻塞在 c.'><title>singleflight</title>
+
+<link rel='canonical' href='http://blog.golang.space/p/2019/golang/singleflight.md/'>
+
+<link rel="stylesheet" href="/scss/style.min.css"><meta property='og:title' content='singleflight'>
+<meta property='og:description' content='什么是 SingleFlight? 应对并发的利器! 常用场景有: 缓存穿透
+100 个并发，普通的加锁方式会导致队列执行。
+而 SingleFlight 会缓存一瞬间的并发请求函数返回值。第 1 个访问的函数去执行，其余 99 个进入协程等待，当第一个函数执行结果出来，剩下 99 个直接返回该结果。最后删除 map 中缓存的结果。
+如何使用 SingleFlight? func TestSingleFlight(t *testing.T){ var g singleflight.Group g.Do(&amp;#34;key&amp;#34;,func() (interface{}, error){ return &amp;#34;test&amp;#34;,nil }) } 看看源码 singleflight
+package singleflight import &amp;#34;sync&amp;#34; type call struct { wg sync.WaitGroup // 阻塞并发函数请求 	val interface{}	// 函数返回值 	err error	// 函数返回值 } // 一类工作 type Group struct { mu sync.Mutex m map[string]*call // 延迟初始化,用于临时存储函数 } // 判断 key 是否第一次调用 // 是则调用函数获取结果 // 不是, 则阻塞在 c.'>
+<meta property='og:url' content='http://blog.golang.space/p/2019/golang/singleflight.md/'>
+<meta property='og:site_name' content='ixugo'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:published_time' content='2019-03-18T00:00:00&#43;00:00'/><meta property='article:modified_time' content='2019-03-18T00:00:00&#43;00:00'/>
+<meta name="twitter:site" content="ixugo"><meta name="twitter:title" content="singleflight">
+<meta name="twitter:description" content="什么是 SingleFlight? 应对并发的利器! 常用场景有: 缓存穿透
+100 个并发，普通的加锁方式会导致队列执行。
+而 SingleFlight 会缓存一瞬间的并发请求函数返回值。第 1 个访问的函数去执行，其余 99 个进入协程等待，当第一个函数执行结果出来，剩下 99 个直接返回该结果。最后删除 map 中缓存的结果。
+如何使用 SingleFlight? func TestSingleFlight(t *testing.T){ var g singleflight.Group g.Do(&amp;#34;key&amp;#34;,func() (interface{}, error){ return &amp;#34;test&amp;#34;,nil }) } 看看源码 singleflight
+package singleflight import &amp;#34;sync&amp;#34; type call struct { wg sync.WaitGroup // 阻塞并发函数请求 	val interface{}	// 函数返回值 	err error	// 函数返回值 } // 一类工作 type Group struct { mu sync.Mutex m map[string]*call // 延迟初始化,用于临时存储函数 } // 判断 key 是否第一次调用 // 是则调用函数获取结果 // 不是, 则阻塞在 c.">
+    <link rel="shortcut icon" href="img/favicon.ico" />
+
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'G-LV6238KQFE', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+    </head>
+    <body class="">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.body.dataset.scheme = 'dark';
+        } else {
+            document.body.dataset.scheme = 'light';
+        }
+    })();
+</script><div class="container main-container flex on-phone--column extended article-page with-toolbar">
+            <aside class="sidebar left-sidebar sticky">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="切换菜单">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header class="site-info">
+        
+            <figure class="site-avatar">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu0b04ba6d7249c9f90c92db974439eb8c_208246_300x0_resize_box_2.png" width="300"
+                            height="321" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+
+                
+            </figure>
+        
+        <h1 class="site-name"><a href="http://blog.golang.space">ixugo</a></h1>
+        <h2 class="site-description">码农</h2>
+    </header>
+
+    <ol class="menu" id="main-menu">
+        
+        
+        
+
+        <li >
+            <a href='/'>
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>Home</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/about/'>
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>About</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/archives/'>
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>Archives</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/search/'>
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>Search</span>
+            </a>
+        </li>
+        
+
+        
+            <li id="dark-mode-toggle">
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                <span>暗色模式</span>
+            </li>
+        
+    </ol>
+</aside>
+
+            <main class="main full-width">
+    <div id="article-toolbar">
+        <a href="http://blog.golang.space" class="back-home">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-chevron-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="15 6 9 12 15 18" />
+</svg>
+
+
+
+            <span>Back</span>
+        </a>
+    </div>
+
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+    <header class="article-category">
+        
+            <a href="/categories/golang/" >
+                Golang
+            </a>
+        
+            <a href="/categories/%E6%BA%90%E7%A0%81/" >
+                源码
+            </a>
+        
+    </header>
+    
+
+    <h2 class="article-title">
+        <a href="/p/2019/golang/singleflight.md/">singleflight</a>
+    </h2>
+
+    <footer class="article-time">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+        <time class="article-time--published">Mar 18, 2019</time>
+    </footer></div>
+</header>
+
+    <section class="article-content">
+    <h2 id="什么是-singleflight">什么是 SingleFlight?</h2>
+<p>应对并发的利器! 常用场景有: 缓存穿透</p>
+<p>100 个并发，普通的加锁方式会导致队列执行。</p>
+<p>而 SingleFlight 会<strong>缓存一瞬间的并发请求函数返回值</strong>。第 1 个访问的函数去执行，其余 99 个进入协程等待，当第一个函数执行结果出来，剩下 99 个直接返回该结果。最后删除 map 中缓存的结果。</p>
+<h2 id="如何使用-singleflight">如何使用 SingleFlight?</h2>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">func TestSingleFlight<span class="o">(</span>t *testing.T<span class="o">){</span>
+	var g singleflight.Group
+	g.Do<span class="o">(</span><span class="s2">&#34;key&#34;</span>,func<span class="o">()</span> <span class="o">(</span>interface<span class="o">{}</span>, error<span class="o">){</span>
+		 <span class="k">return</span> <span class="s2">&#34;test&#34;</span>,nil
+	<span class="o">})</span>
+<span class="o">}</span>
+</code></pre></div><h2 id="看看源码">看看源码</h2>
+<p><a class="link" href="https://github.com/golang/groupcache/blob/master/singleflight/singleflight.go"  target="_blank" rel="noopener"
+    >singleflight</a></p>
+<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="kn">package</span> <span class="nx">singleflight</span>
+
+<span class="kn">import</span> <span class="s">&#34;sync&#34;</span>
+
+
+<span class="kd">type</span> <span class="nx">call</span> <span class="kd">struct</span> <span class="p">{</span>
+	<span class="nx">wg</span>  <span class="nx">sync</span><span class="p">.</span><span class="nx">WaitGroup</span>  <span class="c1">// 阻塞并发函数请求
+</span><span class="c1"></span>	<span class="nx">val</span> <span class="kd">interface</span><span class="p">{}</span>			<span class="c1">// 函数返回值
+</span><span class="c1"></span>	<span class="nx">err</span> <span class="kt">error</span>						<span class="c1">// 函数返回值
+</span><span class="c1"></span><span class="p">}</span>
+
+<span class="c1">// 一类工作
+</span><span class="c1"></span><span class="kd">type</span> <span class="nx">Group</span> <span class="kd">struct</span> <span class="p">{</span>
+	<span class="nx">mu</span> <span class="nx">sync</span><span class="p">.</span><span class="nx">Mutex</span>       
+	<span class="nx">m</span>  <span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="o">*</span><span class="nx">call</span> <span class="c1">// 延迟初始化,用于临时存储函数
+</span><span class="c1"></span><span class="p">}</span>
+
+<span class="c1">// 判断 key 是否第一次调用
+</span><span class="c1">// 是则调用函数获取结果
+</span><span class="c1">// 不是, 则阻塞在 c.wg.Wait() 等待函数返回值
+</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">g</span> <span class="o">*</span><span class="nx">Group</span><span class="p">)</span> <span class="nf">Do</span><span class="p">(</span><span class="nx">key</span> <span class="kt">string</span><span class="p">,</span> <span class="nx">fn</span> <span class="kd">func</span><span class="p">()</span> <span class="p">(</span><span class="kd">interface</span><span class="p">{},</span> <span class="kt">error</span><span class="p">))</span> <span class="p">(</span><span class="kd">interface</span><span class="p">{},</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+  
+	<span class="nx">g</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Lock</span><span class="p">()</span>
+  <span class="c1">// 创建 map
+</span><span class="c1"></span>	<span class="k">if</span> <span class="nx">g</span><span class="p">.</span><span class="nx">m</span> <span class="o">==</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="nx">g</span><span class="p">.</span><span class="nx">m</span> <span class="p">=</span> <span class="nb">make</span><span class="p">(</span><span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="o">*</span><span class="nx">call</span><span class="p">)</span>
+	<span class="p">}</span>
+  
+  <span class="c1">// 如果已经有这个函数了, 则进入并解锁, 让其它协程全部进入
+</span><span class="c1"></span>  <span class="c1">// 等待函数返回值，注意 map 的值是指针
+</span><span class="c1"></span>	<span class="k">if</span> <span class="nx">c</span><span class="p">,</span> <span class="nx">ok</span> <span class="o">:=</span> <span class="nx">g</span><span class="p">.</span><span class="nx">m</span><span class="p">[</span><span class="nx">key</span><span class="p">];</span> <span class="nx">ok</span> <span class="p">{</span>
+		<span class="nx">g</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">()</span>
+    <span class="c1">// 等待函数执行结果
+</span><span class="c1"></span>		<span class="nx">c</span><span class="p">.</span><span class="nx">wg</span><span class="p">.</span><span class="nf">Wait</span><span class="p">()</span>
+		<span class="k">return</span> <span class="nx">c</span><span class="p">.</span><span class="nx">val</span><span class="p">,</span> <span class="nx">c</span><span class="p">.</span><span class="nx">err</span>
+	<span class="p">}</span>
+  
+  <span class="c1">// 初始化 call,写入 map 后解锁
+</span><span class="c1"></span>	<span class="nx">c</span> <span class="o">:=</span> <span class="nb">new</span><span class="p">(</span><span class="nx">call</span><span class="p">)</span>
+	<span class="nx">c</span><span class="p">.</span><span class="nx">wg</span><span class="p">.</span><span class="nf">Add</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+	<span class="nx">g</span><span class="p">.</span><span class="nx">m</span><span class="p">[</span><span class="nx">key</span><span class="p">]</span> <span class="p">=</span> <span class="nx">c</span>
+	<span class="nx">g</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">()</span>
+
+  <span class="c1">// 执行函数
+</span><span class="c1"></span>	<span class="nx">c</span><span class="p">.</span><span class="nx">val</span><span class="p">,</span> <span class="nx">c</span><span class="p">.</span><span class="nx">err</span> <span class="p">=</span> <span class="nf">fn</span><span class="p">()</span>
+  <span class="c1">// 已经获取结果, 后进来的协程都可以返回了
+</span><span class="c1"></span>	<span class="nx">c</span><span class="p">.</span><span class="nx">wg</span><span class="p">.</span><span class="nf">Done</span><span class="p">()</span>
+	
+  <span class="c1">// group 仅仅是执行函数时的临时存储空间
+</span><span class="c1"></span>  <span class="c1">// 操作结束后, 删除内容
+</span><span class="c1"></span>	<span class="nx">g</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Lock</span><span class="p">()</span>
+	<span class="nb">delete</span><span class="p">(</span><span class="nx">g</span><span class="p">.</span><span class="nx">m</span><span class="p">,</span> <span class="nx">key</span><span class="p">)</span>
+	<span class="nx">g</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">()</span>
+	
+	<span class="k">return</span> <span class="nx">c</span><span class="p">.</span><span class="nx">val</span><span class="p">,</span> <span class="nx">c</span><span class="p">.</span><span class="nx">err</span>
+<span class="p">}</span>
+</code></pre></div>
+</section>
+
+
+    <footer class="article-footer">
+    
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+    
+</article>
+
+    <aside class="related-contents--wrapper">
+    
+    
+        <h2 class="section-title">相关文章</h2>
+        <div class="related-contents">
+            <div class="flex article-list--tile">
+                
+                    
+<article class="">
+    <a href="/p/2019/golang/8.map.md/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">9.结构体</h2>
+        </div>
+    </a>
+</article>
+                
+                    
+<article class="">
+    <a href="/p/2019/golang/8.map.md/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">8.map</h2>
+        </div>
+    </a>
+</article>
+                
+                    
+<article class="">
+    <a href="/p/2019/golang/10.json.md/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">10.json</h2>
+        </div>
+    </a>
+</article>
+                
+                    
+<article class="">
+    <a href="/p/2019/golang/4.%E8%B5%8B%E5%80%BC%E4%B8%8E%E7%B1%BB%E5%9E%8B.md/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">4.赋值与类型</h2>
+        </div>
+    </a>
+</article>
+                
+                    
+<article class="">
+    <a href="/p/2019/golang/5.%E5%8C%85%E5%92%8C%E6%96%87%E4%BB%B6.md/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">5.包和文件</h2>
+        </div>
+    </a>
+</article>
+                
+            </div>
+        </div>
+    
+</aside>
+
+
+    
+        
+    <script src="https://utteranc.es/client.js" 
+        repo="ixugo/ixugo.github.io"
+        issue-term="pathname"
+        
+        crossorigin="anonymous"
+        async
+        >
+</script>
+
+<style>
+    .utterances {
+        max-width: unset;
+    }
+</style>
+
+<script>
+    function setUtterancesTheme(theme) {
+        let utterances = document.querySelector('.utterances iframe');
+        if (utterances) {
+            utterances.contentWindow.postMessage(
+                {
+                    type: 'set-theme',
+                    theme: `github-${theme}`
+                },
+                'https://utteranc.es'
+            );
+        }
+    }
+
+    addEventListener('message', event => {
+        if (event.origin !== 'https://utteranc.es') return;
+        setUtterancesTheme(document.body.dataset.scheme)
+    });
+
+    window.addEventListener('onColorSchemeChange', (e) => {
+        setUtterancesTheme(e.detail)
+    })
+</script>
+
+    
+
+    <footer class="site-footer">
+    <section class="copyright">
+        &copy; 
+        
+        2021 ixugo
+    </section>
+    
+    <section class="powerby">
+        Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> <br />
+        Theme <b><a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener" data-version="2.2.0">Stack</a></b> designed by <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a>
+    </section>
+</footer>
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer="true"
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer="true"
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.css"integrity="sha256-c0uckgykQ9v5k&#43;IqViZOZKc47Jn7KQil4/MP3ySA3F8="crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.css"integrity="sha256-SBLU4vv6CA6lHsZ1XyTdhyjJxCjPif/TRkjnsyGAGnE="crossorigin="anonymous"
+            >
+            </main>
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.5/dist/vibrant.min.js"integrity="sha256-5NovOZc4iwiAWTYIFiIM7DxKUXKWvpVEuMEPLzcm5/g="crossorigin="anonymous"
+                defer="false"
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

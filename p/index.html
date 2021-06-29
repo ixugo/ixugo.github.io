@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="zh-cn">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='defer  os.Exit 退出时不会调用 defer 指定的函数 os.Exit 退出时不输出当前调用栈信息   defer语句经常被用于处理成对的操作，如打开、关闭、连接、断开连接、加锁、释放锁。通过defer机制，不论函数逻辑多复杂，都能保证在任何执行路径下，资源被释放。
+ defer 执行时间 : return语句更新返回值变量之后，函数返回之前
+若defer语句中嵌套了多层函数调用，只是最后一层函数调用才延后执行defer un(trace(&amp;quot;b&amp;quot;)) 会优先执行 trace(&amp;quot;B&amp;quot;)
+若遇到 panic , 先执行 defer , 再 panic
+多个 defer , 会按注册的先后顺序, 逆序执行, 类型栈,后进后出, 递归是正序
+一个函数控制出入口
+func bigSlowOperation() { defer trace(&amp;#34;bigSlowOperation&amp;#34;)() // don&amp;#39;t forget the extra parentheses  // ...lots of work…  time.Sleep(10 * time.Second) // simulate slow operation by sleeping } func trace(msg string) func() { start := time.'><title></title>
+
+<link rel='canonical' href='http://blog.golang.space/p/'>
+
+<link rel="stylesheet" href="/scss/style.min.css"><meta property='og:title' content=''>
+<meta property='og:description' content='defer  os.Exit 退出时不会调用 defer 指定的函数 os.Exit 退出时不输出当前调用栈信息   defer语句经常被用于处理成对的操作，如打开、关闭、连接、断开连接、加锁、释放锁。通过defer机制，不论函数逻辑多复杂，都能保证在任何执行路径下，资源被释放。
+ defer 执行时间 : return语句更新返回值变量之后，函数返回之前
+若defer语句中嵌套了多层函数调用，只是最后一层函数调用才延后执行defer un(trace(&amp;quot;b&amp;quot;)) 会优先执行 trace(&amp;quot;B&amp;quot;)
+若遇到 panic , 先执行 defer , 再 panic
+多个 defer , 会按注册的先后顺序, 逆序执行, 类型栈,后进后出, 递归是正序
+一个函数控制出入口
+func bigSlowOperation() { defer trace(&amp;#34;bigSlowOperation&amp;#34;)() // don&amp;#39;t forget the extra parentheses  // ...lots of work…  time.Sleep(10 * time.Second) // simulate slow operation by sleeping } func trace(msg string) func() { start := time.'>
+<meta property='og:url' content='http://blog.golang.space/p/'>
+<meta property='og:site_name' content='ixugo'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' />
+<meta name="twitter:site" content="ixugo"><meta name="twitter:title" content="">
+<meta name="twitter:description" content="defer  os.Exit 退出时不会调用 defer 指定的函数 os.Exit 退出时不输出当前调用栈信息   defer语句经常被用于处理成对的操作，如打开、关闭、连接、断开连接、加锁、释放锁。通过defer机制，不论函数逻辑多复杂，都能保证在任何执行路径下，资源被释放。
+ defer 执行时间 : return语句更新返回值变量之后，函数返回之前
+若defer语句中嵌套了多层函数调用，只是最后一层函数调用才延后执行defer un(trace(&amp;quot;b&amp;quot;)) 会优先执行 trace(&amp;quot;B&amp;quot;)
+若遇到 panic , 先执行 defer , 再 panic
+多个 defer , 会按注册的先后顺序, 逆序执行, 类型栈,后进后出, 递归是正序
+一个函数控制出入口
+func bigSlowOperation() { defer trace(&amp;#34;bigSlowOperation&amp;#34;)() // don&amp;#39;t forget the extra parentheses  // ...lots of work…  time.Sleep(10 * time.Second) // simulate slow operation by sleeping } func trace(msg string) func() { start := time.">
+    <link rel="shortcut icon" href="img/favicon.ico" />
+
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'G-LV6238KQFE', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+    </head>
+    <body class="">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.body.dataset.scheme = 'dark';
+        } else {
+            document.body.dataset.scheme = 'light';
+        }
+    })();
+</script><div class="container main-container flex on-phone--column extended article-page with-toolbar">
+            <aside class="sidebar left-sidebar sticky">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="切换菜单">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header class="site-info">
+        
+            <figure class="site-avatar">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu0b04ba6d7249c9f90c92db974439eb8c_208246_300x0_resize_box_2.png" width="300"
+                            height="321" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+
+                
+            </figure>
+        
+        <h1 class="site-name"><a href="http://blog.golang.space">ixugo</a></h1>
+        <h2 class="site-description">码农</h2>
+    </header>
+
+    <ol class="menu" id="main-menu">
+        
+        
+        
+
+        <li >
+            <a href='/'>
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>Home</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/about/'>
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>About</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/archives/'>
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>Archives</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/search/'>
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>Search</span>
+            </a>
+        </li>
+        
+
+        
+            <li id="dark-mode-toggle">
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                <span>暗色模式</span>
+            </li>
+        
+    </ol>
+</aside>
+
+            <main class="main full-width">
+    <div id="article-toolbar">
+        <a href="http://blog.golang.space" class="back-home">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-chevron-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="15 6 9 12 15 18" />
+</svg>
+
+
+
+            <span>Back</span>
+        </a>
+    </div>
+
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+
+    <h2 class="article-title">
+        <a href="/p/"></a>
+    </h2>
+
+    </div>
+</header>
+
+    <section class="article-content">
+    <h1 id="共享变量的并发">共享变量的并发</h1>
+<blockquote>
+<p>一个函数在并发调用时没法工作的原因太多了，比如死锁（deadlock）、活锁（livelock）和饿死（resource starvation）。我们没有空去讨论所有的问题，这里我们只聚焦在竞争条件上。</p>
+</blockquote>
+<p>无论任何时候，只要有两个goroutine并发访问同一变量，且至少其中的一个是写操作的时候就会发生数据竞争。</p>
+<p>数据竞争会在两个以上的goroutine并发访问相同的变量且至少其中一个为写操作时发生。根据上述定义，有三种方式可以避免数据竞争:</p>
+<p><strong>1. 不要去写变量</strong></p>
+<p>使用 <code>map</code> 判断是否有改变量</p>
+<p><strong>2. 避免从多个 goruntine 访问变量</strong></p>
+<p>不要使用共享数据来通信；使用通信来共享数据 , 仅使用一个 goruntine 访问变量, 提供对一个指定的变量通过channel来请求的goroutine叫做这个变量的monitor（监控）goroutine。</p>
+<p>例如:</p>
+<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="kn">package</span> <span class="nx">bank</span>
+
+<span class="kn">import</span> <span class="p">(</span>
+	<span class="s">&#34;fmt&#34;</span>
+	<span class="s">&#34;sync&#34;</span>
+	<span class="s">&#34;testing&#34;</span>
+<span class="p">)</span>
+
+<span class="kd">var</span> <span class="nx">deposits</span> <span class="p">=</span> <span class="nb">make</span><span class="p">(</span><span class="kd">chan</span> <span class="kt">int</span><span class="p">)</span> <span class="c1">// 汇款
+</span><span class="c1"></span><span class="kd">var</span> <span class="nx">balances</span> <span class="p">=</span> <span class="nb">make</span><span class="p">(</span><span class="kd">chan</span> <span class="kt">int</span><span class="p">)</span> <span class="c1">// 余额
+</span><span class="c1"></span>
+<span class="c1">// Deposit 存款
+</span><span class="c1"></span><span class="kd">func</span> <span class="nf">Deposit</span><span class="p">(</span><span class="nx">amount</span> <span class="kt">int</span><span class="p">)</span> <span class="p">{</span> <span class="nx">deposits</span> <span class="o">&lt;-</span> <span class="nx">amount</span> <span class="p">}</span>
+
+<span class="c1">// Balance 余额
+</span><span class="c1"></span><span class="kd">func</span> <span class="nf">Balance</span><span class="p">()</span> <span class="kt">int</span> <span class="p">{</span> <span class="k">return</span> <span class="o">&lt;-</span><span class="nx">balances</span> <span class="p">}</span>
+
+<span class="kd">type</span> <span class="nx">draw</span> <span class="kd">struct</span> <span class="p">{</span>
+	<span class="nx">amount</span>  <span class="kt">int</span>
+	<span class="nx">succeed</span> <span class="kd">chan</span> <span class="kt">bool</span>
+<span class="p">}</span>
+
+<span class="kd">var</span> <span class="nx">withdraws</span> <span class="p">=</span> <span class="nb">make</span><span class="p">(</span><span class="kd">chan</span> <span class="nx">draw</span><span class="p">)</span> <span class="c1">// 取款
+</span><span class="c1"></span>
+<span class="c1">// Withdraw 取款
+</span><span class="c1"></span><span class="kd">func</span> <span class="nf">Withdraw</span><span class="p">(</span><span class="nx">amount</span> <span class="kt">int</span><span class="p">)</span> <span class="kt">bool</span> <span class="p">{</span>
+	<span class="nx">succeed</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">(</span><span class="kd">chan</span> <span class="kt">bool</span><span class="p">)</span>
+	<span class="nx">withdraws</span> <span class="o">&lt;-</span> <span class="nx">draw</span><span class="p">{</span><span class="nx">amount</span><span class="p">,</span> <span class="nx">succeed</span><span class="p">}</span>
+	<span class="k">return</span> <span class="o">&lt;-</span><span class="nx">succeed</span>
+<span class="p">}</span>
+
+<span class="kd">func</span> <span class="nf">teller</span><span class="p">()</span> <span class="p">{</span>
+	<span class="kd">var</span> <span class="nx">balance</span> <span class="kt">int</span>
+	<span class="k">for</span> <span class="p">{</span>
+		<span class="k">select</span> <span class="p">{</span>
+		<span class="k">case</span> <span class="nx">amount</span> <span class="o">:=</span> <span class="o">&lt;-</span><span class="nx">deposits</span><span class="p">:</span> <span class="c1">// 存款
+</span><span class="c1"></span>			<span class="nx">balance</span> <span class="o">+=</span> <span class="nx">amount</span>
+		<span class="k">case</span> <span class="nx">balances</span> <span class="o">&lt;-</span> <span class="nx">balance</span><span class="p">:</span> <span class="c1">// 余额
+</span><span class="c1"></span>		<span class="k">case</span> <span class="nx">draw</span> <span class="o">:=</span> <span class="o">&lt;-</span><span class="nx">withdraws</span><span class="p">:</span>
+			<span class="k">if</span> <span class="nx">draw</span><span class="p">.</span><span class="nx">amount</span> <span class="o">&lt;=</span> <span class="nx">balance</span> <span class="p">{</span>
+				<span class="nx">balance</span> <span class="o">-=</span> <span class="nx">draw</span><span class="p">.</span><span class="nx">amount</span>
+				<span class="nx">draw</span><span class="p">.</span><span class="nx">succeed</span> <span class="o">&lt;-</span> <span class="kc">true</span>
+			<span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+				<span class="nx">draw</span><span class="p">.</span><span class="nx">succeed</span> <span class="o">&lt;-</span> <span class="kc">false</span>
+			<span class="p">}</span>
+
+		<span class="p">}</span>
+	<span class="p">}</span>
+<span class="p">}</span>
+
+<span class="kd">func</span> <span class="nf">init</span><span class="p">()</span> <span class="p">{</span>
+	<span class="k">go</span> <span class="nf">teller</span><span class="p">()</span>
+<span class="p">}</span>
+
+<span class="kd">func</span> <span class="nf">TestTeller</span><span class="p">(</span><span class="nx">t</span> <span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span> <span class="p">{</span>
+	<span class="kd">var</span> <span class="nx">wg</span> <span class="nx">sync</span><span class="p">.</span><span class="nx">WaitGroup</span>
+
+	<span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="mi">0</span><span class="p">;</span> <span class="nx">i</span> <span class="p">&lt;</span> <span class="mi">10</span><span class="p">;</span> <span class="nx">i</span><span class="o">++</span> <span class="p">{</span>
+		<span class="nx">wg</span><span class="p">.</span><span class="nf">Add</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+		<span class="k">go</span> <span class="kd">func</span><span class="p">(</span><span class="nx">i</span> <span class="kt">int</span><span class="p">)</span> <span class="p">{</span>
+			<span class="k">defer</span> <span class="nx">wg</span><span class="p">.</span><span class="nf">Done</span><span class="p">()</span>
+			<span class="nf">Deposit</span><span class="p">(</span><span class="mi">100</span> <span class="o">*</span> <span class="nx">i</span><span class="p">)</span>
+		<span class="p">}(</span><span class="nx">i</span><span class="p">)</span>
+	<span class="p">}</span>
+	<span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="mi">0</span><span class="p">;</span> <span class="nx">i</span> <span class="p">&lt;</span> <span class="mi">4</span><span class="p">;</span> <span class="nx">i</span><span class="o">++</span> <span class="p">{</span>
+		<span class="nx">wg</span><span class="p">.</span><span class="nf">Add</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+		<span class="k">go</span> <span class="kd">func</span><span class="p">(</span><span class="nx">i</span> <span class="kt">int</span><span class="p">)</span> <span class="p">{</span>
+			<span class="k">defer</span> <span class="nx">wg</span><span class="p">.</span><span class="nf">Done</span><span class="p">()</span>
+			<span class="nx">flag</span> <span class="o">:=</span> <span class="nf">Withdraw</span><span class="p">(</span><span class="mi">2000</span> <span class="o">*</span> <span class="nx">i</span><span class="p">)</span>
+			<span class="k">if</span> <span class="p">!</span><span class="nx">flag</span> <span class="p">{</span>
+				<span class="nx">fmt</span><span class="p">.</span><span class="nf">Println</span><span class="p">(</span><span class="s">&#34;余额不足&#34;</span><span class="p">)</span>
+			<span class="p">}</span>
+		<span class="p">}(</span><span class="nx">i</span><span class="p">)</span>
+	<span class="p">}</span>
+
+	<span class="nx">wg</span><span class="p">.</span><span class="nf">Wait</span><span class="p">()</span>
+	<span class="nx">fmt</span><span class="p">.</span><span class="nf">Println</span><span class="p">(</span><span class="nf">Balance</span><span class="p">())</span>
+	<span class="nx">fmt</span><span class="p">.</span><span class="nf">Println</span><span class="p">(</span><span class="s">&#34;end&#34;</span><span class="p">)</span>
+<span class="p">}</span>
+
+<span class="c1">// 练习 9.1： 给bank1程序添加一个Withdraw(amount int)取款函数。其返回结果应该要表明事务是成功了还是因为没有足够资金失败了。这条消息会被发送给monitor的goroutine，且消息需要包含取款的额度和一个新的channel，这个新channel会被monitor goroutine来把boolean结果发回给Withdraw。
+</span></code></pre></div><p>即使当一个变量无法在其整个生命周期内被绑定到一个独立的goroutine，绑定依然是并发问题的一个解决方案。</p>
+<blockquote>
+<p>例如在一条流水线上的goroutine之间共享变量是很普遍的行为，在这两者间会通过channel来传输地址信息。如果流水线的每一个阶段都能够避免在将变量传送到下一阶段后再去访问它，那么对这个变量的所有访问就是线性的。其效果是变量会被绑定到流水线的一个阶段，传送完之后被绑定到下一个，以此类推。这种规则有时被称为串行绑定。</p>
+<p>下面的例子中，Cakes会被严格地顺序访问，先是baker gorouine，然后是icer gorouine：</p>
+</blockquote>
+<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">type</span> <span class="nx">Cake</span> <span class="kd">struct</span><span class="p">{</span> <span class="nx">state</span> <span class="kt">string</span> <span class="p">}</span>
+
+<span class="kd">func</span> <span class="nf">baker</span><span class="p">(</span><span class="nx">cooked</span> <span class="kd">chan</span><span class="o">&lt;-</span> <span class="o">*</span><span class="nx">Cake</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">for</span> <span class="p">{</span>
+        <span class="nx">cake</span> <span class="o">:=</span> <span class="nb">new</span><span class="p">(</span><span class="nx">Cake</span><span class="p">)</span>
+        <span class="nx">cake</span><span class="p">.</span><span class="nx">state</span> <span class="p">=</span> <span class="s">&#34;cooked&#34;</span>
+        <span class="nx">cooked</span> <span class="o">&lt;-</span> <span class="nx">cake</span> <span class="c1">// baker never touches this cake again
+</span><span class="c1"></span>    <span class="p">}</span>
+<span class="p">}</span>
+
+<span class="kd">func</span> <span class="nf">icer</span><span class="p">(</span><span class="nx">iced</span> <span class="kd">chan</span><span class="o">&lt;-</span> <span class="o">*</span><span class="nx">Cake</span><span class="p">,</span> <span class="nx">cooked</span> <span class="o">&lt;-</span><span class="kd">chan</span> <span class="o">*</span><span class="nx">Cake</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">for</span> <span class="nx">cake</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">cooked</span> <span class="p">{</span>
+        <span class="nx">cake</span><span class="p">.</span><span class="nx">state</span> <span class="p">=</span> <span class="s">&#34;iced&#34;</span>
+        <span class="nx">iced</span> <span class="o">&lt;-</span> <span class="nx">cake</span> <span class="c1">// icer never touches this cake again
+</span><span class="c1"></span>    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div><h2 id="3-互斥锁">3. 互斥锁</h2>
+<p>允许很多 goruntine 访问, 但是同一时刻只有一个访问</p>
+<h3 id="31-二元信号量">3.1. 二元信号量</h3>
+<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">var</span> <span class="p">(</span>
+    <span class="nx">sema</span> <span class="p">=</span> <span class="nb">make</span><span class="p">(</span><span class="kd">chan</span> <span class="kd">struct</span><span class="p">{},</span> <span class="mi">1</span><span class="p">)</span> <span class="c1">// 二元信号量
+</span><span class="c1"></span>    <span class="nx">balance</span> <span class="kt">int</span>
+<span class="p">)</span>
+
+<span class="kd">func</span> <span class="nf">Deposit</span><span class="p">(</span><span class="nx">amount</span> <span class="kt">int</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nx">sema</span> <span class="o">&lt;-</span> <span class="kd">struct</span><span class="p">{}{}</span> <span class="c1">// acquire token
+</span><span class="c1"></span>    <span class="nx">balance</span> <span class="p">=</span> <span class="nx">balance</span> <span class="o">+</span> <span class="nx">amount</span>
+    <span class="o">&lt;-</span><span class="nx">sema</span> <span class="c1">// release token
+</span><span class="c1"></span><span class="p">}</span>
+
+<span class="kd">func</span> <span class="nf">Balance</span><span class="p">()</span> <span class="kt">int</span> <span class="p">{</span>
+    <span class="nx">sema</span> <span class="o">&lt;-</span> <span class="kd">struct</span><span class="p">{}{}</span> <span class="c1">// acquire token
+</span><span class="c1"></span>    <span class="nx">b</span> <span class="o">:=</span> <span class="nx">balance</span>
+    <span class="o">&lt;-</span><span class="nx">sema</span> <span class="c1">// release token
+</span><span class="c1"></span>    <span class="k">return</span> <span class="nx">b</span>
+<span class="p">}</span>
+</code></pre></div><h3 id="32-syncmutex">3.2. sync.Mutex</h3>
+<p>（1）使用<code>Lock()</code>加锁，<code>Unlock()</code>解锁；</p>
+<p>（2）对未解锁的 <code>Mutex</code> 使用 <code>Lock()</code> 会阻塞；</p>
+<p>（3）对未上锁的 <code>Mutex</code> 使用 <code>Unlock()</code> 会导致 panic 异常。</p>
+<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="kn">import</span> <span class="s">&#34;sync&#34;</span>
+
+<span class="kd">var</span> <span class="p">(</span>
+    <span class="nx">mu</span>      <span class="nx">sync</span><span class="p">.</span><span class="nx">Mutex</span> <span class="c1">// guards balance
+</span><span class="c1"></span>    <span class="nx">balance</span> <span class="kt">int</span>
+<span class="p">)</span>
+
+<span class="kd">func</span> <span class="nf">Deposit</span><span class="p">(</span><span class="nx">amount</span> <span class="kt">int</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nx">mu</span><span class="p">.</span><span class="nf">Lock</span><span class="p">()</span>
+    <span class="nx">balance</span> <span class="p">=</span> <span class="nx">balance</span> <span class="o">+</span> <span class="nx">amount</span>
+    <span class="nx">mu</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">()</span>
+<span class="p">}</span>
+
+<span class="kd">func</span> <span class="nf">Balance</span><span class="p">()</span> <span class="kt">int</span> <span class="p">{</span>
+    <span class="nx">mu</span><span class="p">.</span><span class="nf">Lock</span><span class="p">()</span>
+    <span class="nx">b</span> <span class="o">:=</span> <span class="nx">balance</span>
+    <span class="nx">mu</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">()</span>
+    <span class="k">return</span> <span class="nx">b</span>
+<span class="p">}</span>
+</code></pre></div><p>defer调用只会比显式地调用Unlock成本高那么一点点，不过却在很大程度上保证了代码的整洁性。大多数情况下对于并发程序来说，代码的整洁性比过度的优化更重要。如果可能的话尽量使用defer来将临界区扩展到函数的结束。</p>
+<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="nf">Balance</span><span class="p">()</span> <span class="kt">int</span> <span class="p">{</span>
+    <span class="nx">mu</span><span class="p">.</span><span class="nf">Lock</span><span class="p">()</span>
+  	<span class="k">defer</span>  <span class="nx">mu</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">()</span>
+    <span class="k">return</span> <span class="nx">balance</span>
+<span class="p">}</span>
+</code></pre></div><p>注意: 没法对一个已经锁上的mutex来再次上锁——这会导致程序死锁，没法继续执行下去，会永远阻塞下去。</p>
+<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">// ❌ 错误示例
+</span><span class="c1">// 此函数并非原子操作,遇到并发时, 会出现异常
+</span><span class="c1"></span><span class="kd">func</span> <span class="nf">Withdraw</span><span class="p">(</span><span class="nx">amount</span> <span class="kt">int</span><span class="p">)</span> <span class="kt">bool</span> <span class="p">{</span>
+  <span class="c1">// mu.Lock()
+</span><span class="c1"></span>  <span class="c1">// defer mu.Unlock()
+</span><span class="c1"></span>    <span class="nf">Deposit</span><span class="p">(</span><span class="o">-</span><span class="nx">amount</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nf">Balance</span><span class="p">()</span> <span class="p">&lt;</span> <span class="mi">0</span> <span class="p">{</span>
+        <span class="nf">Deposit</span><span class="p">(</span><span class="nx">amount</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">false</span> <span class="c1">// insufficient funds
+</span><span class="c1"></span>    <span class="p">}</span>
+    <span class="k">return</span> <span class="kc">true</span>
+<span class="p">}</span>
+</code></pre></div><p>一个通用解决办法是</p>
+<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">// 不安全的的存款操作
+</span><span class="c1"></span><span class="kd">func</span> <span class="nf">deposit</span><span class="p">(</span><span class="nx">amount</span> <span class="kt">int</span><span class="p">)</span> <span class="p">{</span> <span class="nx">balance</span> <span class="o">+=</span> <span class="nx">amount</span> <span class="p">}</span>  
+
+<span class="c1">// 安全的存款操作
+</span><span class="c1"></span><span class="kd">func</span> <span class="nf">Deposit</span><span class="p">(</span><span class="nx">amount</span> <span class="kt">int</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nx">mu</span><span class="p">.</span><span class="nf">Lock</span><span class="p">()</span>
+    <span class="k">defer</span> <span class="nx">mu</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">()</span>
+    <span class="nf">deposit</span><span class="p">(</span><span class="nx">amount</span><span class="p">)</span>
+<span class="p">}</span>
+
+<span class="c1">// 安全的取款操作
+</span><span class="c1"></span><span class="kd">func</span> <span class="nf">Withdraw</span><span class="p">(</span><span class="nx">amount</span> <span class="kt">int</span><span class="p">)</span> <span class="kt">bool</span> <span class="p">{</span>
+    <span class="nx">mu</span><span class="p">.</span><span class="nf">Lock</span><span class="p">()</span>
+    <span class="k">defer</span> <span class="nx">mu</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">()</span>
+    <span class="nf">deposit</span><span class="p">(</span><span class="o">-</span><span class="nx">amount</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nx">balance</span> <span class="p">&lt;</span> <span class="mi">0</span> <span class="p">{</span>
+        <span class="nf">deposit</span><span class="p">(</span><span class="nx">amount</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">false</span> <span class="c1">// insufficient funds
+</span><span class="c1"></span>    <span class="p">}</span>
+    <span class="k">return</span> <span class="kc">true</span>
+<span class="p">}</span>
+</code></pre></div><h2 id="4-读写锁--多读单写">4. 读写锁  多读单写</h2>
+<p>特点：读共享，写独占，写优先</p>
+<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">var</span> <span class="nx">mu</span> <span class="nx">sync</span><span class="p">.</span><span class="nx">RWMutex</span>
+<span class="kd">var</span> <span class="nx">balance</span> <span class="kt">int</span>
+<span class="kd">func</span> <span class="nf">Balance</span><span class="p">()</span> <span class="kt">int</span> <span class="p">{</span>
+    <span class="nx">mu</span><span class="p">.</span><span class="nf">RLock</span><span class="p">()</span> <span class="c1">// readers lock
+</span><span class="c1"></span>    <span class="k">defer</span> <span class="nx">mu</span><span class="p">.</span><span class="nf">RUnlock</span><span class="p">()</span>
+    <span class="k">return</span> <span class="nx">balance</span>
+<span class="p">}</span>
+</code></pre></div><div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">rw</span> <span class="o">*</span><span class="nx">RWMutex</span><span class="p">)</span> <span class="nf">Lock</span><span class="p">()</span>             <span class="c1">// 锁读写
+</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">rw</span> <span class="o">*</span><span class="nx">RWMutex</span><span class="p">)</span> <span class="nf">RLock</span><span class="p">()</span>						<span class="c1">// 锁定为读取状态, 禁止写入
+</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">rw</span> <span class="o">*</span><span class="nx">RWMutex</span><span class="p">)</span> <span class="nf">RLocker</span><span class="p">()</span> <span class="nx">Locker</span>   <span class="c1">// 返回互斥锁
+</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">rw</span> <span class="o">*</span><span class="nx">RWMutex</span><span class="p">)</span> <span class="nf">RUnlock</span><span class="p">()</span>					<span class="c1">// 解读写锁
+</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">rw</span> <span class="o">*</span><span class="nx">RWMutex</span><span class="p">)</span> <span class="nf">Unlock</span><span class="p">()</span>						<span class="c1">// 解互斥锁
+</span></code></pre></div><p>（1）RWMutex是单写多读锁，该锁可以加多个读锁或者一个写锁；</p>
+<p>（2）读锁占用的情况下会阻止写，不会阻止读，多个 goroutine 可以同时获取读锁；</p>
+<p>（3）写锁会阻止其他 goroutine（无论读和写）进来，整个锁由该 goroutine 独占；</p>
+<p>（4）适用于读多写少的场景。</p>
+<h3 id="内存同步">内存同步</h3>
+<p>这个有点复杂</p>
+<p>直接总结</p>
+<p>可能的话，将变量限定在goroutine内部；如果是多个goroutine都需要访问的变量，使用互斥条件来访问。</p>
+<blockquote>
+<p>因为赋值和打印指向不同的变量，编译器可能会断定两条语句的顺序不会影响执行结果，并且会交换两个语句的执行顺序。如果两个goroutine在不同的CPU上执行，每一个核心有自己的缓存，这样一个goroutine的写入对于其它goroutine的Print，在主存同步之前就是不可见的了。</p>
+</blockquote>
+<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">var</span> <span class="nx">x</span><span class="p">,</span> <span class="nx">y</span> <span class="kt">int</span>
+<span class="k">go</span> <span class="kd">func</span><span class="p">()</span> <span class="p">{</span>
+    <span class="nx">x</span> <span class="p">=</span> <span class="mi">1</span> <span class="c1">// A1
+</span><span class="c1"></span>    <span class="nx">fmt</span><span class="p">.</span><span class="nf">Print</span><span class="p">(</span><span class="s">&#34;y:&#34;</span><span class="p">,</span> <span class="nx">y</span><span class="p">,</span> <span class="s">&#34; &#34;</span><span class="p">)</span> <span class="c1">// A2
+</span><span class="c1"></span><span class="p">}()</span>
+</code></pre></div><h2 id="synconce-仅执行一次">sync.Once 仅执行一次</h2>
+<p>互斥锁的单例</p>
+<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="nf">Icon</span><span class="p">(</span><span class="nx">name</span> <span class="kt">string</span><span class="p">)</span> <span class="nx">image</span><span class="p">.</span><span class="nx">Image</span> <span class="p">{</span>
+    <span class="nx">mu</span><span class="p">.</span><span class="nf">Lock</span><span class="p">()</span>
+    <span class="k">defer</span> <span class="nx">mu</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">()</span>
+    <span class="k">if</span> <span class="nx">icons</span> <span class="o">==</span> <span class="kc">nil</span> <span class="p">{</span>
+        <span class="nf">loadIcons</span><span class="p">()</span>
+    <span class="p">}</span>
+    <span class="k">return</span> <span class="nx">icons</span><span class="p">[</span><span class="nx">name</span><span class="p">]</span>
+<span class="p">}</span>
+</code></pre></div><p>使用互斥访问icons的代价就是没有办法对该变量进行并发访问，即使变量已经被初始化完毕且再也不会进行变动。这里我们可以引入一个允许多读的锁：</p>
+<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">var</span> <span class="nx">mu</span> <span class="nx">sync</span><span class="p">.</span><span class="nx">RWMutex</span> <span class="c1">// guards icons
+</span><span class="c1"></span><span class="kd">var</span> <span class="nx">icons</span> <span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="nx">image</span><span class="p">.</span><span class="nx">Image</span>
+<span class="c1">// Concurrency-safe.
+</span><span class="c1"></span><span class="kd">func</span> <span class="nf">Icon</span><span class="p">(</span><span class="nx">name</span> <span class="kt">string</span><span class="p">)</span> <span class="nx">image</span><span class="p">.</span><span class="nx">Image</span> <span class="p">{</span>
+    <span class="nx">mu</span><span class="p">.</span><span class="nf">RLock</span><span class="p">()</span>
+    <span class="k">if</span> <span class="nx">icons</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+        <span class="nx">icon</span> <span class="o">:=</span> <span class="nx">icons</span><span class="p">[</span><span class="nx">name</span><span class="p">]</span>
+        <span class="nx">mu</span><span class="p">.</span><span class="nf">RUnlock</span><span class="p">()</span>
+        <span class="k">return</span> <span class="nx">icon</span>
+    <span class="p">}</span>
+    <span class="nx">mu</span><span class="p">.</span><span class="nf">RUnlock</span><span class="p">()</span>
+
+    <span class="c1">// acquire an exclusive lock
+</span><span class="c1"></span>    <span class="nx">mu</span><span class="p">.</span><span class="nf">Lock</span><span class="p">()</span>
+    <span class="k">if</span> <span class="nx">icons</span> <span class="o">==</span> <span class="kc">nil</span> <span class="p">{</span> <span class="c1">// NOTE: must recheck for nil
+</span><span class="c1"></span>        <span class="nf">loadIcons</span><span class="p">()</span>
+    <span class="p">}</span>
+    <span class="nx">icon</span> <span class="o">:=</span> <span class="nx">icons</span><span class="p">[</span><span class="nx">name</span><span class="p">]</span>
+    <span class="nx">mu</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">()</span>
+    <span class="k">return</span> <span class="nx">icon</span>
+<span class="p">}</span>
+</code></pre></div><p>上面的代码太复杂了, 再简化一下</p>
+<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">var</span> <span class="nx">loadIconsOnce</span> <span class="nx">sync</span><span class="p">.</span><span class="nx">Once</span>
+<span class="kd">var</span> <span class="nx">icons</span> <span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="nx">image</span><span class="p">.</span><span class="nx">Image</span>
+<span class="c1">// Concurrency-safe.
+</span><span class="c1"></span><span class="kd">func</span> <span class="nf">Icon</span><span class="p">(</span><span class="nx">name</span> <span class="kt">string</span><span class="p">)</span> <span class="nx">image</span><span class="p">.</span><span class="nx">Image</span> <span class="p">{</span>
+    <span class="nx">loadIconsOnce</span><span class="p">.</span><span class="nf">Do</span><span class="p">(</span><span class="nx">loadIcons</span><span class="p">)</span>
+    <span class="k">return</span> <span class="nx">icons</span><span class="p">[</span><span class="nx">name</span><span class="p">]</span>
+<span class="p">}</span>
+</code></pre></div><h2 id="竞争检查器">竞争检查器</h2>
+<p>只要在go build，go run或者go test命令后面加上-race的flag</p>
+<p>竞争检查器会检查这些事件，会寻找在哪一个goroutine中出现了这样的case，例如其读或者写了一个共享变量，这个共享变量是被另一个goroutine在没有进行干预同步操作便直接写入的。</p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash">go <span class="nb">test</span> -run<span class="o">=</span>TestConcurrent -race -v gopl.io/ch9/memo1
+</code></pre></div><h2 id="并发的非阻塞缓冲">并发的非阻塞缓冲</h2>
+<p>一个 http 请求的例子 , 函数调用开销比较大</p>
+<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="nf">httpGetBody</span><span class="p">(</span><span class="nx">url</span> <span class="kt">string</span><span class="p">)</span> <span class="p">(</span><span class="kd">interface</span><span class="p">{},</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nx">resp</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">http</span><span class="p">.</span><span class="nf">Get</span><span class="p">(</span><span class="nx">url</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+        <span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">err</span>
+    <span class="p">}</span>
+    <span class="k">defer</span> <span class="nx">resp</span><span class="p">.</span><span class="nx">Body</span><span class="p">.</span><span class="nf">Close</span><span class="p">()</span>
+    <span class="k">return</span> <span class="nx">ioutil</span><span class="p">.</span><span class="nf">ReadAll</span><span class="p">(</span><span class="nx">resp</span><span class="p">.</span><span class="nx">Body</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div><p><strong>第一个版本</strong></p>
+<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="kn">package</span> <span class="nx">memo</span>
+
+<span class="kd">type</span> <span class="nx">Memo</span> <span class="kd">struct</span><span class="p">{</span>
+  <span class="nx">f</span> <span class="nx">Func</span>
+  <span class="nx">cache</span> <span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="nx">result</span>
+<span class="p">}</span>
+
+<span class="kd">type</span> <span class="nx">Func</span> <span class="kd">func</span><span class="p">(</span><span class="nx">key</span> <span class="kt">string</span><span class="p">)</span> <span class="p">(</span><span class="kd">interface</span><span class="p">{},</span><span class="kt">error</span><span class="p">)</span>
+
+<span class="kd">type</span> <span class="nx">result</span> <span class="kd">struct</span><span class="p">{</span>
+  <span class="nx">value</span> <span class="kd">interface</span><span class="p">{}</span>
+  <span class="nx">err</span> <span class="kt">error</span>
+<span class="p">}</span>
+
+<span class="c1">// 构造
+</span><span class="c1"></span><span class="kd">func</span> <span class="nf">New</span><span class="p">(</span><span class="nx">f</span> <span class="nx">Func</span><span class="p">)</span> <span class="o">*</span><span class="nx">Memo</span> <span class="p">{</span>
+  <span class="k">return</span> <span class="o">&amp;</span><span class="nx">Memo</span><span class="p">{</span>  <span class="nx">f</span><span class="p">:</span><span class="nx">f</span><span class="p">,</span>  <span class="nx">cache</span><span class="p">:</span><span class="nb">make</span><span class="p">(</span><span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="nx">result</span><span class="p">)</span> <span class="p">}</span>
+<span class="p">}</span>
+
+<span class="c1">// 非线程安全
+</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">memo</span> <span class="o">*</span><span class="nx">Memo</span><span class="p">)</span> <span class="nf">Get</span><span class="p">(</span><span class="nx">key</span> <span class="kt">string</span><span class="p">)</span> <span class="p">(</span><span class="kd">interface</span><span class="p">{},</span><span class="nx">err</span><span class="p">){</span>
+  <span class="nx">res</span><span class="p">,</span> <span class="nx">ok</span> <span class="o">:=</span> <span class="nx">memo</span><span class="p">.</span><span class="nx">cache</span><span class="p">[</span><span class="nx">key</span><span class="p">]</span>
+  <span class="k">if</span> <span class="p">!</span><span class="nx">ok</span><span class="p">{</span>
+    <span class="nx">res</span><span class="p">.</span><span class="nx">value</span><span class="p">,</span><span class="nx">res</span><span class="p">.</span><span class="nx">err</span> <span class="p">=</span> <span class="nx">memo</span><span class="p">.</span><span class="nf">f</span><span class="p">(</span><span class="nx">key</span><span class="p">)</span>
+    <span class="nx">memo</span><span class="p">.</span><span class="nx">cache</span><span class="p">[</span><span class="nx">key</span><span class="p">]</span> <span class="p">=</span> <span class="nx">res</span>
+  <span class="p">}</span>
+  <span class="k">return</span> <span class="nx">res</span><span class="p">.</span><span class="nx">value</span><span class="p">,</span><span class="nx">res</span><span class="p">.</span><span class="nx">err</span>
+<span class="p">}</span>
+</code></pre></div><p><strong>第二个版本</strong></p>
+<p>并发、不重复、无阻塞的cache就完成了。</p>
+<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">type</span> <span class="nx">result</span> <span class="kd">struct</span> <span class="p">{</span>
+    <span class="nx">value</span> <span class="kd">interface</span><span class="p">{}</span>
+    <span class="nx">err</span>   <span class="kt">error</span>
+<span class="p">}</span>
+
+<span class="kd">type</span> <span class="nx">entry</span> <span class="kd">struct</span><span class="p">{</span>
+  <span class="nx">res</span> <span class="nx">reuslt</span>
+  <span class="nx">ready</span> <span class="kd">chan</span> <span class="kd">struct</span><span class="p">{}</span>  <span class="c1">// res 数据准备好后关闭
+</span><span class="c1"></span><span class="p">}</span>
+
+<span class="kd">func</span> <span class="nf">New</span><span class="p">(</span><span class="nx">f</span> <span class="nx">Func</span><span class="p">)</span> <span class="o">*</span><span class="nx">Memo</span> <span class="p">{</span>
+  <span class="k">return</span> <span class="o">&amp;</span><span class="nx">Memo</span><span class="p">{</span><span class="nx">f</span><span class="p">:</span><span class="nx">f</span><span class="p">,</span><span class="nx">cache</span><span class="p">:</span><span class="nb">make</span><span class="p">(</span><span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="o">*</span><span class="nx">entry</span><span class="p">)}</span>
+<span class="p">}</span>
+
+<span class="kd">func</span> <span class="nx">Memo</span> <span class="kd">struct</span><span class="p">{</span>
+  <span class="nx">f</span> <span class="nx">Func</span>
+  <span class="nx">mu</span> <span class="nx">sync</span><span class="p">.</span><span class="nx">Mutex</span> 
+  <span class="nx">cache</span> <span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="o">*</span><span class="nx">entry</span>
+<span class="p">}</span>
+
+<span class="kd">func</span> <span class="p">(</span><span class="nx">memo</span> <span class="o">*</span><span class="nx">Memo</span><span class="p">)</span> <span class="nf">Get</span><span class="p">(</span><span class="nx">key</span> <span class="kt">string</span><span class="p">)</span> <span class="p">(</span><span class="nx">value</span> <span class="kd">interface</span><span class="p">{})</span> <span class="p">{</span>
+  <span class="c1">// 获取互斥锁来保护共享变量cache map
+</span><span class="c1"></span>  <span class="nx">memo</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">lock</span><span class="p">()</span>
+  <span class="nx">e</span> <span class="o">:=</span> <span class="nx">memo</span><span class="p">.</span><span class="nx">cache</span><span class="p">[</span><span class="nx">key</span><span class="p">]</span>
+  <span class="k">if</span> <span class="nx">e</span><span class="o">==</span><span class="kc">nil</span><span class="p">{</span>
+    <span class="c1">// 插入一个新条目，释放互斥锁
+</span><span class="c1"></span>    <span class="nx">e</span> <span class="p">=</span> <span class="o">&amp;</span><span class="nx">entry</span><span class="p">{</span><span class="nx">ready</span><span class="p">:</span> <span class="nb">make</span><span class="p">(</span><span class="kd">chan</span> <span class="kd">struct</span><span class="p">{})}</span>
+    <span class="nx">memo</span><span class="p">.</span><span class="nx">cache</span><span class="p">[</span><span class="nx">key</span><span class="p">]</span> <span class="p">=</span> <span class="nx">e</span>
+    <span class="nx">memo</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">()</span>
+    
+    <span class="nx">e</span><span class="p">.</span><span class="nx">res</span><span class="p">.</span><span class="nx">value</span><span class="p">,</span> <span class="nx">e</span><span class="p">.</span><span class="nx">res</span><span class="p">.</span><span class="nx">err</span> <span class="p">=</span> <span class="nx">memo</span><span class="p">.</span><span class="nf">f</span><span class="p">(</span><span class="nx">key</span><span class="p">)</span>
+    <span class="nb">close</span><span class="p">(</span><span class="nx">e</span><span class="p">.</span><span class="nx">ready</span><span class="p">)</span> <span class="c1">// 取到值,通知关闭
+</span><span class="c1"></span>  <span class="p">}</span><span class="k">else</span><span class="p">{</span>
+    
+    <span class="nx">memo</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">()</span>
+    <span class="o">&lt;-</span> <span class="nx">e</span><span class="p">.</span><span class="nx">ready</span> <span class="c1">// 等待拿值
+</span><span class="c1"></span>  <span class="p">}</span>
+  <span class="k">return</span> <span class="nx">e</span><span class="p">.</span><span class="nx">res</span><span class="p">.</span><span class="nx">value</span><span class="p">,</span><span class="nx">e</span><span class="p">.</span><span class="nx">res</span><span class="p">.</span><span class="nx">err</span>
+<span class="p">}</span>
+</code></pre></div><p><strong>第三个版本</strong></p>
+<div class="highlight"><pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">type</span> <span class="nx">request</span> <span class="kd">struct</span> <span class="p">{</span>
+    <span class="nx">key</span>      <span class="kt">string</span>
+    <span class="nx">response</span> <span class="kd">chan</span><span class="o">&lt;-</span> <span class="nx">result</span> <span class="c1">// the client wants a single result
+</span><span class="c1"></span><span class="p">}</span>
+
+<span class="kd">type</span> <span class="nx">Memo</span> <span class="kd">struct</span><span class="p">{</span> <span class="nx">requests</span> <span class="kd">chan</span> <span class="nx">request</span> <span class="p">}</span>
+
+<span class="kd">func</span> <span class="nf">New</span><span class="p">(</span><span class="nx">f</span> <span class="nx">Func</span><span class="p">)</span> <span class="o">*</span><span class="nx">Memo</span> <span class="p">{</span>
+    <span class="nx">memo</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="nx">Memo</span><span class="p">{</span><span class="nx">requests</span><span class="p">:</span> <span class="nb">make</span><span class="p">(</span><span class="kd">chan</span> <span class="nx">request</span><span class="p">)}</span>
+    <span class="k">go</span> <span class="nx">memo</span><span class="p">.</span><span class="nf">server</span><span class="p">(</span><span class="nx">f</span><span class="p">)</span>
+    <span class="k">return</span> <span class="nx">memo</span>
+<span class="p">}</span>
+
+<span class="kd">func</span> <span class="p">(</span><span class="nx">memo</span> <span class="o">*</span><span class="nx">Memo</span><span class="p">)</span> <span class="nf">Get</span><span class="p">(</span><span class="nx">key</span> <span class="kt">string</span><span class="p">)</span> <span class="p">(</span><span class="kd">interface</span><span class="p">{},</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nx">response</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">(</span><span class="kd">chan</span> <span class="nx">result</span><span class="p">)</span>
+    <span class="nx">memo</span><span class="p">.</span><span class="nx">requests</span> <span class="o">&lt;-</span> <span class="nx">request</span><span class="p">{</span><span class="nx">key</span><span class="p">,</span> <span class="nx">response</span><span class="p">}</span>
+    <span class="nx">res</span> <span class="o">:=</span> <span class="o">&lt;-</span><span class="nx">response</span>
+    <span class="k">return</span> <span class="nx">res</span><span class="p">.</span><span class="nx">value</span><span class="p">,</span> <span class="nx">res</span><span class="p">.</span><span class="nx">err</span>
+<span class="p">}</span>
+
+<span class="kd">func</span> <span class="p">(</span><span class="nx">memo</span> <span class="o">*</span><span class="nx">Memo</span><span class="p">)</span> <span class="nf">Close</span><span class="p">()</span> <span class="p">{</span> <span class="nb">close</span><span class="p">(</span><span class="nx">memo</span><span class="p">.</span><span class="nx">requests</span><span class="p">)</span> <span class="p">}</span>
+
+
+<span class="kd">func</span> <span class="p">(</span><span class="nx">memo</span> <span class="o">*</span><span class="nx">Memo</span><span class="p">)</span> <span class="nf">server</span><span class="p">(</span><span class="nx">f</span> <span class="nx">Func</span><span class="p">){</span>
+  <span class="nx">cache</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">(</span><span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="o">*</span><span class="nx">entry</span><span class="p">)</span>
+  <span class="k">for</span> <span class="nx">req</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">memo</span><span class="p">.</span><span class="nx">requests</span><span class="p">{</span>
+    <span class="nx">e</span> <span class="o">:=</span> <span class="nx">cache</span><span class="p">[</span><span class="nx">req</span><span class="p">.</span><span class="nx">key</span><span class="p">]</span>
+    <span class="k">if</span> <span class="nx">e</span> <span class="o">==</span><span class="kc">nil</span><span class="p">{</span>
+      <span class="nx">e</span> <span class="p">=</span> <span class="o">&amp;</span><span class="nx">entry</span><span class="p">{</span><span class="nx">ready</span><span class="p">:</span><span class="nb">make</span><span class="p">(</span><span class="kd">chan</span> <span class="kd">struct</span><span class="p">{})}</span>
+      <span class="nx">cache</span><span class="p">[</span><span class="nx">req</span><span class="p">.</span><span class="nx">key</span><span class="p">]</span> <span class="p">=</span> <span class="nx">e</span>
+      <span class="k">go</span> <span class="nx">e</span><span class="p">.</span><span class="nf">call</span><span class="p">(</span><span class="nx">f</span><span class="p">,</span><span class="nx">req</span><span class="p">.</span><span class="nx">key</span><span class="p">)</span> <span class="c1">// 获取数据
+</span><span class="c1"></span>    <span class="p">}</span>
+    <span class="k">go</span> <span class="nx">e</span><span class="p">.</span><span class="nf">deliver</span><span class="p">(</span><span class="nx">req</span><span class="p">.</span><span class="nx">response</span><span class="p">)</span> <span class="c1">// 监听数据
+</span><span class="c1"></span>  <span class="p">}</span>
+<span class="p">}</span>
+
+<span class="c1">// 获取数据
+</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">e</span> <span class="o">*</span><span class="nx">entry</span><span class="p">)</span> <span class="nf">call</span><span class="p">(</span><span class="nx">f</span> <span class="nx">Func</span><span class="p">,</span> <span class="nx">key</span> <span class="kt">string</span><span class="p">){</span>
+  <span class="nx">e</span><span class="p">.</span><span class="nx">res</span><span class="p">.</span><span class="nx">value</span><span class="p">,</span><span class="nx">e</span><span class="p">.</span><span class="nx">res</span><span class="p">.</span><span class="nx">err</span> <span class="p">=</span> <span class="nf">f</span><span class="p">(</span><span class="nx">key</span><span class="p">)</span>
+  <span class="nb">close</span><span class="p">(</span><span class="nx">e</span><span class="p">.</span><span class="nx">ready</span><span class="p">)</span>
+<span class="p">}</span>
+
+<span class="c1">// 阻塞直到关闭,然后返回结果
+</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">e</span> <span class="o">*</span><span class="nx">entry</span><span class="p">)</span> <span class="nf">deliver</span><span class="p">(</span><span class="nx">response</span> <span class="kd">chan</span><span class="o">&lt;-</span> <span class="nx">result</span><span class="p">){</span>
+  <span class="o">&lt;-</span><span class="nx">e</span><span class="p">.</span><span class="nx">ready</span>
+  <span class="nx">response</span> <span class="o">&lt;-</span> <span class="nx">e</span><span class="p">.</span><span class="nx">res</span>
+<span class="p">}</span>
+</code></pre></div><h2 id="goroutines-和线程">Goroutines 和线程</h2>
+<p>每个 os 线程都有<strong>固定大小</strong>的内存块( 一般 2MB ) 做栈, 用来存储调用或挂起的函数内部变量 , 若是创建成百上千非常浪费内存空间 ;</p>
+<p>而 Goroutine 会以很小的栈开始生命周期 ( 一般 2KB ) , 空间是动态伸缩 , 最大值可达到 1GB,</p>
+<p>OS 线程会被操作系统内核调度 , 进行线程切换 , 其局部性很差, 需要几次内存访问</p>
+<p>而 Go 的运行包含了自己的调度器 , 使用 M:N , n 和 os 线程操作 M 个 goroutine</p>
+<p><strong>GOMAXPROCS</strong> 环境变量决定有多少个os 线程同时执行 Go 代码, 默认值是机器 CPU 核心数 , 阻塞/休眠不需要对应 os 线程, I/O,系统调用,非 go 语言函数需要对应 OS 线程, <strong>GOMAXPROCS</strong> 不会计算这几种情况 , 运行时使用 <code>runtime.GOMAXPROCS</code> 修改</p>
+
+</section>
+
+
+    <footer class="article-footer">
+    
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+    
+</article>
+
+    <aside class="related-contents--wrapper">
+    
+    
+</aside>
+
+
+    
+        
+    <script src="https://utteranc.es/client.js" 
+        repo="ixugo/ixugo.github.io"
+        issue-term="pathname"
+        
+        crossorigin="anonymous"
+        async
+        >
+</script>
+
+<style>
+    .utterances {
+        max-width: unset;
+    }
+</style>
+
+<script>
+    function setUtterancesTheme(theme) {
+        let utterances = document.querySelector('.utterances iframe');
+        if (utterances) {
+            utterances.contentWindow.postMessage(
+                {
+                    type: 'set-theme',
+                    theme: `github-${theme}`
+                },
+                'https://utteranc.es'
+            );
+        }
+    }
+
+    addEventListener('message', event => {
+        if (event.origin !== 'https://utteranc.es') return;
+        setUtterancesTheme(document.body.dataset.scheme)
+    });
+
+    window.addEventListener('onColorSchemeChange', (e) => {
+        setUtterancesTheme(e.detail)
+    })
+</script>
+
+    
+
+    <footer class="site-footer">
+    <section class="copyright">
+        &copy; 
+        
+        2021 ixugo
+    </section>
+    
+    <section class="powerby">
+        Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> <br />
+        Theme <b><a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener" data-version="2.2.0">Stack</a></b> designed by <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a>
+    </section>
+</footer>
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer="true"
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer="true"
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.css"integrity="sha256-c0uckgykQ9v5k&#43;IqViZOZKc47Jn7KQil4/MP3ySA3F8="crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.css"integrity="sha256-SBLU4vv6CA6lHsZ1XyTdhyjJxCjPif/TRkjnsyGAGnE="crossorigin="anonymous"
+            >
+            </main>
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.5/dist/vibrant.min.js"integrity="sha256-5NovOZc4iwiAWTYIFiIM7DxKUXKWvpVEuMEPLzcm5/g="crossorigin="anonymous"
+                defer="false"
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>
