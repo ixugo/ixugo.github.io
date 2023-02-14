@@ -1,0 +1,1247 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='鲲鹏弹性云服务器运行网络爬虫（上）
+零 系统：ubuntu 18.04
+爬虫：pyspider
+容器引擎：docker
+服务器：鲲鹏弹性云KC1
+记录全部过程
+一 开放5000端口 【控制台】-【弹性云服务器ECS】-【安全组】-【配置规则】-【添加规则】
+二 Python 环境 分别是 依赖库， python3， pip包管理
+1 2 3 4 5 sudo apt-get install python3-dev build-essential libssl-dev libffi-dev libxml2 libxml2-dev libxslt1-dev zlib1g-dev sudo apt-get install python3 sudo apt-get install python3-pip 二 pyspider 安装 pyspider是一个爬虫架构的开源化实现。主要的功能需求是：
+抓取、更新调度多站点的特定的页面 需要对页面进行结构化信息提取 灵活可扩展，稳定可监控 去重调度，队列，抓取，异常处理，监控等功能作为框架，提供给抓取脚本，并保证灵活性。最后加上web的编辑调试环境，以及web任务监控，即成为了这套框架。
+1 pip3 install pyspider 在安装的过程中遇到了错误，期间总共遇到过 3 次异常，超时错误，退出异常等，按照步骤一步步来，会好起来的。
+执行下列命令，再次安装 pyspider，耐心等待几分钟，查看版本
+1 2 apt-get install libcurl4-openssl-dev pip3 install pyspider 三 phantomjs 安装 PhantomJS 是一个基于 webkit 的 javascriptAPI。它使用 QtWebKit 作为它核心浏览器的功能，使用webkit来编译解释执行JavaScript代码。任何你可以在基于 webki t浏览器做的事情，它都能做到。PhantomJS 的用处可谓非常广泛，诸如网络监测、网页截屏、无需浏览器的Web 测试、页面访问自动化等。'>
+<title>python 爬虫练手</title>
+
+<link rel='canonical' href='https://blog.golang.space/p/python-%E7%88%AC%E8%99%AB%E7%BB%83%E6%89%8B/'>
+
+<link rel="stylesheet" href="/scss/style.min.8191399262444ab68b72a18c97392f5349be20a1615d77445be51e974c144cff.css"><meta property='og:title' content='python 爬虫练手'>
+<meta property='og:description' content='鲲鹏弹性云服务器运行网络爬虫（上）
+零 系统：ubuntu 18.04
+爬虫：pyspider
+容器引擎：docker
+服务器：鲲鹏弹性云KC1
+记录全部过程
+一 开放5000端口 【控制台】-【弹性云服务器ECS】-【安全组】-【配置规则】-【添加规则】
+二 Python 环境 分别是 依赖库， python3， pip包管理
+1 2 3 4 5 sudo apt-get install python3-dev build-essential libssl-dev libffi-dev libxml2 libxml2-dev libxslt1-dev zlib1g-dev sudo apt-get install python3 sudo apt-get install python3-pip 二 pyspider 安装 pyspider是一个爬虫架构的开源化实现。主要的功能需求是：
+抓取、更新调度多站点的特定的页面 需要对页面进行结构化信息提取 灵活可扩展，稳定可监控 去重调度，队列，抓取，异常处理，监控等功能作为框架，提供给抓取脚本，并保证灵活性。最后加上web的编辑调试环境，以及web任务监控，即成为了这套框架。
+1 pip3 install pyspider 在安装的过程中遇到了错误，期间总共遇到过 3 次异常，超时错误，退出异常等，按照步骤一步步来，会好起来的。
+执行下列命令，再次安装 pyspider，耐心等待几分钟，查看版本
+1 2 apt-get install libcurl4-openssl-dev pip3 install pyspider 三 phantomjs 安装 PhantomJS 是一个基于 webkit 的 javascriptAPI。它使用 QtWebKit 作为它核心浏览器的功能，使用webkit来编译解释执行JavaScript代码。任何你可以在基于 webki t浏览器做的事情，它都能做到。PhantomJS 的用处可谓非常广泛，诸如网络监测、网页截屏、无需浏览器的Web 测试、页面访问自动化等。'>
+<meta property='og:url' content='https://blog.golang.space/p/python-%E7%88%AC%E8%99%AB%E7%BB%83%E6%89%8B/'>
+<meta property='og:site_name' content='ixugo'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='Python' /><meta property='article:published_time' content='2019-10-25T15:00:00&#43;00:00'/><meta property='article:modified_time' content='2019-10-25T15:00:00&#43;00:00'/>
+<meta name="twitter:title" content="python 爬虫练手">
+<meta name="twitter:description" content="鲲鹏弹性云服务器运行网络爬虫（上）
+零 系统：ubuntu 18.04
+爬虫：pyspider
+容器引擎：docker
+服务器：鲲鹏弹性云KC1
+记录全部过程
+一 开放5000端口 【控制台】-【弹性云服务器ECS】-【安全组】-【配置规则】-【添加规则】
+二 Python 环境 分别是 依赖库， python3， pip包管理
+1 2 3 4 5 sudo apt-get install python3-dev build-essential libssl-dev libffi-dev libxml2 libxml2-dev libxslt1-dev zlib1g-dev sudo apt-get install python3 sudo apt-get install python3-pip 二 pyspider 安装 pyspider是一个爬虫架构的开源化实现。主要的功能需求是：
+抓取、更新调度多站点的特定的页面 需要对页面进行结构化信息提取 灵活可扩展，稳定可监控 去重调度，队列，抓取，异常处理，监控等功能作为框架，提供给抓取脚本，并保证灵活性。最后加上web的编辑调试环境，以及web任务监控，即成为了这套框架。
+1 pip3 install pyspider 在安装的过程中遇到了错误，期间总共遇到过 3 次异常，超时错误，退出异常等，按照步骤一步步来，会好起来的。
+执行下列命令，再次安装 pyspider，耐心等待几分钟，查看版本
+1 2 apt-get install libcurl4-openssl-dev pip3 install pyspider 三 phantomjs 安装 PhantomJS 是一个基于 webkit 的 javascriptAPI。它使用 QtWebKit 作为它核心浏览器的功能，使用webkit来编译解释执行JavaScript代码。任何你可以在基于 webki t浏览器做的事情，它都能做到。PhantomJS 的用处可谓非常广泛，诸如网络监测、网页截屏、无需浏览器的Web 测试、页面访问自动化等。">
+    <link rel="shortcut icon" href="img/favicon.ico" />
+
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+	(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+	m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+	})(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+	ga('create', 'UA-192125643-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="Toggle Menu">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu0b04ba6d7249c9f90c92db974439eb8c_208246_300x0_resize_box_3.png" width="300"
+                            height="321" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🧐</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">ixugo</a></h1>
+            <h2 class="site-description">走出舒适区</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/ixugo'
+                        target="_blank"
+                        title="GitHub"
+                        rel="me"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>Home</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/about/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>About</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>Archives</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>Search</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>Dark Mode</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">Table of contents</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li>
+      <ol>
+        <li><a href="#零">零</a></li>
+        <li><a href="#一-开放5000端口">一 开放5000端口</a></li>
+        <li><a href="#二-python-环境">二 Python 环境</a></li>
+        <li><a href="#二-pyspider-安装">二 pyspider 安装</a></li>
+        <li><a href="#三-phantomjs-安装">三 phantomjs 安装</a></li>
+        <li><a href="#四-异常">四 异常</a></li>
+        <li><a href="#五-在本地电脑输入---ip5000">五 在本地电脑输入   ip:5000</a></li>
+        <li><a href="#零-1">零</a></li>
+        <li><a href="#一--设置登录账号和密码">一  设置登录账号和密码</a></li>
+        <li><a href="#二-创建第一个爬虫">二 创建第一个爬虫</a></li>
+        <li><a href="#三-实战">三 实战</a></li>
+        <li><a href="#四-将结果存储到-mongodb">四 将结果存储到 MongoDB</a></li>
+        <li><a href="#heading"></a></li>
+        <li><a href="#一-分页">一 分页</a></li>
+      </ol>
+    </li>
+    <li><a href="#二-源码">二 源码</a></li>
+    <li><a href="#三-常用方法">三 常用方法</a></li>
+    <li><a href="#四-web-浏览框">四 web 浏览框</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+            <main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+    <header class="article-category">
+        
+            <a href="/categories/%E7%88%AC%E8%99%AB/" >
+                爬虫
+            </a>
+        
+    </header>
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/python-%E7%88%AC%E8%99%AB%E7%BB%83%E6%89%8B/">python 爬虫练手</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    
+    
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Oct 25, 2019</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    4 minute read
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+
+</header>
+
+    <section class="article-content">
+    
+    
+    <p>鲲鹏弹性云服务器运行网络爬虫（上）</p>
+<h3 id="零">零</h3>
+<p>系统：ubuntu 18.04</p>
+<p>爬虫：pyspider</p>
+<p>容器引擎：docker</p>
+<p>服务器：鲲鹏弹性云KC1</p>
+<p>记录全部过程</p>
+<!-- raw HTML omitted -->
+<h3 id="一-开放5000端口">一 开放5000端口</h3>
+<p>【控制台】-【弹性云服务器ECS】-【安全组】-【配置规则】-【添加规则】</p>
+<p><img src="http://img.golang.space/PicGo/20191113022005.png"
+	
+	
+	
+	loading="lazy"
+	
+	
+></p>
+<p><img src="http://img.golang.space/PicGo/20191113021820.png"
+	
+	
+	
+	loading="lazy"
+	
+	
+></p>
+<h3 id="二-python-环境">二 Python 环境</h3>
+<p>分别是 依赖库， python3， pip包管理</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">sudo apt-get install python3-dev build-essential libssl-dev libffi-dev libxml2 libxml2-dev libxslt1-dev zlib1g-dev
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">sudo apt-get install python3
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">sudo apt-get install python3-pip
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><img src="http://img.golang.space/PicGo/20191113002953.png"
+	
+	
+	
+	loading="lazy"
+	
+	
+></p>
+<p><img src="http://img.golang.space/PicGo/20191113004930.png"
+	
+	
+	
+	loading="lazy"
+	
+	
+></p>
+<!-- raw HTML omitted -->
+<h3 id="二-pyspider-安装">二 pyspider 安装</h3>
+<p>pyspider是一个爬虫架构的开源化实现。主要的功能需求是：</p>
+<ol>
+<li>抓取、更新调度多站点的特定的页面</li>
+<li>需要对页面进行结构化信息提取</li>
+<li>灵活可扩展，稳定可监控</li>
+</ol>
+<p>去重调度，队列，抓取，异常处理，监控等功能作为框架，提供给抓取脚本，并保证灵活性。最后加上web的编辑调试环境，以及web任务监控，即成为了这套框架。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">pip3 install pyspider
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><img src="http://img.golang.space/PicGo/20191113005919.png"
+	
+	
+	
+	loading="lazy"
+	
+	
+></p>
+<p>在安装的过程中遇到了错误，期间总共遇到过 3 次异常，超时错误，退出异常等，按照步骤一步步来，会好起来的。</p>
+<p>执行下列命令，再次安装 pyspider，耐心等待几分钟，查看版本</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">apt-get install libcurl4-openssl-dev
+</span></span><span class="line"><span class="cl">pip3 install pyspider
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><img src="http://img.golang.space/PicGo/20191113030152.png"
+	
+	
+	
+	loading="lazy"
+	
+	
+></p>
+<h3 id="三-phantomjs-安装">三 phantomjs 安装</h3>
+<p>PhantomJS 是一个基于 webkit 的 javascriptAPI。它使用 QtWebKit 作为它核心浏览器的功能，使用webkit来编译解释执行JavaScript代码。任何你可以在基于 webki t浏览器做的事情，它都能做到。PhantomJS 的用处可谓非常广泛，诸如网络监测、网页截屏、无需浏览器的Web 测试、页面访问自动化等。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">wget https://bitbucket.org/ariya/phantomjs/downloads/phantomjs-2.1.1-linux-x86_64.tar.bz2
+</span></span><span class="line"><span class="cl">tar -jxvf phantomjs.tar.bz2
+</span></span><span class="line"><span class="cl">ln -s /usr/local/phantomjs-2.1.1-linux-x86_64/bin/phantomjs /usr/bin/phantomjs
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><img src="http://img.golang.space/PicGo/20191113030431.png"
+	
+	
+	
+	loading="lazy"
+	
+	
+></p>
+<p><img src="http://img.golang.space/PicGo/20191113031253.png"
+	
+	
+	
+	loading="lazy"
+	
+	
+></p>
+<p>环境已经配置完毕，运行一下试试</p>
+<h3 id="四-异常">四 异常</h3>
+<p>最会，应该还会遇到一个生命中的 BUG，本文可以说涵盖了安装过程的大部分问题</p>
+<p>主要错误信息是</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">  File <span class="s2">&#34;/usr/local/lib/python3.6/dist-packages/wsgidav/wsgidav_app.py&#34;</span>, line 118, in _check_config
+</span></span><span class="line"><span class="cl">    raise ValueError<span class="o">(</span><span class="s2">&#34;Invalid configuration:\n  - &#34;</span> + <span class="s2">&#34;\n  - &#34;</span>.join<span class="o">(</span>errors<span class="o">))</span>
+</span></span><span class="line"><span class="cl">ValueError: Invalid configuration:
+</span></span><span class="line"><span class="cl">  - Deprecated option <span class="s1">&#39;domaincontroller&#39;</span>: use <span class="s1">&#39;http_authenticator.domain_controller&#39;</span> instead.
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><img src="http://img.golang.space/PicGo/20191113031548.png"
+	
+	
+	
+	loading="lazy"
+	
+	
+></p>
+<p>执行以下命令</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">pip3 install <span class="nv">wsgidav</span><span class="o">==</span>2.4.1
+</span></span><span class="line"><span class="cl"><span class="c1"># 终于启动</span>
+</span></span><span class="line"><span class="cl">pyspider all
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><img src="http://img.golang.space/PicGo/20191113031849.png"
+	
+	
+	
+	loading="lazy"
+	
+	
+></p>
+<h3 id="五-在本地电脑输入---ip5000">五 在本地电脑输入   ip:5000</h3>
+<p><img src="http://img.golang.space/PicGo/20191113032204.png"
+	
+	
+	
+	loading="lazy"
+	
+	
+></p>
+<p>预告： 下一篇博文，正式开始网络爬虫，将以小白的视角来记录，并不会晦涩难懂</p>
+<p>鲲鹏弹性云服务器运行网络爬虫（下）</p>
+<h3 id="零-1">零</h3>
+<p>系统：ubuntu 18.04</p>
+<p>爬虫：pyspider</p>
+<p>服务器：鲲鹏弹性云KC1</p>
+<p>记录全部过程</p>
+<!-- raw HTML omitted -->
+<h3 id="一--设置登录账号和密码">一  设置登录账号和密码</h3>
+<p>创建 db.json 文件，用于设置登录账号和密码</p>
+<p>不要在 data 文件夹内创建 db.json，data 是 pyspider 第一次启动时创建的文件，保存着数据信息，所以最好每次运行都在 data 的父目录或者指定 data 目录位置，以保证旧数据存在。</p>
+<p><img src="http://img.golang.space/PicGo/20191113033013.png"
+	
+	
+	
+	loading="lazy"
+	
+	
+></p>
+<p><img src="http://img.golang.space/PicGo/20191113032834.png"
+	
+	
+	
+	loading="lazy"
+	
+	
+></p>
+<p><strong>执行命令启动</strong></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">pyspider --config db.json all
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>在本地电脑，打开浏览器，输入服务器的ip地址：5000，即弹出登录对话框，输入之前设置的用户名和密码</p>
+<p><img src="http://img.golang.space/PicGo/20191113150634.png"
+	
+	
+	
+	loading="lazy"
+	
+	
+></p>
+<h3 id="二-创建第一个爬虫">二 创建第一个爬虫</h3>
+<p>简单的操作，见图</p>
+<p><img src="http://img.golang.space/PicGo/20191113150814.png"
+	
+	
+	
+	loading="lazy"
+	
+	
+></p>
+<p><img src="http://img.golang.space/PicGo/20191113150910.png"
+	
+	
+	
+	loading="lazy"
+	
+	
+></p>
+<p><img src="http://img.golang.space/PicGo/20191113151035.png"
+	
+	
+	
+	loading="lazy"
+	
+	
+></p>
+<p>创建之后，自动生成基础代码，15 行横线处是待爬取的首页链接，19 行是查找详情页，也就是首页面的所有跳转链接，最后的方框则是返回的结果</p>
+<h3 id="三-实战">三 实战</h3>
+<p>爬取网页：http://quotes.toscrape.com/</p>
+<p>信息：名言内容，作者，标签</p>
+<p>查看网页信息，每一句名言都是一个div，class=quote， 这里关键字是 quote</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span><span class="lnt">9
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-python3" data-lang="python3"><span class="line"><span class="cl"> 	<span class="nd">@every</span><span class="p">(</span><span class="n">minutes</span><span class="o">=</span><span class="mi">24</span> <span class="o">*</span> <span class="mi">60</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">def</span> <span class="nf">on_start</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span></span><span class="line"><span class="cl">        <span class="bp">self</span><span class="o">.</span><span class="n">crawl</span><span class="p">(</span><span class="s1">&#39;http://quotes.toscrape.com/&#39;</span><span class="p">,</span> <span class="n">callback</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">index_page</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="nd">@config</span><span class="p">(</span><span class="n">age</span><span class="o">=</span><span class="mi">10</span> <span class="o">*</span> <span class="mi">24</span> <span class="o">*</span> <span class="mi">60</span> <span class="o">*</span> <span class="mi">60</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">def</span> <span class="nf">index_page</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">response</span><span class="p">):</span>
+</span></span><span class="line"><span class="cl">        <span class="n">results</span> <span class="o">=</span> <span class="p">[]</span>
+</span></span><span class="line"><span class="cl">        <span class="k">for</span> <span class="n">each</span> <span class="ow">in</span> <span class="n">response</span><span class="o">.</span><span class="n">doc</span><span class="p">(</span><span class="s1">&#39;.quote&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+</span></span><span class="line"><span class="cl">        	<span class="k">pass</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><img src="http://img.golang.space/PicGo/20191113151917.png"
+	
+	
+	
+	loading="lazy"
+	
+	
+></p>
+<p><img src="http://img.golang.space/PicGo/20191113152210.png"
+	
+	
+	
+	loading="lazy"
+	
+	
+></p>
+<p>F12 查看元素，元素选择器（图片中红标1）选择作者名，在右边代码栏可见该标签，其它标签属性有 <code>itemprop=&quot;author&quot;</code> ，以此类推</p>
+<p>代码可以这样写</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-python3" data-lang="python3"><span class="line"><span class="cl"> 		<span class="c1"># 名言结果集</span>
+</span></span><span class="line"><span class="cl"> 		<span class="n">results</span> <span class="o">=</span> <span class="p">[]</span>
+</span></span><span class="line"><span class="cl"> 		<span class="c1"># 循环每一句名言</span>
+</span></span><span class="line"><span class="cl">        <span class="k">for</span> <span class="n">each</span> <span class="ow">in</span> <span class="n">response</span><span class="o">.</span><span class="n">doc</span><span class="p">(</span><span class="s1">&#39;.quote&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+</span></span><span class="line"><span class="cl">            <span class="c1"># 名言</span>
+</span></span><span class="line"><span class="cl">            <span class="n">comment</span> <span class="o">=</span> <span class="n">each</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="s1">&#39;[itemprop=&#34;text&#34;]&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">text</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">            <span class="c1"># 作者</span>
+</span></span><span class="line"><span class="cl">            <span class="n">author</span> <span class="o">=</span> <span class="n">each</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="s1">&#39;[itemprop=&#34;author&#34;]&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">text</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">            <span class="c1"># 标签</span>
+</span></span><span class="line"><span class="cl">            <span class="n">tags</span> <span class="o">=</span> <span class="n">each</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="s1">&#39;.tags .tag&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">            <span class="c1"># 标签结果集</span>
+</span></span><span class="line"><span class="cl">            <span class="n">tagList</span> <span class="o">=</span> <span class="p">[]</span>
+</span></span><span class="line"><span class="cl">            <span class="k">for</span> <span class="n">tag</span> <span class="ow">in</span> <span class="n">tags</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">                <span class="n">tagList</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">tag</span><span class="o">.</span><span class="n">text</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">     		<span class="c1"># 将查询到名言封装到名言结果集</span>
+</span></span><span class="line"><span class="cl">            <span class="n">results</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
+</span></span><span class="line"><span class="cl">                <span class="s2">&#34;comment&#34;</span><span class="p">:</span> <span class="n">comment</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">                <span class="s2">&#34;author&#34;</span><span class="p">:</span> <span class="n">author</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">                <span class="s2">&#34;tagList&#34;</span><span class="p">:</span> <span class="n">tagList</span>
+</span></span><span class="line"><span class="cl">            <span class="p">})</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><img src="http://img.golang.space/PicGo/20191113192838.png"
+	
+	
+	
+	loading="lazy"
+	
+	
+></p>
+<p>结果</p>
+<p><img src="http://img.golang.space/PicGo/20191113194244.png"
+	
+	
+	
+	loading="lazy"
+	
+	
+></p>
+<h3 id="四-将结果存储到-mongodb">四 将结果存储到 MongoDB</h3>
+<p>如何在鲲鹏弹性云部署 MongoDB，见下链</p>
+<p><a class="link" href="https://bbs.huaweicloud.com/forum/thread-28769-1-1.html"  target="_blank" rel="noopener"
+    >https://bbs.huaweicloud.com/forum/thread-28769-1-1.html</a></p>
+<p>1</p>
+<p>安装 pymongo</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">pip3 install pymongo
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>2</p>
+<p>爬虫代码：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-python3" data-lang="python3"><span class="line"><span class="cl"><span class="c1"># 导入</span>
+</span></span><span class="line"><span class="cl"><span class="kn">import</span> <span class="nn">pymongo</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-python3" data-lang="python3"><span class="line"><span class="cl">    <span class="c1"># 连接 mongodb 数据库</span>
+</span></span><span class="line"><span class="cl">    <span class="n">client</span> <span class="o">=</span> <span class="n">pymongo</span><span class="o">.</span><span class="n">MongoClient</span><span class="p">(</span><span class="s1">&#39;119.3.248.122&#39;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="c1"># 库名为 demo1</span>
+</span></span><span class="line"><span class="cl">    <span class="n">db</span> <span class="o">=</span> <span class="n">client</span><span class="p">[</span><span class="s1">&#39;demo1&#39;</span><span class="p">]</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span><span class="lnt">9
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-python3" data-lang="python3"><span class="line"><span class="cl">    <span class="c1"># 如果有结果集，调用存储数据库函数</span>
+</span></span><span class="line"><span class="cl">    <span class="k">def</span> <span class="nf">on_result</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">result</span><span class="p">):</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="n">result</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">            <span class="bp">self</span><span class="o">.</span><span class="n">save_to_mongo</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1"># 存到数据库</span>
+</span></span><span class="line"><span class="cl">    <span class="k">def</span> <span class="nf">save_to_mongo</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">result</span><span class="p">):</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">db</span><span class="p">[</span><span class="s1">&#39;comment&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="n">result</span><span class="p">):</span>
+</span></span><span class="line"><span class="cl">            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;saved to mongo&#39;</span><span class="p">,</span><span class="n">result</span><span class="p">)</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><img src="http://img.golang.space/PicGo/20191113194804.png"
+	
+	
+	
+	loading="lazy"
+	
+	
+></p>
+<h3 id="heading"></h3>
+<p>#化鲲为鹏，我有话说# 鲲鹏弹性云服务器运行网络爬虫（下）分页与总结</p>
+<h3 id="一-分页">一 分页</h3>
+<p>通过之前的方法，用选择器点击图标，右侧代码框会自动定位该元素，这里可以看到通过 /page/2/ 以末尾的数字进行分页</p>
+<p>获取该链接, 然后递归调用自己一直查询</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="nv">next</span> <span class="o">=</span> response.doc<span class="o">(</span><span class="s1">&#39;.next a&#39;</span><span class="o">)</span>.attr.href
+</span></span><span class="line"><span class="cl">self.crawl<span class="o">(</span>next, <span class="nv">callback</span><span class="o">=</span>self.index_page<span class="o">)</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><img src="http://img.golang.space/PicGo/20191115125827.png"
+	
+	
+	
+	loading="lazy"
+	
+	
+></p>
+<h2 id="二-源码">二 源码</h2>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span><span class="lnt">51
+</span><span class="lnt">52
+</span><span class="lnt">53
+</span><span class="lnt">54
+</span><span class="lnt">55
+</span><span class="lnt">56
+</span><span class="lnt">57
+</span><span class="lnt">58
+</span><span class="lnt">59
+</span><span class="lnt">60
+</span><span class="lnt">61
+</span><span class="lnt">62
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-python" data-lang="python"><span class="line"><span class="cl"><span class="ch">#!/usr/bin/env python</span>
+</span></span><span class="line"><span class="cl"><span class="c1"># -*- encoding: utf-8 -*-</span>
+</span></span><span class="line"><span class="cl"><span class="c1"># Created on 2019-11-24 03:27:43</span>
+</span></span><span class="line"><span class="cl"><span class="c1"># Project: demo1</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kn">from</span> <span class="nn">pyspider.libs.base_handler</span> <span class="kn">import</span> <span class="o">*</span>
+</span></span><span class="line"><span class="cl"><span class="kn">import</span> <span class="nn">pymongo</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">class</span> <span class="nc">Handler</span><span class="p">(</span><span class="n">BaseHandler</span><span class="p">):</span>
+</span></span><span class="line"><span class="cl">    <span class="n">crawl_config</span> <span class="o">=</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">         <span class="s1">&#39;itag&#39;</span><span class="p">:</span> <span class="s1">&#39;v224&#39;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">     <span class="c1"># 连接 mongodb 数据库</span>
+</span></span><span class="line"><span class="cl">    <span class="n">client</span> <span class="o">=</span> <span class="n">pymongo</span><span class="o">.</span><span class="n">MongoClient</span><span class="p">(</span><span class="s1">&#39;localhost&#39;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="c1"># 库名为 trip</span>
+</span></span><span class="line"><span class="cl">    <span class="n">db</span> <span class="o">=</span> <span class="n">client</span><span class="p">[</span><span class="s1">&#39;demo1&#39;</span><span class="p">]</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="nd">@every</span><span class="p">(</span><span class="n">minutes</span><span class="o">=</span><span class="mi">24</span> <span class="o">*</span> <span class="mi">60</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">def</span> <span class="nf">on_start</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span></span><span class="line"><span class="cl">        <span class="bp">self</span><span class="o">.</span><span class="n">crawl</span><span class="p">(</span><span class="s1">&#39;http://quotes.toscrape.com/&#39;</span><span class="p">,</span> <span class="n">callback</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">index_page</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="nd">@config</span><span class="p">(</span><span class="n">age</span><span class="o">=</span><span class="mi">60</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">def</span> <span class="nf">index_page</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">response</span><span class="p">):</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="bp">self</span><span class="o">.</span><span class="n">crawl</span><span class="p">(</span><span class="n">response</span><span class="o">.</span><span class="n">url</span><span class="p">,</span> <span class="n">callback</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">detail_page</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="nb">next</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="n">doc</span><span class="p">(</span><span class="s1">&#39;.next a&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">attr</span><span class="o">.</span><span class="n">href</span>
+</span></span><span class="line"><span class="cl">        <span class="c1"># 递归调用</span>
+</span></span><span class="line"><span class="cl">        <span class="bp">self</span><span class="o">.</span><span class="n">crawl</span><span class="p">(</span><span class="nb">next</span><span class="p">,</span> <span class="n">callback</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">index_page</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="nd">@config</span><span class="p">(</span><span class="n">priority</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">def</span> <span class="nf">detail_page</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">response</span><span class="p">):</span>
+</span></span><span class="line"><span class="cl">        <span class="n">results</span> <span class="o">=</span> <span class="p">[]</span>
+</span></span><span class="line"><span class="cl">        <span class="k">for</span> <span class="n">each</span> <span class="ow">in</span> <span class="n">response</span><span class="o">.</span><span class="n">doc</span><span class="p">(</span><span class="s1">&#39;.quote&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+</span></span><span class="line"><span class="cl">            <span class="n">comment</span> <span class="o">=</span> <span class="n">each</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="s1">&#39;[itemprop=&#34;text&#34;]&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">text</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">            <span class="n">author</span> <span class="o">=</span> <span class="n">each</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="s1">&#39;[itemprop=&#34;author&#34;]&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">text</span><span class="p">()</span><span class="c1"># 作者</span>
+</span></span><span class="line"><span class="cl">            <span class="c1"># 标签</span>
+</span></span><span class="line"><span class="cl">            <span class="n">tags</span> <span class="o">=</span> <span class="n">each</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="s1">&#39;.tags .tag&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">            <span class="c1"># 标签结果集</span>
+</span></span><span class="line"><span class="cl">            <span class="n">tagList</span> <span class="o">=</span> <span class="p">[]</span>
+</span></span><span class="line"><span class="cl">            <span class="k">for</span> <span class="n">tag</span> <span class="ow">in</span> <span class="n">tags</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">                <span class="n">tagList</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">tag</span><span class="o">.</span><span class="n">text</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">     		<span class="c1"># 将查询到名言封装到名言结果集</span>
+</span></span><span class="line"><span class="cl">            <span class="n">results</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
+</span></span><span class="line"><span class="cl">                <span class="s2">&#34;comment&#34;</span><span class="p">:</span> <span class="n">comment</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">                <span class="s2">&#34;author&#34;</span><span class="p">:</span> <span class="n">author</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">                <span class="s2">&#34;tagList&#34;</span><span class="p">:</span> <span class="n">tagList</span>
+</span></span><span class="line"><span class="cl">            <span class="p">})</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">results</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1"># 保存</span>
+</span></span><span class="line"><span class="cl">    <span class="k">def</span> <span class="nf">on_result</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">result</span><span class="p">):</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="n">result</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">            <span class="bp">self</span><span class="o">.</span><span class="n">save_to_mongo</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1"># 存到数据库</span>
+</span></span><span class="line"><span class="cl">    <span class="k">def</span> <span class="nf">save_to_mongo</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">result</span><span class="p">):</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">db</span><span class="p">[</span><span class="s1">&#39;comment&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="n">result</span><span class="p">):</span>
+</span></span><span class="line"><span class="cl">            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;saved to mongo&#39;</span><span class="p">,</span><span class="n">result</span><span class="p">)</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h2 id="三-常用方法">三 常用方法</h2>
+<p><code>auto_recrawl </code>在任务过期后，自动重爬取</p>
+<p><code>method</code> 请求方法，默认 get 请求</p>
+<p><code>params</code>  追加参数 url， 感觉不常用</p>
+<p><code>data</code>   用于提交 post 请求的数据，可以用于登录？</p>
+<p><code>connect_timeout</code>   连接的超时时间，默认20秒</p>
+<p><code>timeout</code>  超时的请求时间，默认120秒</p>
+<p><code>validate_cert</code>   针对 https 网站，会爆证书错误，设置 false 可以忽略并继续访问，默认true</p>
+<p><code>proxy</code>  代理</p>
+<p><code>etag</code>  布尔类型变量，默认 true， 判断是否发生变化，没有发生变化就不爬了</p>
+<p><code>fetch_type</code>   请求的原始的 docment, 设置 =js 后,就可以调用 js 进行渲染</p>
+<p><code>fetch_type='js'</code></p>
+<p><code>js_script</code>    可以执行js 操作, 比如滚动到网页的最下端,触发更多加载</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">window.scrollTo<span class="o">(</span>0,document.body.scrollHeight<span class="o">)</span><span class="p">;</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><code>js_run_at</code>  将脚本加入到前面或者后面执行,默认是后面</p>
+<p><code>js_viewport_width/js_viewport_height</code>  视窗的大小</p>
+<p><code>load_images</code>  是否加载图片,默认 false</p>
+<p><code>save</code> 做多个函数之间传递变量,相当于  response 的session</p>
+<p><code>taskid</code> 唯一标识码，去重</p>
+<h2 id="四-web-浏览框">四 web 浏览框</h2>
+<p>使用的时候发现这个浏览框非常的小,  改变方法见下图2</p>
+<p>此方法只能用于本次, 一劳永逸需要修改配置文件</p>
+<p>该路径是指向 pyspider 文件夹</p>
+<p><code>sudo vim /usr/local/lib/python3.5/dist-packages/pyspider/webui/static/debug.min.css</code></p>
+<p>增加 iframe 的样式:    <code>height:900px  !important</code></p>
+<p><img src="http://img.golang.space/PicGo/20191124034849.png"
+	
+	
+	
+	loading="lazy"
+	
+	
+></p>
+<p><img src="http://img.golang.space/PicGo/20191112184653.png"
+	
+	
+	
+	loading="lazy"
+	
+	
+></p>
+
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/python/">Python</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+     
+    
+        
+    <script src="https://utteranc.es/client.js" 
+        repo="ixugo/ixugo.github.io"
+        issue-term="pathname"
+        
+        crossorigin="anonymous"
+        async
+        >
+</script>
+
+<style>
+    .utterances {
+        max-width: unset;
+    }
+</style>
+
+<script>
+    function setUtterancesTheme(theme) {
+        let utterances = document.querySelector('.utterances iframe');
+        if (utterances) {
+            utterances.contentWindow.postMessage(
+                {
+                    type: 'set-theme',
+                    theme: `github-${theme}`
+                },
+                'https://utteranc.es'
+            );
+        }
+    }
+
+    addEventListener('message', event => {
+        if (event.origin !== 'https://utteranc.es') return;
+        setUtterancesTheme(document.documentElement.dataset.scheme)
+    });
+
+    window.addEventListener('onColorSchemeChange', (e) => {
+        setUtterancesTheme(e.detail)
+    })
+</script>
+
+
+    
+
+    <footer class="site-footer">
+  <section class="copyright">
+    &copy;
+    
+    2018 -
+    
+    2023 ixugo
+  </section>
+  <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+  <section class="powerby">
+
+    
+    <span id="busuanzi_container_page_pv">本文阅读量
+      <span style="font-size: 14px" id="busuanzi_value_page_pv"></span>
+      次，</span>
+    <span id="busuanzi_container_site_pv">总访问量
+      <span style="font-size: 14px" id="busuanzi_value_site_pv"></span>
+      次 </span>，总访客数
+    <span style="font-size: 14px" id="busuanzi_value_site_uv"></span> 人
+    <br />
+
+
+    Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> .&nbsp;&nbsp;
+    Theme <a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener"
+      data-version="3.16.0">Stack</a> designed by <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a>
+  </section>
+
+
+
+
+  <script>
+    function count() {
+      let href = window.location.href;
+      let regexp = /^https?:\/\/blog.golang.space\/?(page\/[\d]+\/?)?$/;
+      if (regexp.test(href)) {
+        let e = document.getElementById("busuanzi_container_page_pv");
+        e.innerText = "";
+      }
+    }
+    window.onload = count;
+  </script>
+</footer>
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

@@ -1,0 +1,954 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='名字很重要 起名要有可读性, 好变量名的特点是
+一致 (容易猜测) 简短 (易于输出) 准备 (易于理解) 通常来说，如果一个名字的作用域比较大，生命周期也比较长，那么用长的名字将会更有意义。但是局部变量还是参考以上三点
+1. 项目目录名 使用中划线组合
+1 2 # BAD blog_server 1 2 # GOOD blog-server 2. 包名 使用 bytes.Buffer and strings.Reader，而没有 bytes.ByteBuffer and strings.StringReader 导出的软件包名要有意义, 避免 util ，common 等 避免使用大写字母, 且不要有重复的单词 1 2 3 4 5 6 7 # BAD import ( &amp;#34;MyUtils&amp;#34; &amp;#34;blog_server&amp;#34; &amp;#34;blog-server&amp;#34; &amp;#34;blog server&amp;#34; ) 1 2 3 4 5 # GOOD import ( &amp;#34;cmd5&amp;#34; &amp;#34;blog&amp;#34; ) 3. 文件或文件夹名 文件或文件夹名建议使用 蛇形命名，一些系统并不会对文件名区分大小写'>
+<title>1.命名规则</title>
+
+<link rel='canonical' href='https://blog.golang.space/p/1.%E5%91%BD%E5%90%8D%E8%A7%84%E5%88%99/'>
+
+<link rel="stylesheet" href="/scss/style.min.8191399262444ab68b72a18c97392f5349be20a1615d77445be51e974c144cff.css"><meta property='og:title' content='1.命名规则'>
+<meta property='og:description' content='名字很重要 起名要有可读性, 好变量名的特点是
+一致 (容易猜测) 简短 (易于输出) 准备 (易于理解) 通常来说，如果一个名字的作用域比较大，生命周期也比较长，那么用长的名字将会更有意义。但是局部变量还是参考以上三点
+1. 项目目录名 使用中划线组合
+1 2 # BAD blog_server 1 2 # GOOD blog-server 2. 包名 使用 bytes.Buffer and strings.Reader，而没有 bytes.ByteBuffer and strings.StringReader 导出的软件包名要有意义, 避免 util ，common 等 避免使用大写字母, 且不要有重复的单词 1 2 3 4 5 6 7 # BAD import ( &amp;#34;MyUtils&amp;#34; &amp;#34;blog_server&amp;#34; &amp;#34;blog-server&amp;#34; &amp;#34;blog server&amp;#34; ) 1 2 3 4 5 # GOOD import ( &amp;#34;cmd5&amp;#34; &amp;#34;blog&amp;#34; ) 3. 文件或文件夹名 文件或文件夹名建议使用 蛇形命名，一些系统并不会对文件名区分大小写'>
+<meta property='og:url' content='https://blog.golang.space/p/1.%E5%91%BD%E5%90%8D%E8%A7%84%E5%88%99/'>
+<meta property='og:site_name' content='ixugo'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='Go' /><meta property='article:published_time' content='2019-11-01T11:00:00&#43;00:00'/><meta property='article:modified_time' content='2019-11-01T11:00:00&#43;00:00'/>
+<meta name="twitter:title" content="1.命名规则">
+<meta name="twitter:description" content="名字很重要 起名要有可读性, 好变量名的特点是
+一致 (容易猜测) 简短 (易于输出) 准备 (易于理解) 通常来说，如果一个名字的作用域比较大，生命周期也比较长，那么用长的名字将会更有意义。但是局部变量还是参考以上三点
+1. 项目目录名 使用中划线组合
+1 2 # BAD blog_server 1 2 # GOOD blog-server 2. 包名 使用 bytes.Buffer and strings.Reader，而没有 bytes.ByteBuffer and strings.StringReader 导出的软件包名要有意义, 避免 util ，common 等 避免使用大写字母, 且不要有重复的单词 1 2 3 4 5 6 7 # BAD import ( &amp;#34;MyUtils&amp;#34; &amp;#34;blog_server&amp;#34; &amp;#34;blog-server&amp;#34; &amp;#34;blog server&amp;#34; ) 1 2 3 4 5 # GOOD import ( &amp;#34;cmd5&amp;#34; &amp;#34;blog&amp;#34; ) 3. 文件或文件夹名 文件或文件夹名建议使用 蛇形命名，一些系统并不会对文件名区分大小写">
+    <link rel="shortcut icon" href="img/favicon.ico" />
+
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+	(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+	m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+	})(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+	ga('create', 'UA-192125643-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="Toggle Menu">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu0b04ba6d7249c9f90c92db974439eb8c_208246_300x0_resize_box_3.png" width="300"
+                            height="321" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🧐</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">ixugo</a></h1>
+            <h2 class="site-description">走出舒适区</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/ixugo'
+                        target="_blank"
+                        title="GitHub"
+                        rel="me"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>Home</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/about/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>About</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>Archives</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>Search</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>Dark Mode</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">Table of contents</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#名字很重要">名字很重要</a>
+      <ol>
+        <li><a href="#1-项目目录名">1. 项目目录名</a></li>
+        <li><a href="#2-包名">2. 包名</a></li>
+        <li><a href="#3-文件或文件夹名">3. 文件或文件夹名</a></li>
+        <li><a href="#4-常量">4. 常量</a></li>
+        <li><a href="#5-变量">5. 变量</a></li>
+        <li><a href="#6-结构体">6. 结构体</a></li>
+        <li><a href="#7-接口">7. 接口</a></li>
+        <li><a href="#8-函数">8. 函数</a></li>
+      </ol>
+    </li>
+    <li><a href="#参考">参考</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+            <main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+    <header class="article-category">
+        
+            <a href="/categories/golang/" >
+                Golang
+            </a>
+        
+    </header>
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/1.%E5%91%BD%E5%90%8D%E8%A7%84%E5%88%99/">1.命名规则</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    
+    
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Nov 01, 2019</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    2 minute read
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+
+</header>
+
+    <section class="article-content">
+    
+    
+    <h2 id="名字很重要">名字很重要</h2>
+<p>起名要有可读性, 好变量名的特点是</p>
+<ul>
+<li>一致 (容易猜测)</li>
+<li>简短 (易于输出)</li>
+<li>准备 (易于理解)</li>
+</ul>
+<p>通常来说，如果一个名字的作用域比较大，生命周期也比较长，那么用长的名字将会更有意义。但是局部变量还是参考以上三点</p>
+<h3 id="1-项目目录名">1. 项目目录名</h3>
+<p>使用中划线组合</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="c1"># BAD</span>
+</span></span><span class="line"><span class="cl">blog_server
+</span></span></code></pre></td></tr></table>
+</div>
+</div><div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="c1"># GOOD</span>
+</span></span><span class="line"><span class="cl">blog-server
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="2-包名">2. 包名</h3>
+<p><img src="https://img1.sycdn.imooc.com/5f6825fd0001c4a808000475.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="图片描述"
+	
+	
+></p>
+<ul>
+<li>使用 <code>bytes.Buffer</code> and <code>strings.Reader</code>，而没有 <code>bytes.ByteBuffer</code> and <code>strings.StringReader</code></li>
+<li>导出的软件包名要有意义, 避免 util ，common 等</li>
+<li>避免使用大写字母, 且不要有重复的单词</li>
+</ul>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="c1"># BAD</span>
+</span></span><span class="line"><span class="cl">import <span class="o">(</span>
+</span></span><span class="line"><span class="cl">	<span class="s2">&#34;MyUtils&#34;</span>           
+</span></span><span class="line"><span class="cl">	<span class="s2">&#34;blog_server&#34;</span>
+</span></span><span class="line"><span class="cl">	<span class="s2">&#34;blog-server&#34;</span>
+</span></span><span class="line"><span class="cl">	<span class="s2">&#34;blog server&#34;</span>
+</span></span><span class="line"><span class="cl"><span class="o">)</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="c1"># GOOD</span>
+</span></span><span class="line"><span class="cl">import <span class="o">(</span>
+</span></span><span class="line"><span class="cl">	<span class="s2">&#34;cmd5&#34;</span>
+</span></span><span class="line"><span class="cl">	<span class="s2">&#34;blog&#34;</span>
+</span></span><span class="line"><span class="cl"><span class="o">)</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="3-文件或文件夹名">3. 文件或文件夹名</h3>
+<p>文件或文件夹名建议使用 蛇形命名，一些系统并不会对文件名区分大小写</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="c1"># BAD</span>
+</span></span><span class="line"><span class="cl">buildTest.go
+</span></span></code></pre></td></tr></table>
+</div>
+</div><div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="c1"># GOOD</span>
+</span></span><span class="line"><span class="cl">build_test.go
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>避免和保留特定用法的后缀冲突</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="c1"># 测试文件</span>
+</span></span><span class="line"><span class="cl">_test.go
+</span></span></code></pre></td></tr></table>
+</div>
+</div><div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="c1"># 系统相关</span>
+</span></span><span class="line"><span class="cl">_386.go、_amd64.go、_arm.go、_arm64.go、_android.go、_darwin.go、_dragonfly.go、_freebsd.go、_linux.go、_nacl.go、_netbsd.go、_openbsd.go、_plan9.go、_solaris.go、_windows.go、_android_386.go、_android_amd64.go、_android_arm.go、_android_arm64.go、_darwin_386.go、_darwin_amd64.go、_darwin_arm.go、_darwin_arm64.go、_dragonfly_amd64.go、_freebsd_386.go、_freebsd_amd64.go、_freebsd_arm.go、_linux_386.go、_linux_amd64.go、_linux_arm.go、_linux_arm64.go、_linux_mips64.go、_linux_mips64le.go、_linux_ppc64.go、_linux_ppc64le.go、_linux_s390x.go、_nacl_386.go、_nacl_amd64p32.go、_nacl_arm.go、_netbsd_386.go、_netbsd_amd64.go、_netbsd_arm.go、_openbsd_386.go、_openbsd_amd64.go、_openbsd_arm.go、_plan9_386.go、_plan9_amd64.go、_plan9_arm.go、_solaris_amd64.go、_windows_386.go
+</span></span><span class="line"><span class="cl">_windows_amd64.go
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="4-常量">4. 常量</h3>
+<ul>
+<li>使用大小写混排的驼峰命名，不允许出现下划线</li>
+<li>字母缩略词应全大写 , 像ASCII和HTML这样的缩略词则避免使用大小写混合的写法，它们可能被称为htmlEscape、HTMLEscape或escapeHTML，但不会是escapeHtml。</li>
+</ul>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="c1"># BAD</span>
+</span></span><span class="line"><span class="cl">BLOG_SERVER
+</span></span><span class="line"><span class="cl">escapeHtml
+</span></span></code></pre></td></tr></table>
+</div>
+</div><div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="c1"># GOOD</span>
+</span></span><span class="line"><span class="cl">BlogServer
+</span></span><span class="line"><span class="cl">escapeHTML
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>按照功能来区分，而非所有类型都分在一组，公共常量置于私有常量之前</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="c1"># BAD</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">const <span class="o">(</span>
+</span></span><span class="line"><span class="cl">	<span class="c1"># 错误 : 私有常量应写公有常量后面</span>
+</span></span><span class="line"><span class="cl">	<span class="nv">blog</span> <span class="o">=</span> <span class="s2">&#34;BLOG&#34;</span>
+</span></span><span class="line"><span class="cl">	<span class="nv">Page</span><span class="o">=</span><span class="m">1</span>   				<span class="c1"># 用于分页</span>
+</span></span><span class="line"><span class="cl">	<span class="nv">Limit</span><span class="o">=</span><span class="m">10</span>
+</span></span><span class="line"><span class="cl">	<span class="nv">Page404</span> <span class="o">=</span> <span class="s2">&#34;404&#34;</span> <span class="c1"># 标记</span>
+</span></span><span class="line"><span class="cl">	...
+</span></span><span class="line"><span class="cl"><span class="o">)</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="c1"># GOOD</span>
+</span></span><span class="line"><span class="cl">const <span class="o">(</span>
+</span></span><span class="line"><span class="cl">  <span class="c1"># 分页</span>
+</span></span><span class="line"><span class="cl">	<span class="nv">Page</span> <span class="o">=</span> <span class="m">1</span>
+</span></span><span class="line"><span class="cl">	<span class="nv">Limit</span> <span class="o">=</span> <span class="m">10</span>
+</span></span><span class="line"><span class="cl">	
+</span></span><span class="line"><span class="cl">	<span class="c1"># 标记</span>
+</span></span><span class="line"><span class="cl">	<span class="nv">Page404</span> <span class="o">=</span> <span class="s2">&#34;404&#34;</span>
+</span></span><span class="line"><span class="cl">	
+</span></span><span class="line"><span class="cl">	<span class="c1"># 私有常量</span>
+</span></span><span class="line"><span class="cl">	<span class="nv">blog</span> <span class="o">=</span> <span class="s2">&#34;BLOG&#34;</span>
+</span></span><span class="line"><span class="cl"><span class="o">)</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="5-变量">5. 变量</h3>
+<p>使用大小写混排的驼峰命名，不允许出现下划线</p>
+<p><strong>局部变量简短</strong></p>
+<ul>
+<li>用 i  比 index 更合适</li>
+<li>用 r 比 reader 更合适</li>
+<li>若为 bool 类型, 应以 has，is ，can，allow 开头</li>
+</ul>
+<p>考虑上下文, 避免使用冗余名称</p>
+<p>Good code</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">RuneCount</span><span class="p">(</span><span class="nx">b</span> <span class="p">[]</span><span class="kt">byte</span><span class="p">)</span> <span class="kt">int</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">count</span> <span class="o">:=</span> <span class="mi">0</span>
+</span></span><span class="line"><span class="cl">    <span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="mi">0</span><span class="p">;</span> <span class="nx">i</span> <span class="p">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="nx">b</span><span class="p">);</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="nx">b</span><span class="p">[</span><span class="nx">i</span><span class="p">]</span> <span class="p">&lt;</span> <span class="nx">RuneSelf</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="nx">i</span><span class="o">++</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="nx">_</span><span class="p">,</span> <span class="nx">n</span> <span class="o">:=</span> <span class="nf">DecodeRune</span><span class="p">(</span><span class="nx">b</span><span class="p">[</span><span class="nx">i</span><span class="p">:])</span>
+</span></span><span class="line"><span class="cl">            <span class="nx">i</span> <span class="o">+=</span> <span class="nx">n</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">count</span><span class="o">++</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="nx">count</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><strong>全局变量</strong></p>
+<p>变量长度应与作用域相关，作用域越小，则使用简短的单字母</p>
+<p>作用域越大，可定义完整单词或有意义的句子</p>
+<h3 id="6-结构体">6. 结构体</h3>
+<p>建议采用名词</p>
+<h3 id="7-接口">7. 接口</h3>
+<p>仅指定一种方法的接口通常在函数名后附加 <code>er</code>，尽管可能不是正确的英语</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">Reader</span> <span class="kd">interface</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nf">Read</span><span class="p">(</span><span class="nx">p</span> <span class="p">[]</span><span class="kt">byte</span><span class="p">)</span> <span class="p">(</span><span class="nx">n</span> <span class="kt">int</span><span class="p">,</span> <span class="nx">err</span> <span class="kt">error</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">Execer</span> <span class="kd">interface</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nf">Exec</span><span class="p">(</span><span class="nx">query</span> <span class="kt">string</span><span class="p">,</span> <span class="nx">args</span> <span class="p">[]</span><span class="nx">Value</span><span class="p">)</span> <span class="p">(</span><span class="nx">Result</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="8-函数">8. 函数</h3>
+<p>函数名力求精简准确，并采用动词</p>
+<p><strong>函数参数</strong></p>
+<p>类型是描述性的, 应该简短</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">func AfterFunc(d Duration, f func()) *Timer
+</span></span><span class="line"><span class="cl">func Escape(w io.Writer, s []byte)
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>函数名明确，类型不明确，参数名称可使用单词缩略</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">Unix</span><span class="p">(</span><span class="nx">sec</span><span class="err">，</span><span class="nx">nsec</span> <span class="kt">int64</span><span class="p">)</span> <span class="nx">time</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h2 id="参考">参考</h2>
+<ul>
+<li><a class="link" href="https://talks.golang.org/2014/names.slide#1"  target="_blank" rel="noopener"
+    >如何取名字 ? </a></li>
+<li><a class="link" href="https://github.com/golang/go/wiki/CodeReviewComments#named-result-parameters"  target="_blank" rel="noopener"
+    >CodeReviewComments</a></li>
+<li><a class="link" href="https://golang.org/doc/effective_go#named-results"  target="_blank" rel="noopener"
+    >Effective Go</a></li>
+</ul>
+
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/go/">Go</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">Related content</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/json-%E7%BB%86%E8%8A%82/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">JSON 细节</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/25.%E6%B3%9B%E5%9E%8B/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">25.泛型</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/22.%E6%B5%8B%E8%AF%95/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">22.测试</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/go-%E7%BC%96%E7%A0%81%E8%A7%84%E8%8C%83/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Go 编码规范</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/go-module/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Go Module</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script src="https://utteranc.es/client.js" 
+        repo="ixugo/ixugo.github.io"
+        issue-term="pathname"
+        
+        crossorigin="anonymous"
+        async
+        >
+</script>
+
+<style>
+    .utterances {
+        max-width: unset;
+    }
+</style>
+
+<script>
+    function setUtterancesTheme(theme) {
+        let utterances = document.querySelector('.utterances iframe');
+        if (utterances) {
+            utterances.contentWindow.postMessage(
+                {
+                    type: 'set-theme',
+                    theme: `github-${theme}`
+                },
+                'https://utteranc.es'
+            );
+        }
+    }
+
+    addEventListener('message', event => {
+        if (event.origin !== 'https://utteranc.es') return;
+        setUtterancesTheme(document.documentElement.dataset.scheme)
+    });
+
+    window.addEventListener('onColorSchemeChange', (e) => {
+        setUtterancesTheme(e.detail)
+    })
+</script>
+
+
+    
+
+    <footer class="site-footer">
+  <section class="copyright">
+    &copy;
+    
+    2018 -
+    
+    2023 ixugo
+  </section>
+  <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+  <section class="powerby">
+
+    
+    <span id="busuanzi_container_page_pv">本文阅读量
+      <span style="font-size: 14px" id="busuanzi_value_page_pv"></span>
+      次，</span>
+    <span id="busuanzi_container_site_pv">总访问量
+      <span style="font-size: 14px" id="busuanzi_value_site_pv"></span>
+      次 </span>，总访客数
+    <span style="font-size: 14px" id="busuanzi_value_site_uv"></span> 人
+    <br />
+
+
+    Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> .&nbsp;&nbsp;
+    Theme <a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener"
+      data-version="3.16.0">Stack</a> designed by <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a>
+  </section>
+
+
+
+
+  <script>
+    function count() {
+      let href = window.location.href;
+      let regexp = /^https?:\/\/blog.golang.space\/?(page\/[\d]+\/?)?$/;
+      if (regexp.test(href)) {
+        let e = document.getElementById("busuanzi_container_page_pv");
+        e.innerText = "";
+      }
+    }
+    window.onload = count;
+  </script>
+</footer>
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

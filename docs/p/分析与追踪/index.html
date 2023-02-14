@@ -1,0 +1,1005 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='分析与追踪 这里主要关注两种性能分型。针对阻塞和互斥锁所做的性能分析价值不是特别大，那是针对程序中很小的一部分，例如阻塞情况而做的，所以不太能够看出程序的整体的情况，当然，接下来说明的技巧也可以用在这个上面。
+CPU 层面的 内存层面的 通过追踪不仅能程序里发生了什么，还能知道哪些事情没有发生。
+从 CPU 层面，我们要关注的是程序把大部分时间都耗在哪些函数上面 从内存层面，要关注两项指标 程序要给堆上面放多少个值，如果这样的值比较多且有效期比较短，那么垃圾收集工作就得花费很长时间才能完成。 堆的总大小，能不能少用一些空间 栈追踪 程序发生 panic 时，终端会输出栈调用信息。
+微观优化 关注单个函数，让这个函数运行更快，可能要查看 CPU 的使用情况，或堆内存的使用情况分析。
+使用 -memprofile 对基准测试生成内存报告
+1 go test -run none -bench . -benchtime 3s -benchmem -memprofile m.out go tool pprof 可以查看涉及 CPU，内存，以及阻塞的分析文件。
+1 2 3 go tool pprof -alloc_space m.out # 通过 list 命令查看分析 list &amp;lt;函数名&amp;gt; -alloc_space 查看内存分配情况 -alloc_objects 查看各种内容的数量 -inuse_sapce 默认选项 如下图所示，红框有两栏。第一栏 flat 表示该行的内存分配，假如查看的 Profile 是针对 CPU 生成的，则该栏是 CPU 的用量。第二栏 cum 表示从这一行算起，一直沿着调用栈往下累计，看看它本身及调用的代码总共分配了多少内存。'>
+<title>分析与追踪</title>
+
+<link rel='canonical' href='https://blog.golang.space/p/%E5%88%86%E6%9E%90%E4%B8%8E%E8%BF%BD%E8%B8%AA/'>
+
+<link rel="stylesheet" href="/scss/style.min.8191399262444ab68b72a18c97392f5349be20a1615d77445be51e974c144cff.css"><meta property='og:title' content='分析与追踪'>
+<meta property='og:description' content='分析与追踪 这里主要关注两种性能分型。针对阻塞和互斥锁所做的性能分析价值不是特别大，那是针对程序中很小的一部分，例如阻塞情况而做的，所以不太能够看出程序的整体的情况，当然，接下来说明的技巧也可以用在这个上面。
+CPU 层面的 内存层面的 通过追踪不仅能程序里发生了什么，还能知道哪些事情没有发生。
+从 CPU 层面，我们要关注的是程序把大部分时间都耗在哪些函数上面 从内存层面，要关注两项指标 程序要给堆上面放多少个值，如果这样的值比较多且有效期比较短，那么垃圾收集工作就得花费很长时间才能完成。 堆的总大小，能不能少用一些空间 栈追踪 程序发生 panic 时，终端会输出栈调用信息。
+微观优化 关注单个函数，让这个函数运行更快，可能要查看 CPU 的使用情况，或堆内存的使用情况分析。
+使用 -memprofile 对基准测试生成内存报告
+1 go test -run none -bench . -benchtime 3s -benchmem -memprofile m.out go tool pprof 可以查看涉及 CPU，内存，以及阻塞的分析文件。
+1 2 3 go tool pprof -alloc_space m.out # 通过 list 命令查看分析 list &amp;lt;函数名&amp;gt; -alloc_space 查看内存分配情况 -alloc_objects 查看各种内容的数量 -inuse_sapce 默认选项 如下图所示，红框有两栏。第一栏 flat 表示该行的内存分配，假如查看的 Profile 是针对 CPU 生成的，则该栏是 CPU 的用量。第二栏 cum 表示从这一行算起，一直沿着调用栈往下累计，看看它本身及调用的代码总共分配了多少内存。'>
+<meta property='og:url' content='https://blog.golang.space/p/%E5%88%86%E6%9E%90%E4%B8%8E%E8%BF%BD%E8%B8%AA/'>
+<meta property='og:site_name' content='ixugo'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='Go进阶' /><meta property='article:published_time' content='2022-03-01T00:00:00&#43;00:00'/><meta property='article:modified_time' content='2022-03-01T00:00:00&#43;00:00'/>
+<meta name="twitter:title" content="分析与追踪">
+<meta name="twitter:description" content="分析与追踪 这里主要关注两种性能分型。针对阻塞和互斥锁所做的性能分析价值不是特别大，那是针对程序中很小的一部分，例如阻塞情况而做的，所以不太能够看出程序的整体的情况，当然，接下来说明的技巧也可以用在这个上面。
+CPU 层面的 内存层面的 通过追踪不仅能程序里发生了什么，还能知道哪些事情没有发生。
+从 CPU 层面，我们要关注的是程序把大部分时间都耗在哪些函数上面 从内存层面，要关注两项指标 程序要给堆上面放多少个值，如果这样的值比较多且有效期比较短，那么垃圾收集工作就得花费很长时间才能完成。 堆的总大小，能不能少用一些空间 栈追踪 程序发生 panic 时，终端会输出栈调用信息。
+微观优化 关注单个函数，让这个函数运行更快，可能要查看 CPU 的使用情况，或堆内存的使用情况分析。
+使用 -memprofile 对基准测试生成内存报告
+1 go test -run none -bench . -benchtime 3s -benchmem -memprofile m.out go tool pprof 可以查看涉及 CPU，内存，以及阻塞的分析文件。
+1 2 3 go tool pprof -alloc_space m.out # 通过 list 命令查看分析 list &amp;lt;函数名&amp;gt; -alloc_space 查看内存分配情况 -alloc_objects 查看各种内容的数量 -inuse_sapce 默认选项 如下图所示，红框有两栏。第一栏 flat 表示该行的内存分配，假如查看的 Profile 是针对 CPU 生成的，则该栏是 CPU 的用量。第二栏 cum 表示从这一行算起，一直沿着调用栈往下累计，看看它本身及调用的代码总共分配了多少内存。">
+    <link rel="shortcut icon" href="img/favicon.ico" />
+
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+	(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+	m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+	})(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+	ga('create', 'UA-192125643-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="Toggle Menu">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu0b04ba6d7249c9f90c92db974439eb8c_208246_300x0_resize_box_3.png" width="300"
+                            height="321" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🧐</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">ixugo</a></h1>
+            <h2 class="site-description">走出舒适区</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/ixugo'
+                        target="_blank"
+                        title="GitHub"
+                        rel="me"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>Home</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/about/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>About</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>Archives</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>Search</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>Dark Mode</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">Table of contents</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#栈追踪">栈追踪</a></li>
+    <li><a href="#微观优化">微观优化</a></li>
+    <li><a href="#宏观优化">宏观优化</a>
+      <ol>
+        <li><a href="#查看程序调度信息">查看程序调度信息</a></li>
+        <li><a href="#查看程序垃圾收集信息">查看程序垃圾收集信息</a></li>
+        <li><a href="#web-应用引入-pprof-监测性能">web 应用引入 pprof 监测性能</a></li>
+        <li><a href="#分析正在运行的-go-程序-cpu">分析正在运行的 Go 程序 CPU</a></li>
+        <li><a href="#另一种办法做性能分析">另一种办法做性能分析</a></li>
+        <li><a href="#用-tracer-追踪程序运行情况">用 Tracer 追踪程序运行情况</a></li>
+      </ol>
+    </li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+            <main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+    <header class="article-category">
+        
+            <a href="/categories/golang/" >
+                Golang
+            </a>
+        
+    </header>
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/%E5%88%86%E6%9E%90%E4%B8%8E%E8%BF%BD%E8%B8%AA/">分析与追踪</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    
+    
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Mar 01, 2022</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    2 minute read
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+
+</header>
+
+    <section class="article-content">
+    
+    
+    <h1 id="分析与追踪">分析与追踪</h1>
+<p>这里主要关注两种性能分型。针对阻塞和互斥锁所做的性能分析价值不是特别大，那是针对程序中很小的一部分，例如阻塞情况而做的，所以不太能够看出程序的整体的情况，当然，接下来说明的技巧也可以用在这个上面。</p>
+<ul>
+<li>CPU 层面的</li>
+<li>内存层面的</li>
+</ul>
+<p>通过追踪不仅能程序里发生了什么，还能知道哪些事情没有发生。</p>
+<ul>
+<li>从 CPU 层面，我们要关注的是程序把大部分时间都耗在哪些函数上面</li>
+<li>从内存层面，要关注两项指标
+<ul>
+<li>程序要给堆上面放多少个值，如果这样的值比较多且有效期比较短，那么垃圾收集工作就得花费很长时间才能完成。</li>
+<li>堆的总大小，能不能少用一些空间</li>
+</ul>
+</li>
+</ul>
+<h2 id="栈追踪">栈追踪</h2>
+<p>程序发生 panic 时，终端会输出栈调用信息。</p>
+<h2 id="微观优化">微观优化</h2>
+<p>关注单个函数，让这个函数运行更快，可能要查看 CPU 的使用情况，或堆内存的使用情况分析。</p>
+<p>使用 <code>-memprofile</code> 对基准测试生成内存报告</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">go <span class="nb">test</span> -run none -bench . -benchtime 3s -benchmem -memprofile m.out
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><code>go tool pprof</code> 可以查看涉及 CPU，内存，以及阻塞的分析文件。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">go tool pprof -alloc_space m.out
+</span></span><span class="line"><span class="cl"><span class="c1"># 通过 list 命令查看分析</span>
+</span></span><span class="line"><span class="cl">list &lt;函数名&gt;
+</span></span></code></pre></td></tr></table>
+</div>
+</div><ul>
+<li><code>-alloc_space</code> 查看内存分配情况</li>
+<li><code>-alloc_objects</code> 查看各种内容的数量</li>
+<li><code>-inuse_sapce</code> 默认选项</li>
+</ul>
+<p>如下图所示，红框有两栏。第一栏 flat 表示该行的内存分配，假如查看的 Profile 是针对 CPU 生成的，则该栏是 CPU 的用量。第二栏 cum 表示从这一行算起，一直沿着调用栈往下累计，看看它本身及调用的代码总共分配了多少内存。</p>
+<p>比如下图中的意思是，26 行本身没有分配内存，但是它调用栈往下累计，发生了分配 512.05kb 内存。</p>
+<p><img src="http://img.golang.space/shot-1650784056160.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20220424150735919"
+	
+	
+></p>
+<p>也可以使用网页版</p>
+<div class="table-wrapper"><table>
+<thead>
+<tr>
+<th>Flat</th>
+<th>该函数本次运行耗费资源</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Flat%</td>
+<td>占总资源的比例</td>
+</tr>
+<tr>
+<td>Sum%</td>
+<td>该数据累计耗费资源比例</td>
+</tr>
+<tr>
+<td>Cum</td>
+<td>该函数及调用栈总耗费资源</td>
+</tr>
+<tr>
+<td>Cum%</td>
+<td>比例</td>
+</tr>
+<tr>
+<td>Name</td>
+<td>函数名</td>
+</tr>
+</tbody>
+</table></div>
+<div class="table-wrapper"><table>
+<thead>
+<tr>
+<th>资源</th>
+<th>-</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>inuse_spce</td>
+<td>已分配尚未释放的内存</td>
+</tr>
+<tr>
+<td>inuse_objects</td>
+<td>已分配但尚未释放的对象数量</td>
+</tr>
+<tr>
+<td>alloc_space</td>
+<td>分配的内存总量</td>
+</tr>
+<tr>
+<td>alloc_objects</td>
+<td>分配的对象总数</td>
+</tr>
+</tbody>
+</table></div>
+<p><img src="http://img.golang.space/shot-1650870026579.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20220425150026375"
+	
+	
+></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="c1"># 安装图形工具, 用于绘制图形</span>
+</span></span><span class="line"><span class="cl">brew install graphviz
+</span></span><span class="line"><span class="cl"><span class="c1"># 生成 cpu.out 文件</span>
+</span></span><span class="line"><span class="cl">go <span class="nb">test</span> -bench . -cpuprofile cpu.out
+</span></span><span class="line"><span class="cl"><span class="c1">#  见图2, 输入 web 后生成 图3</span>
+</span></span><span class="line"><span class="cl">go tool pprof -http :3333 cpu.out 
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><img src="http://img.golang.space/PicGo/1586831716089-image-20200414103515673.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20200414103515673"
+	
+	
+></p>
+<p><img src="http://img.golang.space/PicGo/1586831867882-image-20200414103747452.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20200414103747452"
+	
+	
+></p>
+<p>根据图中显示, 哪一块最消耗性能, 针对修改, 使用 pprof 继续进行测试, 以完成性能优化</p>
+<p><img src="http://img.golang.space/PicGo/1586832014129-image-20200414104013837.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20200414104013837"
+	
+	
+></p>
+<h2 id="宏观优化">宏观优化</h2>
+<h3 id="查看程序调度信息">查看程序调度信息</h3>
+<p>每 1000 毫秒生成一份调度信息</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="nv">GODEBUG</span><span class="o">=</span><span class="nv">schedtrace</span><span class="o">=</span><span class="m">1000</span> ./main &gt; /dev/null
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>终端会输出正在运行的跟可运行的 goroutine。</p>
+<ul>
+<li>第一栏是追踪信息的时刻</li>
+<li>第二栏是有多少个 procs可以使用</li>
+<li>第三栏闲置的 procs 数量</li>
+<li>第四栏有多少操作系统级别的线程</li>
+<li>第五栏 <code>spinningthreads</code> ，指的是某个 procs 发现自己一直没事做，所以纵向从别处拿一点儿任务过来，或者就是想让自己在这里空转，防止系统把自己给切换掉</li>
+<li>第六栏是闲置的系统级线程</li>
+<li>第七栏是全局运行队列</li>
+<li>最后是本地运行队列，方括号的每个数字都表示一个逻辑处理器(procs)</li>
+</ul>
+<p><img src="http://img.golang.space/shot-1650791630100.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20220424171349886"
+	
+	
+></p>
+<p>给系统增加负载做测试</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">hey -m GET -c <span class="m">100</span> -n <span class="m">10000</span> <span class="s2">&#34;http://localhost:1323/app&#34;</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>如果发生了 goroutine 泄露，那么这些 goroutine 就会进入 waiting 状态，于是我们可以看到全局运行队列与局部队列里的数字就会不断增长。相反如果任务完成，这些数字都会降到 0，说明服务器是很健康的，并没有泄露什么。</p>
+<h3 id="查看程序垃圾收集信息">查看程序垃圾收集信息</h3>
+<p>每次垃圾收集打打印一条追踪信息</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="nv">GODEBUG</span><span class="o">=</span><span class="nv">gctrace</span><span class="o">=</span><span class="m">1</span> ./main &gt; /dev/null
+</span></span></code></pre></td></tr></table>
+</div>
+</div><ul>
+<li><code>gc 1</code> 和 <code>gc 2</code>&hellip; 分别表示第几次垃圾收集</li>
+<li>第二栏表示在生成这条信息时，程序已经运行了多长时间</li>
+<li>第三栏表示为了完成这次垃圾收集工作，使用了多少 CPU 资源，图中为 0%，说明任务完成的相当快</li>
+<li>第四栏显示了垃圾收集的三个阶段所花的时间，比如<code>0.022+0.75+0.035</code> 是 STW + Concurrent +STW，两个 STW 加起来不应该超过 100 微秒(0.1 毫秒)，如果堆正在膨胀，那么偶尔可能会超过这个值，但不应该频繁发生。我们要关注的是 Concurrent 实际经过时间。</li>
+<li>第四栏是 CPU 所花的时间，最左边和最右边和上面一样，也是 STW 所花的时间，但它将中间 Concurrent 分成了三个小的部分，这里重点是检查两个 STW 所花的时间。</li>
+<li>第五栏，如果你怀疑程序有内存泄露问题，那只能通过这个地方来判断。<code>4-&gt;5-&gt;1 MB</code>，收集垃圾之前的堆大小，完成收集垃圾后的堆大小，最后是活跃堆的大小。</li>
+</ul>
+<p><img src="http://img.golang.space/shot-1650792617861.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20220424173017710"
+	
+	
+></p>
+<h3 id="web-应用引入-pprof-监测性能">web 应用引入 pprof 监测性能</h3>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// 引入包，仅仅执行初始化逻辑
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="nx">_</span> <span class="s">&#34;net/http/pprof&#34;</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><ul>
+<li><code>allocs</code> 对过去所有的内存分配行为采样，性能调优查看重点此项。</li>
+<li><code>block</code> 导致阻塞的堆栈跟踪</li>
+<li><code>cmdline</code> 当前程序通过什么样命令调用的</li>
+<li><code>goroutine</code> 所有当前 goroutine 的堆栈痕迹</li>
+<li><code>heap</code> 活跃对象内存分配情况，heap 是以前的老路径，allocs 是1.11 加进来了新路径。</li>
+</ul>
+<p>pprof 会注册到<code>net/http</code> 包默认的服务上，建议单独开一个专门 pprof 的服务，端口不要暴露到公网。</p>
+<h3 id="分析正在运行的-go-程序-cpu">分析正在运行的 Go 程序 CPU</h3>
+<p>这跟 heap 方面的数据有点区别，那个只需要根据以往的堆数据就能统计出来。但 CPU 方面的不同，要想得到有效的报告，必须给程序增加负载，默认的标准中，在生成 CPU 报告时，需要让程序运行 30 秒，以便收集足够量的数据。</p>
+<p>如果你想自定义时间</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">http://localhost:6060/debug/pprof/profile?seconds<span class="o">=</span><span class="m">5</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>分析 CPU</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="k">go</span> <span class="nx">tool</span> <span class="nx">pprof</span> <span class="o">-</span><span class="nx">http</span> <span class="p">:</span><span class="mi">5050</span> <span class="s">&#34;http://localhost:6060/debug/pprof/profile&#34;</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="另一种办法做性能分析">另一种办法做性能分析</h3>
+<p>除了命令行 <code>go tool pprof</code> ，还有另一种办法做性能分析。</p>
+<p>程序会向标准输出端输出一份分析报告。 注意: 与没有做性能分析时相比，这次的程序花的时间会长一些。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kn">import</span> <span class="s">&#34;runtime/pprof&#34;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">main</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">pprof</span><span class="p">.</span><span class="nf">StartCPUProfile</span><span class="p">(</span><span class="nx">os</span><span class="p">.</span><span class="nx">Stdout</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="k">defer</span> <span class="nx">pprof</span><span class="p">.</span><span class="nf">StopCPUProfile</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// ...
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">main &gt; cpu.out
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">go tool pprof cpu.out
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>有时，你会发现大部分性能消耗在操作系统调用上，profile 没能发挥作用，试试 trace。</p>
+<h3 id="用-tracer-追踪程序运行情况">用 Tracer 追踪程序运行情况</h3>
+<p>做 trace 也有很多种办法:</p>
+<ul>
+<li>在命令行里执行</li>
+<li>benchmark 的时候增加 -trace 选项</li>
+<li>标准库里的函数</li>
+</ul>
+<p>有时候我们要看的不是程序发生了什么，而是还没有发生的事情。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kn">import</span> <span class="s">&#34;runtime/trace&#34;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">main</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl"> <span class="nx">trace</span><span class="p">.</span><span class="nf">Start</span><span class="p">(</span><span class="nx">os</span><span class="p">.</span><span class="nx">Stdout</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"> <span class="k">defer</span> <span class="nx">trace</span><span class="p">.</span><span class="nf">Stop</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// ...
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>追踪和性能测试不同，它不要求程序必须停下来，只是会把每次函数调用都记录下来，而且会精确到微秒级别。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">main &gt; cpu.out
+</span></span><span class="line"><span class="cl">go tool trace c.out 
+</span></span></code></pre></td></tr></table>
+</div>
+</div>
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/go%E8%BF%9B%E9%98%B6/">Go进阶</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">Related content</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/%E5%BA%94%E8%AF%A5%E6%9C%89%E7%9A%84-go-%E8%AF%AD%E8%A8%80%E6%80%9D%E7%BB%B4/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">应该有的 Go 语言思维</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/%E8%BD%BB%E9%87%8F%E7%BA%A7%E5%8E%8B%E6%B5%8B%E5%B7%A5%E5%85%B7/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">轻量级压测工具</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/channels-%E6%A8%A1%E5%BC%8F/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Channels 模式</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/%E6%A0%88%E5%B8%A7%E4%B8%8E%E9%80%83%E9%80%B8/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">栈帧与逃逸</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/go-%E5%86%85%E5%AD%98%E6%A8%A1%E5%9E%8B/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Go 内存模型</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script src="https://utteranc.es/client.js" 
+        repo="ixugo/ixugo.github.io"
+        issue-term="pathname"
+        
+        crossorigin="anonymous"
+        async
+        >
+</script>
+
+<style>
+    .utterances {
+        max-width: unset;
+    }
+</style>
+
+<script>
+    function setUtterancesTheme(theme) {
+        let utterances = document.querySelector('.utterances iframe');
+        if (utterances) {
+            utterances.contentWindow.postMessage(
+                {
+                    type: 'set-theme',
+                    theme: `github-${theme}`
+                },
+                'https://utteranc.es'
+            );
+        }
+    }
+
+    addEventListener('message', event => {
+        if (event.origin !== 'https://utteranc.es') return;
+        setUtterancesTheme(document.documentElement.dataset.scheme)
+    });
+
+    window.addEventListener('onColorSchemeChange', (e) => {
+        setUtterancesTheme(e.detail)
+    })
+</script>
+
+
+    
+
+    <footer class="site-footer">
+  <section class="copyright">
+    &copy;
+    
+    2018 -
+    
+    2023 ixugo
+  </section>
+  <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+  <section class="powerby">
+
+    
+    <span id="busuanzi_container_page_pv">本文阅读量
+      <span style="font-size: 14px" id="busuanzi_value_page_pv"></span>
+      次，</span>
+    <span id="busuanzi_container_site_pv">总访问量
+      <span style="font-size: 14px" id="busuanzi_value_site_pv"></span>
+      次 </span>，总访客数
+    <span style="font-size: 14px" id="busuanzi_value_site_uv"></span> 人
+    <br />
+
+
+    Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> .&nbsp;&nbsp;
+    Theme <a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener"
+      data-version="3.16.0">Stack</a> designed by <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a>
+  </section>
+
+
+
+
+  <script>
+    function count() {
+      let href = window.location.href;
+      let regexp = /^https?:\/\/blog.golang.space\/?(page\/[\d]+\/?)?$/;
+      if (regexp.test(href)) {
+        let e = document.getElementById("busuanzi_container_page_pv");
+        e.innerText = "";
+      }
+    }
+    window.onload = count;
+  </script>
+</footer>
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

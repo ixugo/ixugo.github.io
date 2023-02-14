@@ -1,0 +1,209 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+    <channel>
+        <title>后端 on ixugo</title>
+        <link>https://blog.golang.space/categories/%E5%90%8E%E7%AB%AF/</link>
+        <description>Recent content in 后端 on ixugo</description>
+        <generator>Hugo -- gohugo.io</generator>
+        <language>zh-cn</language>
+        <lastBuildDate>Sat, 22 Jan 2022 00:00:00 +0000</lastBuildDate><atom:link href="https://blog.golang.space/categories/%E5%90%8E%E7%AB%AF/index.xml" rel="self" type="application/rss+xml" /><item>
+        <title>分布式事务</title>
+        <link>https://blog.golang.space/p/%E5%88%86%E5%B8%83%E5%BC%8F%E4%BA%8B%E5%8A%A1/</link>
+        <pubDate>Sat, 22 Jan 2022 00:00:00 +0000</pubDate>
+        
+        <guid>https://blog.golang.space/p/%E5%88%86%E5%B8%83%E5%BC%8F%E4%BA%8B%E5%8A%A1/</guid>
+        <description>&lt;h1 id=&#34;分布式事务&#34;&gt;分布式事务&lt;/h1&gt;
+&lt;p&gt;在一个系统内部，我们可以使用数据库事务来保证数据一致性。&lt;/p&gt;
+&lt;p&gt;那如果一笔交易，涉及到跨多个系统、多个数据库的时候，用单一的数据库事务就没办法解决了。&lt;/p&gt;
+&lt;p&gt;如何来解决这种跨系统、跨数据库的数据一致性问题呢？答案就是咱们要讨论的主题，分布式事务。&lt;/p&gt;
+&lt;p&gt;分布式事务也是事务，也需要遵从 ACID 四个特性，但实际情况是，在分布式系统中，因为必须兼顾性能和高可用，所以是不可能完全满足 ACID 的。我们常用的几种分布式事务的实现方法，都是“残血版”的事务，而且相比数据库事务，更加的“残血”。&lt;/p&gt;
+&lt;p&gt;分布式事务的解决方案有很多，比如：2PC、3PC、TCC、Saga 和本地消息表等等。这些方法，它的强项和弱项都不一样，适用的场景也不一样，所以最好这些分布式事务你都能够掌握，这样才能在面临实际问题的时候选择合适的方法。这里面，2PC 和本地消息表这两种分布式事务的解决方案，比较贴近于我们日常开发的业务系统。&lt;/p&gt;
+&lt;h2 id=&#34;事务消息&#34;&gt;事务消息&lt;/h2&gt;
+&lt;p&gt;在快餐店点餐并付钱后，并不会直接给你餐点，往往是给你一张小票或序号，然后让你拿着凭证到出货区排队取。&lt;/p&gt;
+&lt;p&gt;为什么要将付钱和取货两个动作分开呢? 一个很重要的原因是为了使他们接待能力增强。只要凭证能可靠保存，依靠凭证(消息)能完成最终一致性。&lt;/p&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;分布式事务方法&lt;/th&gt;
+&lt;th&gt;强一致性&lt;/th&gt;
+&lt;th&gt;高并发&lt;/th&gt;
+&lt;th&gt;可用性&lt;/th&gt;
+&lt;th&gt;应用场景&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;2PC&lt;/td&gt;
+&lt;td&gt;优&lt;/td&gt;
+&lt;td&gt;差&lt;/td&gt;
+&lt;td&gt;差&lt;/td&gt;
+&lt;td&gt;订单系统完成，促销系统销毁优惠券&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;本地消息表&lt;/td&gt;
+&lt;td&gt;优&lt;/td&gt;
+&lt;td&gt;良&lt;/td&gt;
+&lt;td&gt;良&lt;/td&gt;
+&lt;td&gt;订单系统完成，购物车系统清空物品&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;/td&gt;
+&lt;td&gt;&lt;/td&gt;
+&lt;td&gt;&lt;/td&gt;
+&lt;td&gt;&lt;/td&gt;
+&lt;td&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;/td&gt;
+&lt;td&gt;&lt;/td&gt;
+&lt;td&gt;&lt;/td&gt;
+&lt;td&gt;&lt;/td&gt;
+&lt;td&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;/td&gt;
+&lt;td&gt;&lt;/td&gt;
+&lt;td&gt;&lt;/td&gt;
+&lt;td&gt;&lt;/td&gt;
+&lt;td&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;h2 id=&#34;事务收件箱--transactional-outbox-&#34;&gt;事务收件箱 ( Transactional outbox )&lt;/h2&gt;
+&lt;h2 id=&#34;轮询发布--polling-publisher-&#34;&gt;轮询发布 ( Polling publisher )&lt;/h2&gt;
+&lt;h2 id=&#34;-transaction-log-tailing-&#34;&gt;( Transaction log tailing )&lt;/h2&gt;
+&lt;h2 id=&#34;两阶段提交--2pc-&#34;&gt;两阶段提交 ( 2PC )&lt;/h2&gt;
+&lt;p&gt;mysql的事务就是通过**「日志系统」**来完成两阶段提交的。&lt;strong&gt;由一个全局的事务管理器协调各个子系统的局部事务管理器完成两阶段提交&lt;/strong&gt;。&lt;/p&gt;
+&lt;p&gt;在我们购物下单时，如果使用了优惠券，订单系统和优惠券系统都要更新自己的数据，才能完成“在订单中使用优惠券”这个操作。&lt;/p&gt;
+&lt;p&gt;订单系统内两个操作的一致性问题可以直接使用数据库事务来解决。促销系统需要操作就比较简单，把刚刚使用的那张优惠券的状态更新成“已使用”就可以了。我们需要这两个系统的数据更新操作保持一致，要么都更新成功，要么都更新失败。&lt;/p&gt;
+&lt;p&gt;接下来我们来看 2PC 是怎么解决这个问题的。2PC 引入了一个事务协调者的角色，来协调订单系统和促销系统，协调者对客户端提供一个完整的“使用优惠券下单”的服务，在这个服务的内部，协调者再分别调用订单和促销的相应服务。&lt;/p&gt;
+&lt;p&gt;二阶段指的是准备阶段和提交阶段。在准备阶段，协调者分别给订单系统和促销系统发送“准备”命令，订单和促销系统收到准备命令之后，开始执行准备操作。准备阶段都需要做哪些事儿呢？你可以理解为，除了提交数据库事务以外的所有工作，都要在准备阶段完成。比如说订单系统在准备阶段需要完成：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;在订单库开启一个数据库事务；&lt;/li&gt;
+&lt;li&gt;在“订单优惠券表”写入这条订单的优惠券记录；&lt;/li&gt;
+&lt;li&gt;在“订单表”中写入订单数据。&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;注意，到这里我们没有提交订单数据库的事务，最后给事务协调者返回“准备成功”。类似的，促销服务在准备阶段，需要在促销库开启一个数据库事务，更新优惠券状态，但是暂时不要提交这个数据库事务，给协调者返回“准备成功”。协调者在收到两个系统“准备成功”的响应之后，开始进入第二阶段。&lt;/p&gt;
+&lt;p&gt;等两个系统都准备好了之后，进入提交阶段。提交阶段就比较简单了，协调者再给这两个系统发送“提交”命令，每个系统提交自己的数据库事务，然后给协调者返回“提交成功”响应，协调者收到所有响应之后，给客户端返回成功响应，整个分布式事务就结束了。&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;http://img.golang.space/shot-1651755392102.jpg&#34;
+	
+	
+	
+	loading=&#34;lazy&#34;
+	
+		alt=&#34;img&#34;
+	
+	
+&gt;&lt;/p&gt;
+&lt;p&gt;这是正常情况，接下来才是重点：异常情况下怎么办？我们还是分两个阶段来说明。在准备阶段，如果任何一步出现错误或者是超时，协调者就会给两个系统发送“回滚事务”请求。每个系统在收到请求之后，回滚自己的数据库事务，分布式事务执行失败，两个系统的数据库事务都回滚了，相关的所有数据回滚到分布式事务执行之前的状态，就像这个分布式事务没有执行一样。以下是异常情况的时序图：&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;http://img.golang.space/shot-1651755434095.jpg&#34;
+	
+	
+	
+	loading=&#34;lazy&#34;
+	
+		alt=&#34;img&#34;
+	
+	
+&gt;&lt;/p&gt;
+&lt;p&gt;在实现 2PC 的时候，没必要单独启动一个事务协调服务，这个协调服务的工作最好和订单服务或者优惠券服务放在同一个进程里面，这样做有两个好处：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;参与分布式事务的进程更少，故障点也就更少，稳定性更好；&lt;/li&gt;
+&lt;li&gt;减少了一些远程调用，性能也更好一些。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;2PC 是一种强一致的设计，它可以保证原子性和隔离性。只要 2PC 事务完成，订单库和促销库中的数据一定是一致的状态。&lt;/p&gt;
+&lt;p&gt;所以 2PC 比较适合那些对数据一致性要求比较高的场景，比如我们这个订单优惠券的场景，如果一致性保证不好，有可能会被黑产利用，一张优惠券反复使用，那样我们的损失就大了。&lt;/p&gt;
+&lt;p&gt;2PC 也有很明显的缺陷，整个事务的执行过程需要阻塞服务端的线程和数据库的会话，所以，2PC 在并发场景下的性能不会很高。&lt;/p&gt;
+&lt;p&gt;可能出现的问题:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;单点故障&lt;/strong&gt;，一旦事务管理器出现故障，整个系统不可用&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;数据不一致&lt;/strong&gt;，阶段二如果事务管理器只发送&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;响应时间较长&lt;/strong&gt;，消息链路串行，要等待响应结果，不适合高并发场景&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;不确定性&lt;/strong&gt;，当事务管理器发送 commit 之后，并且此时只有一个参与者收到了 commit，那么当该参与者与事务管理器同时宕机之后，重新选举的事务管理器无法确定该条消息是否提交成功。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id=&#34;本地消息表&#34;&gt;本地消息表&lt;/h3&gt;
+&lt;p&gt;2PC 它的适用场景其实是很窄的，更多的情况下，只要保证数据最终一致就可以了。比如说，在购物流程中，用户在购物车界面选好商品后，点击“去结算”按钮进入订单页面创建一个新订单。这个过程我们的系统其实做了两件事儿。&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;第一，订单系统需要创建一个新订单，订单关联的商品就是购物车中选择的那些商品。&lt;/li&gt;
+&lt;li&gt;第二，创建订单成功后，购物车系统需要把订单中的这些商品从购物车里删掉。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;这也是一个分布式事务问题，创建订单和清空购物车这两个数据更新操作需要保证，要么都成功，要么都失败。但是，清空购物车这个操作，它对一致性要求就没有扣减优惠券那么高，订单创建成功后，晚几秒钟再清空购物车，完全是可以接受的。只要保证经过一个小的延迟时间后，最终订单数据和购物车数据保持一致就可以了。&lt;/p&gt;
+&lt;p&gt;本地消息表的实现思路是这样的，订单服务在收到下单请求后，正常使用订单库的事务去更新订单的数据，并且，在执行这个数据库事务过程中，在本地记录一条消息。这个消息就是一个日志，内容就是“清空购物车”这个操作。因为这个日志是记录在本地的，这里面没有分布式的问题，那这就是一个普通的单机事务，那我们就可以让订单库的事务，来保证记录本地消息和订单库的一致性。完成这一步之后，就可以给客户端返回成功响应了。&lt;/p&gt;
+&lt;p&gt;然后，我们再用一个异步的服务，去读取刚刚记录的清空购物车的本地消息，调用购物车系统的服务清空购物车。购物车清空之后，把本地消息的状态更新成已完成就可以了。异步清空购物车这个过程中，如果操作失败了，可以通过重试来解决。最终，可以保证订单系统和购物车系统它们的数据是一致的。&lt;/p&gt;
+&lt;p&gt;消息队列 RocketMQ 提供一种事务消息的功能，其实就是本地消息表思想的一个实现。使用事务消息可以达到和本地消息表一样的最终一致性，相比我们自己来实现本地消息表，使用起来更加简单，你也可以考虑使用。&lt;/p&gt;
+&lt;p&gt;如果看事务的 ACID 四个特性，本地消息表这种方法，它只能满足 D（持久性），A（原子性）C（一致性）、I（隔离性）都比较差，但是，它的优点非常突出。&lt;/p&gt;
+&lt;p&gt;首先，实现简单，在单机事务的基础上稍加改造就可以实现分布式事务，另外，本地消息表的性能非常好，和单机事务的性能几乎没有差别。在这个基础上，还提供了大部分情况下都能接受的“数据最终一致性”的保证，所以，本地消息表是更加实用的分布式事务实现方法。&lt;/p&gt;
+&lt;p&gt;当然，即使能接受数据最终一致，本地消息表也不是什么场景都可以适用的。它有一个前提条件就是，异步执行的那部分操作，不能有依赖的资源。比如说，我们下单的时候，除了要清空购物车以外，还需要锁定库存。&lt;/p&gt;
+&lt;h2 id=&#34;三阶段提交--3pc-&#34;&gt;三阶段提交 ( 3PC )&lt;/h2&gt;
+&lt;p&gt;相对于2PC来说增加了CanCommit阶段和超时机制。如果段时间内没有收到协调者的commit请求，那么就会自动进行commit，解决了2PC单点故障的问题。&lt;/p&gt;
+&lt;p&gt;但是性能问题和不一致问题仍然没有根本解决。下面我们还是一起看下三阶段流程的是什么样的？&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;第一阶段，协调者询问事务参与者，你是否有能力完成此次事务。
+&lt;ol&gt;
+&lt;li&gt;都返回 yes，进入第二阶段&lt;/li&gt;
+&lt;li&gt;有一个返回 no 或 等待响应超时，则中断事务，并向参与者发送 abort 请求&lt;/li&gt;
+&lt;/ol&gt;
+&lt;/li&gt;
+&lt;li&gt;第二阶段，协调者会向所有的参与者发送PreCommit请求，参与者收到后开始执行事务操作，并将Undo和Redo信息记录到事务日志中。参与者执行完事务操作后（此时属于未提交事务的状态），就会向协调者反馈“Ack”表示我已经准备好提交了，并等待协调者的下一步指令。&lt;/li&gt;
+&lt;li&gt;第三阶段，在阶段二中如果所有的参与者节点都可以进行PreCommit提交，那么协调者就会从“预提交状态”转变为“提交状态”。然后向所有的参与者节点发送&amp;quot;doCommit&amp;quot;请求，参与者节点在收到提交请求后就会各自执行事务提交操作，并向协调者节点反馈“Ack”消息，协调者收到所有参与者的Ack消息后完成事务。相反，如果有一个参与者节点未完成PreCommit的反馈或者反馈超时，那么协调者都会向所有的参与者节点发送abort请求，从而中断事务。&lt;/li&gt;
+&lt;/ol&gt;
+</description>
+        </item>
+        <item>
+        <title>保证接口数据安全的方案</title>
+        <link>https://blog.golang.space/p/%E4%BF%9D%E8%AF%81%E6%8E%A5%E5%8F%A3%E6%95%B0%E6%8D%AE%E5%AE%89%E5%85%A8%E7%9A%84%E6%96%B9%E6%A1%88/</link>
+        <pubDate>Fri, 22 Oct 2021 00:00:00 +0000</pubDate>
+        
+        <guid>https://blog.golang.space/p/%E4%BF%9D%E8%AF%81%E6%8E%A5%E5%8F%A3%E6%95%B0%E6%8D%AE%E5%AE%89%E5%85%A8%E7%9A%84%E6%96%B9%E6%A1%88/</guid>
+        <description>&lt;h1 id=&#34;保证接口数据安全的方案&#34;&gt;保证接口数据安全的方案&lt;/h1&gt;
+&lt;h2 id=&#34;数据加密防止明文传输&#34;&gt;数据加密，防止明文传输&lt;/h2&gt;
+&lt;p&gt;&lt;strong&gt;不需要解密，只需要验证是否相同的&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;比如登录时的密码，可以在前端编码成 MD5 传输。MD5具有不可逆的性质，非常适合用来存储这些。&lt;/p&gt;
+&lt;p&gt;为了防止数据库泄露暴露 MD5 密码，或者希望更安全，可以对 MD5 加盐。&lt;/p&gt;
+&lt;p&gt;比如   MD5( password + salt )，salt 可以是每个用户唯一的，防止如果某个用户的密码被穷举破解出来了，不能使用现有的成果来类推其它用户的密码。&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;需要解密，使用原来的参数&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;使用 AES 对称加密算法，这个需要服务端和客户端都存储秘钥，如果不用暴露客户端，这种方案很合适。&lt;/p&gt;
+&lt;p&gt;使用 RSA 非对称加密，会生成私钥和公钥。&lt;/p&gt;
+&lt;h2 id=&#34;数据加签验签&#34;&gt;数据加签验签&lt;/h2&gt;
+&lt;p&gt;&lt;strong&gt;加签&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;它可以保证数据在传输过程中不被篡改。&lt;/p&gt;
+&lt;p&gt;使用 MD5/ShA-256 对原始请求报文生成摘要，使用私钥对摘要加密，就得到了报文对应的数字签名。&lt;/p&gt;
+&lt;p&gt;将 报文原文和签名 一起发到接收方。&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;验签&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;接收方对原始数据以相同方法处理，得到摘要，使用对方提供的公钥对数字签名解密，判断两个摘要是否相同。就可以得知报文有没有被篡改过。&lt;/p&gt;
+&lt;h2 id=&#34;token-授权认证&#34;&gt;token 授权认证&lt;/h2&gt;
+&lt;p&gt;非登录接口如何识别用户的身份?&lt;/p&gt;
+&lt;p&gt;可以在用户名密码登录接口中返回唯一 token。请求其它需要权限的接口必须带上此 token，服务端解析 token 验证身份，并检查 token 是否 过期。&lt;/p&gt;
+&lt;p&gt;此方式也可用于唯一设备登录，每个用户最后一次登录生成的 token 记录到 redis 缓存中，每次登陆都会覆盖掉旧的。接口请求时，服务端验证其 token 是否与服务端的一致，如果不一致，就提示用户重新登录。&lt;/p&gt;
+&lt;p&gt;另外关于身份验证错误的状态码&lt;a class=&#34;link&#34; href=&#34;https://developer.mozilla.org/zh-CN/docs/Web/HTTP/Status&#34;  target=&#34;_blank&#34; rel=&#34;noopener&#34;
+    &gt;参考网址&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;token 不存在或解析失败，token 过期等返回 401 错误&lt;/p&gt;
+&lt;p&gt;token 验证通过，但对资源没有访问的权限，返回 403 错误&lt;/p&gt;
+&lt;h2 id=&#34;时间戳-timestamp-超时&#34;&gt;时间戳 timestamp 超时&lt;/h2&gt;
+&lt;p&gt;有些攻击者，不关心真实的数据，而是抓包后进行恶意请求，如 DOS 攻击。&lt;/p&gt;
+&lt;p&gt;可以引入时间戳 ，来保证接口安全，客户端每次请求都带上当前时间，求服务端时间与请求时间的时间差，大于一定时间如 2 分钟，则认为请求无效。&lt;/p&gt;
+&lt;p&gt;只加时间，很容易破解，无非每次请求时更新一下时间，可以在时间戳的基础上，与「数据加签验签」结合。&lt;/p&gt;
+&lt;h2 id=&#34;timestampnonce-防止重放攻击&#34;&gt;timestamp+nonce 防止重放攻击&lt;/h2&gt;
+&lt;p&gt;nonce 指唯一的随机字符串，在客户端维护一个随机字符串 set，每次请求使用 timestamp+nonce，nonce 不能重复。&lt;/p&gt;
+&lt;p&gt;服务端也维护一个相同的 set，如果发现重复的 nonce 就是重复请求。 因为有 timestamp 仅接收 2分钟内的请求，所以服务端和客户端可以都只维护 2分钟内的 nonce ，以节省内存。&lt;/p&gt;
+&lt;h2 id=&#34;限流&#34;&gt;限流&lt;/h2&gt;
+&lt;p&gt;可以从以下方面考虑&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;每分钟可以接收多少次请求&lt;/li&gt;
+&lt;li&gt;服务端最大能同时处理多少请求&lt;/li&gt;
+&lt;li&gt;每个 IP， 1 分钟内最多请求次数&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id=&#34;黑名单&#34;&gt;黑名单&lt;/h2&gt;
+&lt;p&gt;对于黑名单的 IP，返回错误码&lt;/p&gt;
+&lt;p&gt;建议黑名单加上时间限制，对于明知是恶意的攻击，多长时间都可以&lt;/p&gt;
+&lt;p&gt;对于不确定，模棱两可，或只是小小的警告惩罚，可以设定有限的时间。&lt;/p&gt;
+&lt;h2 id=&#34;白名单&#34;&gt;白名单&lt;/h2&gt;
+&lt;p&gt;仅允许白名单内的 IP 访问&lt;/p&gt;
+&lt;h2 id=&#34;参数合法性效验&#34;&gt;参数合法性效验&lt;/h2&gt;
+&lt;p&gt;如手机号和身份证检测长度等是否合法。&lt;/p&gt;
+&lt;p&gt;枚举参数是否合法。&lt;/p&gt;
+</description>
+        </item>
+        
+    </channel>
+</rss>

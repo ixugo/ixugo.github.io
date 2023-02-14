@@ -1,0 +1,1173 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='API design * 表示必须遵守，没有则为建议 请求 提供用于自检的请求 ID 在每个 API 响应中包含一个 Request_ID 标头，并采用 UUID 值填充。通过在客户机、服务器和任何后台服务上记录这些值，它提供了一种跟踪、诊断和调试请求的机制。
+*在请求体中接收序列化的 JSON 在 PUT/PATCH/POST 请求体接收序列化的 JSON，而不是表单编码
+例如
+1 2 3 4 5 6 7 8 9 10 11 12 13 curl -X POST https://service.com/apps \ -H &amp;#34;Content-Type: application/json&amp;#34; \ -d &amp;#39;{&amp;#34;name&amp;#34;: &amp;#34;demoapp&amp;#34;}&amp;#39; { &amp;#34;id&amp;#34;: &amp;#34;01234567-89ab-cdef-0123-456789abcdef&amp;#34;, &amp;#34;name&amp;#34;: &amp;#34;demoapp&amp;#34;, &amp;#34;owner&amp;#34;: { &amp;#34;email&amp;#34;: &amp;#34;username@example.com&amp;#34;, &amp;#34;id&amp;#34;: &amp;#34;01234567-89ab-cdef-0123-456789abcdef&amp;#34; }, ... } *REST API 资源名
+资源名使用复数版本，除非所涉及的资源是系统中的单例
+1 2 /user	# Bad /users # Good Request Method'>
+<title>RESTful API 设计指南</title>
+
+<link rel='canonical' href='https://blog.golang.space/p/restful-api-%E8%AE%BE%E8%AE%A1%E6%8C%87%E5%8D%97/'>
+
+<link rel="stylesheet" href="/scss/style.min.8191399262444ab68b72a18c97392f5349be20a1615d77445be51e974c144cff.css"><meta property='og:title' content='RESTful API 设计指南'>
+<meta property='og:description' content='API design * 表示必须遵守，没有则为建议 请求 提供用于自检的请求 ID 在每个 API 响应中包含一个 Request_ID 标头，并采用 UUID 值填充。通过在客户机、服务器和任何后台服务上记录这些值，它提供了一种跟踪、诊断和调试请求的机制。
+*在请求体中接收序列化的 JSON 在 PUT/PATCH/POST 请求体接收序列化的 JSON，而不是表单编码
+例如
+1 2 3 4 5 6 7 8 9 10 11 12 13 curl -X POST https://service.com/apps \ -H &amp;#34;Content-Type: application/json&amp;#34; \ -d &amp;#39;{&amp;#34;name&amp;#34;: &amp;#34;demoapp&amp;#34;}&amp;#39; { &amp;#34;id&amp;#34;: &amp;#34;01234567-89ab-cdef-0123-456789abcdef&amp;#34;, &amp;#34;name&amp;#34;: &amp;#34;demoapp&amp;#34;, &amp;#34;owner&amp;#34;: { &amp;#34;email&amp;#34;: &amp;#34;username@example.com&amp;#34;, &amp;#34;id&amp;#34;: &amp;#34;01234567-89ab-cdef-0123-456789abcdef&amp;#34; }, ... } *REST API 资源名
+资源名使用复数版本，除非所涉及的资源是系统中的单例
+1 2 /user	# Bad /users # Good Request Method'>
+<meta property='og:url' content='https://blog.golang.space/p/restful-api-%E8%AE%BE%E8%AE%A1%E6%8C%87%E5%8D%97/'>
+<meta property='og:site_name' content='ixugo'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='读书笔记' /><meta property='article:tag' content='RESTful' /><meta property='article:published_time' content='2020-05-21T00:00:00&#43;00:00'/><meta property='article:modified_time' content='2020-05-21T00:00:00&#43;00:00'/>
+<meta name="twitter:title" content="RESTful API 设计指南">
+<meta name="twitter:description" content="API design * 表示必须遵守，没有则为建议 请求 提供用于自检的请求 ID 在每个 API 响应中包含一个 Request_ID 标头，并采用 UUID 值填充。通过在客户机、服务器和任何后台服务上记录这些值，它提供了一种跟踪、诊断和调试请求的机制。
+*在请求体中接收序列化的 JSON 在 PUT/PATCH/POST 请求体接收序列化的 JSON，而不是表单编码
+例如
+1 2 3 4 5 6 7 8 9 10 11 12 13 curl -X POST https://service.com/apps \ -H &amp;#34;Content-Type: application/json&amp;#34; \ -d &amp;#39;{&amp;#34;name&amp;#34;: &amp;#34;demoapp&amp;#34;}&amp;#39; { &amp;#34;id&amp;#34;: &amp;#34;01234567-89ab-cdef-0123-456789abcdef&amp;#34;, &amp;#34;name&amp;#34;: &amp;#34;demoapp&amp;#34;, &amp;#34;owner&amp;#34;: { &amp;#34;email&amp;#34;: &amp;#34;username@example.com&amp;#34;, &amp;#34;id&amp;#34;: &amp;#34;01234567-89ab-cdef-0123-456789abcdef&amp;#34; }, ... } *REST API 资源名
+资源名使用复数版本，除非所涉及的资源是系统中的单例
+1 2 /user	# Bad /users # Good Request Method">
+    <link rel="shortcut icon" href="img/favicon.ico" />
+
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+	(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+	m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+	})(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+	ga('create', 'UA-192125643-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="Toggle Menu">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu0b04ba6d7249c9f90c92db974439eb8c_208246_300x0_resize_box_3.png" width="300"
+                            height="321" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🧐</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">ixugo</a></h1>
+            <h2 class="site-description">走出舒适区</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/ixugo'
+                        target="_blank"
+                        title="GitHub"
+                        rel="me"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>Home</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/about/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>About</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>Archives</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>Search</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>Dark Mode</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">Table of contents</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#请求">请求</a>
+      <ol>
+        <li><a href="#提供用于自检的请求-id">提供用于自检的请求 ID</a></li>
+        <li><a href="#在请求体中接收序列化的-json">*在请求体中接收序列化的 JSON</a></li>
+        <li><a href="#rest-api">*REST API</a>
+          <ol>
+            <li><a href="#分页--过滤--排序--搜索">分页 / 过滤 / 排序 / 搜索</a></li>
+            <li><a href="#重复请求">重复请求</a></li>
+            <li><a href="#action">Action</a></li>
+            <li><a href="#一致的路径格式">*一致的路径格式</a></li>
+          </ol>
+        </li>
+      </ol>
+    </li>
+    <li><a href="#响应">响应</a>
+      <ol>
+        <li>
+          <ol>
+            <li><a href="#返回适当的状态代码">*返回适当的状态代码</a></li>
+            <li><a href="#响应提供全部资源">响应提供全部资源</a></li>
+            <li><a href="#提供资源-uuid">提供资源 UUID</a></li>
+            <li><a href="#提供标准时间戳">提供标准时间戳</a></li>
+            <li><a href="#提供标准的响应类型">*提供标准的响应类型</a></li>
+            <li><a href="#使用嵌套对象序列化">*使用嵌套对象序列化</a></li>
+            <li><a href="#生成结构化错误">*生成结构化错误</a></li>
+            <li><a href="#错误信息规范">错误信息规范</a></li>
+            <li><a href="#速率限制">速率限制</a></li>
+            <li><a href="#在所有回复中保持-json-的简化">在所有回复中保持 JSON 的简化</a></li>
+          </ol>
+        </li>
+      </ol>
+    </li>
+    <li><a href="#对于项目要求">对于项目要求</a></li>
+    <li><a href="#参考">参考</a></li>
+    <li><a href="#了解更多-restful-api-设计">了解更多 RESTful API 设计</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+            <main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+    <header class="article-category">
+        
+            <a href="/categories/http/" >
+                HTTP
+            </a>
+        
+    </header>
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/restful-api-%E8%AE%BE%E8%AE%A1%E6%8C%87%E5%8D%97/">RESTful API 设计指南</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    
+    
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">May 21, 2020</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    3 minute read
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+
+</header>
+
+    <section class="article-content">
+    
+    
+    <h1 id="api-design">API design</h1>
+<ul>
+<li><code>*</code> 表示必须遵守，没有则为建议</li>
+</ul>
+<h2 id="请求">请求</h2>
+<h3 id="提供用于自检的请求-id">提供用于自检的请求 ID</h3>
+<p>在每个 API 响应中包含一个 Request_ID 标头，并采用 UUID 值填充。通过在客户机、服务器和任何后台服务上记录这些值，它提供了一种跟踪、诊断和调试请求的机制。</p>
+<h3 id="在请求体中接收序列化的-json">*在请求体中接收序列化的 JSON</h3>
+<p>在 PUT/PATCH/POST 请求体接收序列化的 JSON，而不是表单编码</p>
+<p>例如</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">curl -X POST https://service.com/apps <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>    -H <span class="s2">&#34;Content-Type: application/json&#34;</span> <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>    -d <span class="s1">&#39;{&#34;name&#34;: &#34;demoapp&#34;}&#39;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="o">{</span>
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;id&#34;</span>: <span class="s2">&#34;01234567-89ab-cdef-0123-456789abcdef&#34;</span>,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;name&#34;</span>: <span class="s2">&#34;demoapp&#34;</span>,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;owner&#34;</span>: <span class="o">{</span>
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;email&#34;</span>: <span class="s2">&#34;username@example.com&#34;</span>,
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;id&#34;</span>: <span class="s2">&#34;01234567-89ab-cdef-0123-456789abcdef&#34;</span>
+</span></span><span class="line"><span class="cl">  <span class="o">}</span>,
+</span></span><span class="line"><span class="cl">  ...
+</span></span><span class="line"><span class="cl"><span class="o">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="rest-api">*REST API</h3>
+<p><strong>资源名</strong></p>
+<p>资源名使用复数版本，除非所涉及的资源是系统中的单例</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">/user		 <span class="c1"># Bad</span>
+</span></span><span class="line"><span class="cl">/users   <span class="c1"># Good</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><strong>Request Method</strong></p>
+<div class="table-wrapper"><table>
+<thead>
+<tr>
+<th>资源</th>
+<th>POST</th>
+<th>GET</th>
+<th>PUT</th>
+<th>DELETE</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>/users</td>
+<td>创建新客户</td>
+<td>检索所有客户</td>
+<td>批量更新客户</td>
+<td>删除所有客户</td>
+</tr>
+<tr>
+<td>/users/:id</td>
+<td>-</td>
+<td>检索指定客户</td>
+<td>更新指定客户</td>
+<td>删除指定客户</td>
+</tr>
+</tbody>
+</table></div>
+<ul>
+<li>POST 创建资源，不应具有不相关的副作用</li>
+<li>PUT  更新资源，该请求必须是幂等的。</li>
+<li>GET  获取资源</li>
+<li>DELETE 删除资源</li>
+</ul>
+<p>避免实现琐碎的 POST / PUT / DELETE 操作。</p>
+<p>在实际 API 开发中，有些操作可能不能很好的映射为 REST 资源，如禁言某用户，可以参考以下做法:</p>
+<ul>
+<li>将操作变为资源的属性， <code>/users/id?active=false</code>，缺点是一个接口要处理多种参数组合，尽可能将属性相关的放在一起，不然建议新增一个接口。</li>
+<li>下级资源 <code>/users/id/active</code>，通过不同的请求方式决定增删，优点是接口作用明晰，缺点是接口数量会很大，我认为，接口明晰更重要。</li>
+<li>以上不能解决，有时可以打破规范，如登录就<code>/login</code></li>
+</ul>
+<h4 id="分页--过滤--排序--搜索">分页 / 过滤 / 排序 / 搜索</h4>
+<p>如 <code>/users</code>  列出所有用户，需要提供分页功能。</p>
+<p>滚动翻页，可以使用 <code>/users?limit=10&amp;since=10000</code> ，since 是前一页最后一条数据的 ID 或序号。</p>
+<p>跳转分页，可以使用 <code>/users?limit=10&amp;page=1</code>，page 表示第几页</p>
+<p>过滤属性，如果用户不需要资源的全部属性，可以在 uri 参数中指定需要哪些，<code>/users?fields=email,username,address</code></p>
+<p>排序，<code>/users?sort=age desc</code>，<code>/users?sort=id,age desc</code> ，注意 <code>id ，age desc</code>应该与例子中等价，多余的空格可以忽略</p>
+<p>搜索，<code>/users?key=zhangsan</code></p>
+<p>关于分页的补充</p>
+<p>默认 limit = 20 ， limit &lt; 100，要指定上限防止拒绝服务攻击</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">type Response struct{
+</span></span><span class="line"><span class="cl">  Data any  // 分页数据
+</span></span><span class="line"><span class="cl">  Next string // 下一页的 since，在请求下一页时应该带上这个参数
+</span></span><span class="line"><span class="cl">}
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h4 id="重复请求">重复请求</h4>
+<p>服务端能够通过此ID来检测请求是否重复，保证请求只被处理一次。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// 用于检测冗余请求的唯一标识符
+</span></span></span><span class="line"><span class="cl"><span class="c1">// 这个字段应该命名为 `request_id`
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kt">string</span> <span class="nx">request_id</span> <span class="p">=</span> <span class="o">...</span><span class="p">;</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><strong>异步操作</strong></p>
+<p>有时，POST、PUT、PATCH 或 DELETE 操作可能需要处理操作需要一段时间才能完成。 如果需要等待该操作完成后才能向客户端发送响应，可能会造成不可接受的延迟。 在这种情况下，请考虑将该操作设置为异步操作。</p>
+<p>应公开一个可返回异步请求状态的终结点，使客户端能够通过轮询状态终结点来监视状态。</p>
+<p>异步请求</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">GET /service/restart
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">状态码 : <span class="m">201</span>
+</span></span><span class="line"><span class="cl"><span class="o">{</span>
+</span></span><span class="line"><span class="cl">		<span class="s2">&#34;url&#34;</span> : <span class="s2">&#34;/service/status&#34;</span>   
+</span></span><span class="line"><span class="cl"><span class="o">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>通过访问 URL 可以知道当前异步执行的状态</p>
+<h4 id="action">Action</h4>
+<p>明确以行动前缀详细说明</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">/resources/:resource/actions/:action
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>例如停止某一特定的运行:</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">/runs/<span class="o">{</span>run_id<span class="o">}</span>/actions/stop
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>对集合的操作也应该最小化。如果需要，应该使用一个顶级的动作延长来避免名称空间冲突，并清楚地显示动作的范围:</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">/actions/:action/resources
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>例如重启所有服务器</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">/actions/restart/servers
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h4 id="一致的路径格式">*一致的路径格式</h4>
+<p>使用大小写和破折号分隔的路径名</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">service-api.com/users
+</span></span><span class="line"><span class="cl">service-api.com/app-setups
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>最小化路径嵌套，优先在资源的父路径上定位资源来限制嵌套深度</p>
+<p>避免超过 2 层的资源嵌套，建议将其它资源 转换为?参数，</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="c1"># Bad</span>
+</span></span><span class="line"><span class="cl">/orgs/<span class="o">{</span>org_id<span class="o">}</span>/apps/<span class="o">{</span>app_id<span class="o">}</span>/dynos/<span class="o">{</span>dyno_id<span class="o">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="c1"># Good</span>
+</span></span><span class="line"><span class="cl">/orgs/<span class="o">{</span>org_id<span class="o">}</span>
+</span></span><span class="line"><span class="cl">/orgs/<span class="o">{</span>org_id<span class="o">}</span>/apps
+</span></span><span class="line"><span class="cl">/apps/<span class="o">{</span>app_id<span class="o">}</span>
+</span></span><span class="line"><span class="cl">/apps/<span class="o">{</span>app_id<span class="o">}</span>/dynos
+</span></span><span class="line"><span class="cl">/dynos/<span class="o">{</span>dyno_id<span class="o">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h2 id="响应">响应</h2>
+<h4 id="返回适当的状态代码">*返回适当的状态代码</h4>
+<ul>
+<li><code>200 OK</code> 请求成功</li>
+<li><code>400 Bad Request</code> 请求参数有误</li>
+<li><code>401 Unauthorized</code> 用户身份未验证</li>
+<li><code>403 Forbidden</code> 用户没有访问该资源权限</li>
+<li><code>500 Internal Server Error</code> 服务器异常</li>
+</ul>
+<h4 id="响应提供全部资源">响应提供全部资源</h4>
+<p>在响应中尽可能提供完整的资源表示(即包含所有属性的对象)。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">$ curl -X DELETE <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>  https://service.com/apps/1f9b/domains/0fd4
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">HTTP/1.1 <span class="m">200</span> OK
+</span></span><span class="line"><span class="cl">Content-Type: application/json<span class="p">;</span><span class="nv">charset</span><span class="o">=</span>utf-8
+</span></span><span class="line"><span class="cl">...
+</span></span><span class="line"><span class="cl"><span class="o">{</span>
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;created_at&#34;</span>: <span class="s2">&#34;2012-01-01T12:00:00Z&#34;</span>,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;hostname&#34;</span>: <span class="s2">&#34;subdomain.example.com&#34;</span>,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;id&#34;</span>: <span class="s2">&#34;01234567-89ab-cdef-0123-456789abcdef&#34;</span>,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;updated_at&#34;</span>: <span class="s2">&#34;2012-01-01T12:00:00Z&#34;</span>
+</span></span><span class="line"><span class="cl"><span class="o">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h4 id="提供资源-uuid">提供资源 UUID</h4>
+<p>默认情况下为每个资源提供一个 id 属性。除非有充分的理由，否则请使用 uuid。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="s2">&#34;id&#34;</span>: <span class="s2">&#34;01234567-89ab-cdef-0123-456789abcdef&#34;</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h4 id="提供标准时间戳">提供标准时间戳</h4>
+<p>只接受和返回 UTC ( 世界标准时间 )时间。以 ISO8601格式呈现时间。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="o">{</span>
+</span></span><span class="line"><span class="cl">  // ...
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;created_at&#34;</span>: <span class="s2">&#34;2012-01-01T12:00:00Z&#34;</span>,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;updated_at&#34;</span>: <span class="s2">&#34;2012-01-01T13:00:00Z&#34;</span>,
+</span></span><span class="line"><span class="cl">  // ...
+</span></span><span class="line"><span class="cl"><span class="o">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h4 id="提供标准的响应类型">*提供标准的响应类型</h4>
+<p>当为 <code>null</code> 时，可以忽略该参数</p>
+<ul>
+<li>字符串 string || <code>null</code></li>
+<li>布尔     false || true</li>
+<li>数字     number || <code>null</code>  ，注意:一些 JSON 解析器将返回精度超过15位的数字作为字符串。</li>
+<li>数组      [] ， 没有值时返回空数组</li>
+<li>对象     object || <code>null</code></li>
+</ul>
+<h4 id="使用嵌套对象序列化">*使用嵌套对象序列化</h4>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="c1"># Bad</span>
+</span></span><span class="line"><span class="cl"><span class="o">{</span>
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;name&#34;</span>: <span class="s2">&#34;service-production&#34;</span>,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;owner_id&#34;</span>: <span class="s2">&#34;5d8201b0...&#34;</span>,
+</span></span><span class="line"><span class="cl">  // ...
+</span></span><span class="line"><span class="cl"><span class="o">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="c1"># Good</span>
+</span></span><span class="line"><span class="cl"><span class="o">{</span>
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;name&#34;</span>: <span class="s2">&#34;service-production&#34;</span>,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;owner&#34;</span>: <span class="o">{</span>
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;id&#34;</span>: <span class="s2">&#34;5d8201b0...&#34;</span>
+</span></span><span class="line"><span class="cl">  <span class="o">}</span>,
+</span></span><span class="line"><span class="cl">  // ...
+</span></span><span class="line"><span class="cl"><span class="o">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>这种方法可以在不改变响应结构或引入更多顶级响应字段的情况下内联更多关于相关资源的信息，例如:</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="o">{</span>
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;name&#34;</span>: <span class="s2">&#34;service-production&#34;</span>,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;owner&#34;</span>: <span class="o">{</span>
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;id&#34;</span>: <span class="s2">&#34;5d8201b0...&#34;</span>,
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;email&#34;</span>: <span class="s2">&#34;alice@heroku.com&#34;</span>
+</span></span><span class="line"><span class="cl">  <span class="o">}</span>,
+</span></span><span class="line"><span class="cl">  // ...
+</span></span><span class="line"><span class="cl"><span class="o">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>注意要为子集提供唯一值，避免不一致和混淆，如 <code>id</code> 字段</p>
+<h4 id="生成结构化错误">*生成结构化错误</h4>
+<p>对错误生成一致的，结构化的响应。</p>
+<ul>
+<li>包括一个机器可读的错误 ID，可以通过该 ID 判断出哪类错误，字段用 <code>code</code> 表示。</li>
+<li>包括一个用户可读的错误消息，以及错误详情，如有需要可以增加<code>URL</code> ，向客户端提示如何解决错误的地址。</li>
+</ul>
+<p>http 的状态码不要使用太多，建议需要以下3个</p>
+<ul>
+<li>200 - 请求成功</li>
+<li>400 - 发生错误</li>
+<li>401 - 未登录或身份令牌过期 导致的身份验证失败</li>
+</ul>
+<p><strong>经过更多的实验与学习，认为 英文错误码 比 数字错误码 更适合大多数场景，以下方案仅供了解</strong></p>
+<p>Code 设计规范，纯数字表示，如<code>10101</code>，1 开头的通用模块适合所有项目，其它数字开头的业务错误针对业务设计。</p>
+<ul>
+<li>1，通用</li>
+<li>01，资源模块</li>
+<li>01，错误码序号，比如该序号表示请求频繁</li>
+</ul>
+<div class="table-wrapper"><table>
+<thead>
+<tr>
+<th>服务</th>
+<th>模块</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>01</td>
+<td>通用 - 基本错误</td>
+</tr>
+<tr>
+<td>1</td>
+<td>02</td>
+<td>通用 - 数据库类错误</td>
+</tr>
+<tr>
+<td>1</td>
+<td>03</td>
+<td>通用 - 认证授权类错误</td>
+</tr>
+<tr>
+<td>1</td>
+<td>04</td>
+<td>通用 - 编解码类错误</td>
+</tr>
+<tr>
+<td>2</td>
+<td>01</td>
+<td>用户服务 - 历史登录模块</td>
+</tr>
+</tbody>
+</table></div>
+<div class="table-wrapper"><table>
+<thead>
+<tr>
+<th>HTTP 状态码</th>
+<th>错误码</th>
+<th>说明</th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>200</td>
+<td>0</td>
+<td>实际上也无需返回 code，正常返回业务数据即可</td>
+<td></td>
+</tr>
+<tr>
+<td>400</td>
+<td>10101</td>
+<td>未知错误</td>
+<td></td>
+</tr>
+<tr>
+<td>400</td>
+<td>10102</td>
+<td>请求参数有误</td>
+<td></td>
+</tr>
+<tr>
+<td>400</td>
+<td>10201</td>
+<td>SQL 语法错误</td>
+<td></td>
+</tr>
+<tr>
+<td>401</td>
+<td>10301</td>
+<td>token 验证失败</td>
+<td></td>
+</tr>
+<tr>
+<td>400</td>
+<td>10302</td>
+<td>操作了不属于自己的资源</td>
+<td></td>
+</tr>
+<tr>
+<td>400</td>
+<td>10401</td>
+<td>json 编解码出错</td>
+<td></td>
+</tr>
+<tr>
+<td>400</td>
+<td>20101</td>
+<td>记录用户登录出错</td>
+<td></td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table></div>
+<h4 id="错误信息规范">错误信息规范</h4>
+<ul>
+<li>对外暴露的错误要简介，能准确说明问题</li>
+<li>错误说明，应该是该怎么做，而不是哪里错了。</li>
+<li>错误中不能出现敏感的信息，比如数据库的错误提示，用户某某资源提示</li>
+<li></li>
+</ul>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="nx">HTTP</span><span class="o">/</span><span class="mf">1.1</span> <span class="mi">400</span> <span class="nx">Bad</span> <span class="nx">Requests</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="s">&#34;code&#34;</span><span class="p">:</span>      <span class="mi">10101</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">  <span class="s">&#34;msg&#34;</span><span class="p">:</span> <span class="s">&#34;Account reached its API rate limit.&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">  <span class="s">&#34;details&#34;</span><span class="p">:</span> <span class="p">[]</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h4 id="速率限制">速率限制</h4>
+<p>速率限制来自客户的请求，以保护服务的健康和维护其他客户的高服务质量。您可以使用令牌桶算法来量化请求限制。可以在 RateLimit-Remaining response header 中返回每个请求的请求标记的剩余数量。</p>
+<h4 id="在所有回复中保持-json-的简化">在所有回复中保持 JSON 的简化</h4>
+<p>额外的空白为请求增加了不必要的响应大小，最好尽量减少 JSON 响应。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="c1"># Bad</span>
+</span></span><span class="line"><span class="cl"><span class="o">{</span>
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;beta&#34;</span>: false,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;email&#34;</span>: <span class="s2">&#34;alice@heroku.com&#34;</span>
+</span></span><span class="line"><span class="cl"><span class="o">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="c1"># Good</span>
+</span></span><span class="line"><span class="cl"><span class="o">{</span><span class="s2">&#34;beta&#34;</span>:false,<span class="s2">&#34;email&#34;</span>:<span class="s2">&#34;alice@heroku.com&#34;</span><span class="o">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h2 id="对于项目要求">对于项目要求</h2>
+<ul>
+<li>
+<p>提供团队可读的文档</p>
+</li>
+<li>
+<p>提供可执行的示例</p>
+</li>
+</ul>
+<h2 id="参考">参考</h2>
+<p><a class="link" href="https://google-cloud.gitbook.io/api-design-guide/standard_methods"  target="_blank" rel="noopener"
+    >Google API 设计指南</a></p>
+<h2 id="了解更多-restful-api-设计">了解更多 RESTful API 设计</h2>
+<p><a class="link" href="https://geemus.gitbooks.io/http-api-design/content/en/"  target="_blank" rel="noopener"
+    >Heroku RESTful API Design</a></p>
+<p><a class="link" href="https://docs.microsoft.com/zh-cn/azure/architecture/best-practices/api-design"  target="_blank" rel="noopener"
+    >Microsoft RESTful API 设计</a></p>
+<p><a class="link" href="https://docs.github.com/cn/rest"  target="_blank" rel="noopener"
+    >Github RESTful API 设计</a></p>
+
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/">读书笔记</a>
+        
+            <a href="/tags/restful/">RESTful</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+     
+    
+        
+    <script src="https://utteranc.es/client.js" 
+        repo="ixugo/ixugo.github.io"
+        issue-term="pathname"
+        
+        crossorigin="anonymous"
+        async
+        >
+</script>
+
+<style>
+    .utterances {
+        max-width: unset;
+    }
+</style>
+
+<script>
+    function setUtterancesTheme(theme) {
+        let utterances = document.querySelector('.utterances iframe');
+        if (utterances) {
+            utterances.contentWindow.postMessage(
+                {
+                    type: 'set-theme',
+                    theme: `github-${theme}`
+                },
+                'https://utteranc.es'
+            );
+        }
+    }
+
+    addEventListener('message', event => {
+        if (event.origin !== 'https://utteranc.es') return;
+        setUtterancesTheme(document.documentElement.dataset.scheme)
+    });
+
+    window.addEventListener('onColorSchemeChange', (e) => {
+        setUtterancesTheme(e.detail)
+    })
+</script>
+
+
+    
+
+    <footer class="site-footer">
+  <section class="copyright">
+    &copy;
+    
+    2018 -
+    
+    2023 ixugo
+  </section>
+  <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+  <section class="powerby">
+
+    
+    <span id="busuanzi_container_page_pv">本文阅读量
+      <span style="font-size: 14px" id="busuanzi_value_page_pv"></span>
+      次，</span>
+    <span id="busuanzi_container_site_pv">总访问量
+      <span style="font-size: 14px" id="busuanzi_value_site_pv"></span>
+      次 </span>，总访客数
+    <span style="font-size: 14px" id="busuanzi_value_site_uv"></span> 人
+    <br />
+
+
+    Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> .&nbsp;&nbsp;
+    Theme <a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener"
+      data-version="3.16.0">Stack</a> designed by <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a>
+  </section>
+
+
+
+
+  <script>
+    function count() {
+      let href = window.location.href;
+      let regexp = /^https?:\/\/blog.golang.space\/?(page\/[\d]+\/?)?$/;
+      if (regexp.test(href)) {
+        let e = document.getElementById("busuanzi_container_page_pv");
+        e.innerText = "";
+      }
+    }
+    window.onload = count;
+  </script>
+</footer>
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

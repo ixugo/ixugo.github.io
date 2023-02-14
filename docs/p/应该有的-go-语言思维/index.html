@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='新的思维方式 代码行数，确实会影响项目的健康程序，团队的健康程序。
+如果将 Linux 视为一个开源项目，那么今天该项目中约有 2400 万行代码，这非常庞大，需要一个庞大的团队来处理。
+成为质量，效率和简单性的拥护者。
+是什么推动了我做出的工程决策? 作为开发人员，我在进步吗?
+采用新技术总是很容易，但是采用新的思维方式却很难。
+少即是多 如果你的工作做得很好，没人应该知道你的名字。
+如果有人知道你的名字，可能意味着你的软件出现故障或导致问题。
+你想让别人知道你的名字吗? 成为前端开发者。那你会花两周的时间在屏幕上工作，会有人看着你的页面指出了他们不喜欢的东西。啊，这曾经让我发疯。
+不管是什么行业，不管软件是否正确，人们的生活，他们的幸福，一切都依赖于你正在构建的技术。我们必须认真对待，保持软件的完整性。
+完整性有两个地方，一个微观层面和一个宏观层面。
+在微观层面，需要明白你写的每一行代码。每一行代码要么做三件事之一，它分配内存，读取内存，写入内存。使用 Go 语言，我们在代码中所需要做的只是读取并写入内存，所有这些读取和写入都会导致我们周围的一切发生: 灯亮了。你正在阅读这篇文章。
+上面提到过，一般开发者面对超过 10000 行代码，会产生严重的心智负担。而且平均每 100 行代码有可能会产生 10-20 个错误。当代码比预估需要的多时，就会有更多的地方可以隐藏错误，这也意味着有更多不完整的测试。
+除了编写更少的代码之外，完整性的另一个重要部分是错误处理。你的软件必须保持稳定，而不是增加危机，应该试图从错误中恢复。
+less is always more
+完整性是首要的，次要的是可读性。要以一种易于理解的方式构建我们的软件。
+抽象的目的不是模糊，而是创造一个新的语义层次，一个可以绝对精确的层次。
+封装不仅仅是可测试的，要确保它们提供了一种语义精确的层次，而不是隐藏复杂性。
+性能 软件的性能不足，有可能来自四个地方。
+延迟，网络，IO，磁盘 IO 等类型的延迟 垃圾回收和内存分配 访问数据的方式，效率 算法效率，是否可以优化算法以采取更少的步骤而不是更多的步骤 让它正确，让它清晰，让它简洁，让它快速
+面向数据的设计 Go 语言的特性，它要求你必须把自己的思维方式，从 面向对象的设计 到 面向数据的设计。
+怎么才能将代码和有可能改变的数据相解耦呢? 如何可以解耦，那就可以尽量降低由于数据改动造成的连锁反应。
+总是在做抽象，在抽象上面做另一层抽象，那么就会离上面说的解耦越来越远，而且很难保证代码准确无误，清晰易读，因为这样写出来的代码太过抽象，让我们很难理解其中的思路。
+代码要针对当下来写，架构要面向未来设计。不要写出目前根本用不到的代码，那样写只会产生更多的 bug。因为代码越多，越容易出 bug。
+面向数据的设计，是要求必须将数据搞懂，要求我们只编写必须用到的代码和算法，要对算法解耦，以降低数据发生变化时整个项目受到的影响。我们要做是，怎样做到数量最少写法最清晰的代码把问题解决。
+数据应该在特定的情况下才有行为，如果你是从面向对象的编程语言切换到 Go，那可能不太容易接受这种理念。因为 OOP 总是要求你考虑数据的状态，以及数据会有怎样的行为。面向对象并不是 Go 语言里面最好的编程思路，Go 语言在大多数情况下追求的其实是把状态跟行为分开，做到这点可以少写一点代码，并且可以简化编程工作。
+首先应该考虑函数，只有在不该用或不方便使用函数的情况下，才可以考虑方法。
+遗留代码 我们认为糟糕的代码是由糟糕的开发人员编写的，但实际上，它是由合适的开发人员在&amp;rsquo;糟糕的情况下&amp;rsquo;编写的。
+总会有人请你帮他看代码，你可能会觉得写代码的人是不是出了什么问题，怎么会写出这样的东西呢?'>
+<title>应该有的 Go 语言思维</title>
+
+<link rel='canonical' href='https://blog.golang.space/p/%E5%BA%94%E8%AF%A5%E6%9C%89%E7%9A%84-go-%E8%AF%AD%E8%A8%80%E6%80%9D%E7%BB%B4/'>
+
+<link rel="stylesheet" href="/scss/style.min.8191399262444ab68b72a18c97392f5349be20a1615d77445be51e974c144cff.css"><meta property='og:title' content='应该有的 Go 语言思维'>
+<meta property='og:description' content='新的思维方式 代码行数，确实会影响项目的健康程序，团队的健康程序。
+如果将 Linux 视为一个开源项目，那么今天该项目中约有 2400 万行代码，这非常庞大，需要一个庞大的团队来处理。
+成为质量，效率和简单性的拥护者。
+是什么推动了我做出的工程决策? 作为开发人员，我在进步吗?
+采用新技术总是很容易，但是采用新的思维方式却很难。
+少即是多 如果你的工作做得很好，没人应该知道你的名字。
+如果有人知道你的名字，可能意味着你的软件出现故障或导致问题。
+你想让别人知道你的名字吗? 成为前端开发者。那你会花两周的时间在屏幕上工作，会有人看着你的页面指出了他们不喜欢的东西。啊，这曾经让我发疯。
+不管是什么行业，不管软件是否正确，人们的生活，他们的幸福，一切都依赖于你正在构建的技术。我们必须认真对待，保持软件的完整性。
+完整性有两个地方，一个微观层面和一个宏观层面。
+在微观层面，需要明白你写的每一行代码。每一行代码要么做三件事之一，它分配内存，读取内存，写入内存。使用 Go 语言，我们在代码中所需要做的只是读取并写入内存，所有这些读取和写入都会导致我们周围的一切发生: 灯亮了。你正在阅读这篇文章。
+上面提到过，一般开发者面对超过 10000 行代码，会产生严重的心智负担。而且平均每 100 行代码有可能会产生 10-20 个错误。当代码比预估需要的多时，就会有更多的地方可以隐藏错误，这也意味着有更多不完整的测试。
+除了编写更少的代码之外，完整性的另一个重要部分是错误处理。你的软件必须保持稳定，而不是增加危机，应该试图从错误中恢复。
+less is always more
+完整性是首要的，次要的是可读性。要以一种易于理解的方式构建我们的软件。
+抽象的目的不是模糊，而是创造一个新的语义层次，一个可以绝对精确的层次。
+封装不仅仅是可测试的，要确保它们提供了一种语义精确的层次，而不是隐藏复杂性。
+性能 软件的性能不足，有可能来自四个地方。
+延迟，网络，IO，磁盘 IO 等类型的延迟 垃圾回收和内存分配 访问数据的方式，效率 算法效率，是否可以优化算法以采取更少的步骤而不是更多的步骤 让它正确，让它清晰，让它简洁，让它快速
+面向数据的设计 Go 语言的特性，它要求你必须把自己的思维方式，从 面向对象的设计 到 面向数据的设计。
+怎么才能将代码和有可能改变的数据相解耦呢? 如何可以解耦，那就可以尽量降低由于数据改动造成的连锁反应。
+总是在做抽象，在抽象上面做另一层抽象，那么就会离上面说的解耦越来越远，而且很难保证代码准确无误，清晰易读，因为这样写出来的代码太过抽象，让我们很难理解其中的思路。
+代码要针对当下来写，架构要面向未来设计。不要写出目前根本用不到的代码，那样写只会产生更多的 bug。因为代码越多，越容易出 bug。
+面向数据的设计，是要求必须将数据搞懂，要求我们只编写必须用到的代码和算法，要对算法解耦，以降低数据发生变化时整个项目受到的影响。我们要做是，怎样做到数量最少写法最清晰的代码把问题解决。
+数据应该在特定的情况下才有行为，如果你是从面向对象的编程语言切换到 Go，那可能不太容易接受这种理念。因为 OOP 总是要求你考虑数据的状态，以及数据会有怎样的行为。面向对象并不是 Go 语言里面最好的编程思路，Go 语言在大多数情况下追求的其实是把状态跟行为分开，做到这点可以少写一点代码，并且可以简化编程工作。
+首先应该考虑函数，只有在不该用或不方便使用函数的情况下，才可以考虑方法。
+遗留代码 我们认为糟糕的代码是由糟糕的开发人员编写的，但实际上，它是由合适的开发人员在&amp;rsquo;糟糕的情况下&amp;rsquo;编写的。
+总会有人请你帮他看代码，你可能会觉得写代码的人是不是出了什么问题，怎么会写出这样的东西呢?'>
+<meta property='og:url' content='https://blog.golang.space/p/%E5%BA%94%E8%AF%A5%E6%9C%89%E7%9A%84-go-%E8%AF%AD%E8%A8%80%E6%80%9D%E7%BB%B4/'>
+<meta property='og:site_name' content='ixugo'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='Go进阶' /><meta property='article:published_time' content='2022-02-25T00:00:00&#43;00:00'/><meta property='article:modified_time' content='2022-02-25T00:00:00&#43;00:00'/>
+<meta name="twitter:title" content="应该有的 Go 语言思维">
+<meta name="twitter:description" content="新的思维方式 代码行数，确实会影响项目的健康程序，团队的健康程序。
+如果将 Linux 视为一个开源项目，那么今天该项目中约有 2400 万行代码，这非常庞大，需要一个庞大的团队来处理。
+成为质量，效率和简单性的拥护者。
+是什么推动了我做出的工程决策? 作为开发人员，我在进步吗?
+采用新技术总是很容易，但是采用新的思维方式却很难。
+少即是多 如果你的工作做得很好，没人应该知道你的名字。
+如果有人知道你的名字，可能意味着你的软件出现故障或导致问题。
+你想让别人知道你的名字吗? 成为前端开发者。那你会花两周的时间在屏幕上工作，会有人看着你的页面指出了他们不喜欢的东西。啊，这曾经让我发疯。
+不管是什么行业，不管软件是否正确，人们的生活，他们的幸福，一切都依赖于你正在构建的技术。我们必须认真对待，保持软件的完整性。
+完整性有两个地方，一个微观层面和一个宏观层面。
+在微观层面，需要明白你写的每一行代码。每一行代码要么做三件事之一，它分配内存，读取内存，写入内存。使用 Go 语言，我们在代码中所需要做的只是读取并写入内存，所有这些读取和写入都会导致我们周围的一切发生: 灯亮了。你正在阅读这篇文章。
+上面提到过，一般开发者面对超过 10000 行代码，会产生严重的心智负担。而且平均每 100 行代码有可能会产生 10-20 个错误。当代码比预估需要的多时，就会有更多的地方可以隐藏错误，这也意味着有更多不完整的测试。
+除了编写更少的代码之外，完整性的另一个重要部分是错误处理。你的软件必须保持稳定，而不是增加危机，应该试图从错误中恢复。
+less is always more
+完整性是首要的，次要的是可读性。要以一种易于理解的方式构建我们的软件。
+抽象的目的不是模糊，而是创造一个新的语义层次，一个可以绝对精确的层次。
+封装不仅仅是可测试的，要确保它们提供了一种语义精确的层次，而不是隐藏复杂性。
+性能 软件的性能不足，有可能来自四个地方。
+延迟，网络，IO，磁盘 IO 等类型的延迟 垃圾回收和内存分配 访问数据的方式，效率 算法效率，是否可以优化算法以采取更少的步骤而不是更多的步骤 让它正确，让它清晰，让它简洁，让它快速
+面向数据的设计 Go 语言的特性，它要求你必须把自己的思维方式，从 面向对象的设计 到 面向数据的设计。
+怎么才能将代码和有可能改变的数据相解耦呢? 如何可以解耦，那就可以尽量降低由于数据改动造成的连锁反应。
+总是在做抽象，在抽象上面做另一层抽象，那么就会离上面说的解耦越来越远，而且很难保证代码准确无误，清晰易读，因为这样写出来的代码太过抽象，让我们很难理解其中的思路。
+代码要针对当下来写，架构要面向未来设计。不要写出目前根本用不到的代码，那样写只会产生更多的 bug。因为代码越多，越容易出 bug。
+面向数据的设计，是要求必须将数据搞懂，要求我们只编写必须用到的代码和算法，要对算法解耦，以降低数据发生变化时整个项目受到的影响。我们要做是，怎样做到数量最少写法最清晰的代码把问题解决。
+数据应该在特定的情况下才有行为，如果你是从面向对象的编程语言切换到 Go，那可能不太容易接受这种理念。因为 OOP 总是要求你考虑数据的状态，以及数据会有怎样的行为。面向对象并不是 Go 语言里面最好的编程思路，Go 语言在大多数情况下追求的其实是把状态跟行为分开，做到这点可以少写一点代码，并且可以简化编程工作。
+首先应该考虑函数，只有在不该用或不方便使用函数的情况下，才可以考虑方法。
+遗留代码 我们认为糟糕的代码是由糟糕的开发人员编写的，但实际上，它是由合适的开发人员在&amp;rsquo;糟糕的情况下&amp;rsquo;编写的。
+总会有人请你帮他看代码，你可能会觉得写代码的人是不是出了什么问题，怎么会写出这样的东西呢?">
+    <link rel="shortcut icon" href="img/favicon.ico" />
+
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+	(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+	m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+	})(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+	ga('create', 'UA-192125643-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="Toggle Menu">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu0b04ba6d7249c9f90c92db974439eb8c_208246_300x0_resize_box_3.png" width="300"
+                            height="321" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🧐</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">ixugo</a></h1>
+            <h2 class="site-description">走出舒适区</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/ixugo'
+                        target="_blank"
+                        title="GitHub"
+                        rel="me"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>Home</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/about/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>About</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>Archives</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>Search</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>Dark Mode</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">Table of contents</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#少即是多">少即是多</a></li>
+    <li><a href="#性能">性能</a></li>
+    <li><a href="#面向数据的设计">面向数据的设计</a></li>
+    <li><a href="#遗留代码">遗留代码</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+            <main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+    <header class="article-category">
+        
+            <a href="/categories/golang/" >
+                Golang
+            </a>
+        
+    </header>
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/%E5%BA%94%E8%AF%A5%E6%9C%89%E7%9A%84-go-%E8%AF%AD%E8%A8%80%E6%80%9D%E7%BB%B4/">应该有的 Go 语言思维</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    
+    
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Feb 25, 2022</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    1 minute read
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+
+</header>
+
+    <section class="article-content">
+    
+    
+    <h1 id="新的思维方式">新的思维方式</h1>
+<p>代码行数，确实会影响项目的健康程序，团队的健康程序。</p>
+<p>如果将 Linux 视为一个开源项目，那么今天该项目中约有 2400 万行代码，这非常庞大，需要一个庞大的团队来处理。</p>
+<p>成为质量，效率和简单性的拥护者。</p>
+<p>是什么推动了我做出的工程决策? 作为开发人员，我在进步吗?</p>
+<p>采用新技术总是很容易，但是采用新的思维方式却很难。</p>
+<h2 id="少即是多">少即是多</h2>
+<p>如果你的工作做得很好，没人应该知道你的名字。</p>
+<p>如果有人知道你的名字，可能意味着你的软件出现故障或导致问题。</p>
+<p>你想让别人知道你的名字吗? 成为前端开发者。那你会花两周的时间在屏幕上工作，会有人看着你的页面指出了他们不喜欢的东西。啊，这曾经让我发疯。</p>
+<p>不管是什么行业，不管软件是否正确，人们的生活，他们的幸福，一切都依赖于你正在构建的技术。我们必须认真对待，保持软件的完整性。</p>
+<p>完整性有两个地方，一个微观层面和一个宏观层面。</p>
+<p>在微观层面，需要明白你写的每一行代码。每一行代码要么做三件事之一，它分配内存，读取内存，写入内存。使用 Go 语言，我们在代码中所需要做的只是读取并写入内存，所有这些读取和写入都会导致我们周围的一切发生: 灯亮了。你正在阅读这篇文章。</p>
+<p>上面提到过，一般开发者面对超过 10000 行代码，会产生严重的心智负担。而且平均每 100 行代码有可能会产生 10-20 个错误。当代码比预估需要的多时，就会有更多的地方可以隐藏错误，这也意味着有更多不完整的测试。</p>
+<p>除了编写更少的代码之外，完整性的另一个重要部分是错误处理。你的软件必须保持稳定，而不是增加危机，应该试图从错误中恢复。</p>
+<blockquote>
+<p>less is always more</p>
+</blockquote>
+<p>完整性是首要的，次要的是可读性。要以一种易于理解的方式构建我们的软件。</p>
+<p>抽象的目的不是模糊，而是创造一个新的语义层次，一个可以绝对精确的层次。</p>
+<p>封装不仅仅是可测试的，要确保它们提供了一种语义精确的层次，而不是隐藏复杂性。</p>
+<h2 id="性能">性能</h2>
+<p>软件的性能不足，有可能来自四个地方。</p>
+<ul>
+<li>延迟，网络，IO，磁盘 IO 等类型的延迟</li>
+<li>垃圾回收和内存分配</li>
+<li>访问数据的方式，效率</li>
+<li>算法效率，是否可以优化算法以采取更少的步骤而不是更多的步骤</li>
+</ul>
+<blockquote>
+<p>让它正确，让它清晰，让它简洁，让它快速</p>
+</blockquote>
+<h2 id="面向数据的设计">面向数据的设计</h2>
+<p>Go 语言的特性，它要求你必须把自己的思维方式，从 面向对象的设计 到 <strong>面向数据的设计</strong>。</p>
+<blockquote>
+<p>怎么才能将代码和有可能改变的数据相解耦呢? 如何可以解耦，那就可以尽量降低由于数据改动造成的连锁反应。</p>
+</blockquote>
+<p>总是在做抽象，在抽象上面做另一层抽象，那么就会离上面说的解耦越来越远，而且很难保证代码准确无误，清晰易读，因为这样写出来的代码太过抽象，让我们很难理解其中的思路。</p>
+<p>代码要针对当下来写，架构要面向未来设计。不要写出目前根本用不到的代码，那样写只会产生更多的 bug。因为代码越多，越容易出 bug。</p>
+<p>面向数据的设计，是要求必须将数据搞懂，要求我们只编写必须用到的代码和算法，要对算法解耦，以降低数据发生变化时整个项目受到的影响。<strong>我们要做是，怎样做到数量最少写法最清晰的代码把问题解决。</strong></p>
+<p>数据应该在特定的情况下才有行为，如果你是从面向对象的编程语言切换到 Go，那可能不太容易接受这种理念。因为 OOP 总是要求你考虑数据的状态，以及数据会有怎样的行为。面向对象并不是 Go 语言里面最好的编程思路，Go 语言在大多数情况下追求的其实是把状态跟行为分开，做到这点可以少写一点代码，并且可以简化编程工作。</p>
+<p>首先应该考虑函数，只有在不该用或不方便使用函数的情况下，才可以考虑方法。</p>
+<h2 id="遗留代码">遗留代码</h2>
+<blockquote>
+<p>我们认为糟糕的代码是由糟糕的开发人员编写的，但实际上，它是由合适的开发人员在&rsquo;糟糕的情况下&rsquo;编写的。</p>
+</blockquote>
+<p>总会有人请你帮他看代码，你可能会觉得写代码的人是不是出了什么问题，怎么会写出这样的东西呢?</p>
+<p>其实这背后是有原因的，他们没有办法告诉你，遇到这种代码的时候千万别急。先冷静下来，别急着去责怪写它的那个人，我们应该问问自己，这种代码是在什么样的环境或什么样的情况下写出来的。</p>
+<p>现在既然交给自己来维护，那有没有什么办法能把它改的好一些呢?</p>
+<p>无论面对什么事都应该有同理心，因为做那件事的人所处的情况可能和你现在不一样，现在是把别人写过的代码交给你来维护，反过来你的代码也有可能交给别人来维护。如果能够换位思考，那么跟遗留代码有关的许多问题或许就能够解决。</p>
+<p>如果你想一开始就把代码写好，而不想写出那种留有很有问题的代码，那么首先要注意的，就是提醒自己，<strong>这套代码优采用什么样的方式来写，写代码的思路特别关键，每天重构代码，其实都是按这样的思路进行修改的。</strong></p>
+<p><strong>在开发者脑子里，通常没办法容下超过 10000 行代码</strong>，这里的容下不是指将每行代码都背下来。而是如果有人问你某个函数在什么地方，或是某项功能的实现代码在哪里，你可以很快的找出来。也就是说，你能够弄清代码的流程，对代码非常的熟悉。如果程序发生错误，很快就能知道自己应该从哪块代码入手。</p>
+<p>我们要关注代码行数，把它降低，这样才能保证团队合作顺利。每位程序员所需要把控的代码不应超过 10000 行，这种认知方面的负担必须引起重视。</p>
+<p><strong>最难对付的 bug 是思路上的 bug，因为你根本看不出问题在哪。</strong></p>
+<p>不应该第一时间使用调试器，如果正式的软件产品里面出现了错误，那你只应该通过整理思路，或者查看日志来解决问题，如果这些方法还是不能帮你找到 bug，那就说明这段代码的写法出了问题。如果需要调试器才能解决问题，可能这段代码需要重构。因为根本问题在于修正思路上的错误。要在日志里面多记录一些有用的信息，帮助我们还原当时出错的过程。</p>
+<blockquote>
+<p>Go 是我见过的力量和表现力之间的最佳平衡，通过简单直接的编程，你几乎可以做任何你想做的事情。并且，对机器上将要发生的事情有一个良好的心理模型</p>
+</blockquote>
+
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/go%E8%BF%9B%E9%98%B6/">Go进阶</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">Related content</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/%E5%88%86%E6%9E%90%E4%B8%8E%E8%BF%BD%E8%B8%AA/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">分析与追踪</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/%E8%BD%BB%E9%87%8F%E7%BA%A7%E5%8E%8B%E6%B5%8B%E5%B7%A5%E5%85%B7/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">轻量级压测工具</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/channels-%E6%A8%A1%E5%BC%8F/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Channels 模式</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/%E6%A0%88%E5%B8%A7%E4%B8%8E%E9%80%83%E9%80%B8/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">栈帧与逃逸</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/go-%E5%86%85%E5%AD%98%E6%A8%A1%E5%9E%8B/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Go 内存模型</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script src="https://utteranc.es/client.js" 
+        repo="ixugo/ixugo.github.io"
+        issue-term="pathname"
+        
+        crossorigin="anonymous"
+        async
+        >
+</script>
+
+<style>
+    .utterances {
+        max-width: unset;
+    }
+</style>
+
+<script>
+    function setUtterancesTheme(theme) {
+        let utterances = document.querySelector('.utterances iframe');
+        if (utterances) {
+            utterances.contentWindow.postMessage(
+                {
+                    type: 'set-theme',
+                    theme: `github-${theme}`
+                },
+                'https://utteranc.es'
+            );
+        }
+    }
+
+    addEventListener('message', event => {
+        if (event.origin !== 'https://utteranc.es') return;
+        setUtterancesTheme(document.documentElement.dataset.scheme)
+    });
+
+    window.addEventListener('onColorSchemeChange', (e) => {
+        setUtterancesTheme(e.detail)
+    })
+</script>
+
+
+    
+
+    <footer class="site-footer">
+  <section class="copyright">
+    &copy;
+    
+    2018 -
+    
+    2023 ixugo
+  </section>
+  <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+  <section class="powerby">
+
+    
+    <span id="busuanzi_container_page_pv">本文阅读量
+      <span style="font-size: 14px" id="busuanzi_value_page_pv"></span>
+      次，</span>
+    <span id="busuanzi_container_site_pv">总访问量
+      <span style="font-size: 14px" id="busuanzi_value_site_pv"></span>
+      次 </span>，总访客数
+    <span style="font-size: 14px" id="busuanzi_value_site_uv"></span> 人
+    <br />
+
+
+    Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> .&nbsp;&nbsp;
+    Theme <a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener"
+      data-version="3.16.0">Stack</a> designed by <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a>
+  </section>
+
+
+
+
+  <script>
+    function count() {
+      let href = window.location.href;
+      let regexp = /^https?:\/\/blog.golang.space\/?(page\/[\d]+\/?)?$/;
+      if (regexp.test(href)) {
+        let e = document.getElementById("busuanzi_container_page_pv");
+        e.innerText = "";
+      }
+    }
+    window.onload = count;
+  </script>
+</footer>
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

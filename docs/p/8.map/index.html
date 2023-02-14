@@ -1,0 +1,1083 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='[toc]
+map 1. 基础知识 1.1. 声明方式 区分: 数组定义了长度, 就会自动初始化, map make 时定义了长度, 也是 0
+无论 map 是否初始化, 都可以使用 len 进行判断长度
+仅仅声明一个 map , 没有初始化, 是 nil map , 不能使用
+1 2 3 4 5 6 7 m := map[string]string{ &amp;#34;name&amp;#34;:&amp;#34;ccmouse&amp;#34;, &amp;#34;course&amp;#34;:&amp;#34;golang&amp;#34;, } m2 := make(map[string]int) // m2 == {} 即 len(m2) == 0 var m3 map[string]int // m3 == nil 也可以 len(m3) == 0 注意不能对 map 中的元素进行取址 , map的key必须是可比较的类型
+禁止对map元素取址的原因是map可能随着元素数量的增长而重新分配更大的内存空间，从而可能导致之前的地址无效。'>
+<title>8.map</title>
+
+<link rel='canonical' href='https://blog.golang.space/p/8.map/'>
+
+<link rel="stylesheet" href="/scss/style.min.8191399262444ab68b72a18c97392f5349be20a1615d77445be51e974c144cff.css"><meta property='og:title' content='8.map'>
+<meta property='og:description' content='[toc]
+map 1. 基础知识 1.1. 声明方式 区分: 数组定义了长度, 就会自动初始化, map make 时定义了长度, 也是 0
+无论 map 是否初始化, 都可以使用 len 进行判断长度
+仅仅声明一个 map , 没有初始化, 是 nil map , 不能使用
+1 2 3 4 5 6 7 m := map[string]string{ &amp;#34;name&amp;#34;:&amp;#34;ccmouse&amp;#34;, &amp;#34;course&amp;#34;:&amp;#34;golang&amp;#34;, } m2 := make(map[string]int) // m2 == {} 即 len(m2) == 0 var m3 map[string]int // m3 == nil 也可以 len(m3) == 0 注意不能对 map 中的元素进行取址 , map的key必须是可比较的类型
+禁止对map元素取址的原因是map可能随着元素数量的增长而重新分配更大的内存空间，从而可能导致之前的地址无效。'>
+<meta property='og:url' content='https://blog.golang.space/p/8.map/'>
+<meta property='og:site_name' content='ixugo'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='Go' /><meta property='article:published_time' content='2019-11-04T11:00:00&#43;00:00'/><meta property='article:modified_time' content='2019-11-04T11:00:00&#43;00:00'/>
+<meta name="twitter:title" content="8.map">
+<meta name="twitter:description" content="[toc]
+map 1. 基础知识 1.1. 声明方式 区分: 数组定义了长度, 就会自动初始化, map make 时定义了长度, 也是 0
+无论 map 是否初始化, 都可以使用 len 进行判断长度
+仅仅声明一个 map , 没有初始化, 是 nil map , 不能使用
+1 2 3 4 5 6 7 m := map[string]string{ &amp;#34;name&amp;#34;:&amp;#34;ccmouse&amp;#34;, &amp;#34;course&amp;#34;:&amp;#34;golang&amp;#34;, } m2 := make(map[string]int) // m2 == {} 即 len(m2) == 0 var m3 map[string]int // m3 == nil 也可以 len(m3) == 0 注意不能对 map 中的元素进行取址 , map的key必须是可比较的类型
+禁止对map元素取址的原因是map可能随着元素数量的增长而重新分配更大的内存空间，从而可能导致之前的地址无效。">
+    <link rel="shortcut icon" href="img/favicon.ico" />
+
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+	(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+	m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+	})(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+	ga('create', 'UA-192125643-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="Toggle Menu">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu0b04ba6d7249c9f90c92db974439eb8c_208246_300x0_resize_box_3.png" width="300"
+                            height="321" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🧐</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">ixugo</a></h1>
+            <h2 class="site-description">走出舒适区</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/ixugo'
+                        target="_blank"
+                        title="GitHub"
+                        rel="me"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>Home</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/about/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>About</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>Archives</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>Search</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>Dark Mode</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">Table of contents</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#1-基础知识">1. 基础知识</a>
+      <ol>
+        <li><a href="#11-声明方式">1.1. 声明方式</a></li>
+        <li><a href="#12-遍历数据">1.2. 遍历数据</a></li>
+        <li><a href="#13-map-为-nil-做操作">1.3. map 为 nil 做操作</a></li>
+      </ol>
+    </li>
+    <li><a href="#2-使用案例">2. 使用案例</a>
+      <ol>
+        <li><a href="#21-寻找最长不含有重复字符的子串">2.1. 寻找最长不含有重复字符的子串</a></li>
+      </ol>
+    </li>
+    <li><a href="#3-注意">3. 注意</a></li>
+    <li><a href="#4-了解源码">4. 了解源码</a>
+      <ol>
+        <li><a href="#结构体">结构体</a></li>
+        <li><a href="#bucket数据结构">bucket数据结构</a></li>
+        <li><a href="#哈希冲突">哈希冲突</a></li>
+        <li><a href="#负载因子">负载因子</a></li>
+        <li><a href="#渐进式扩容">渐进式扩容</a></li>
+        <li><a href="#增量扩容">增量扩容</a></li>
+        <li><a href="#等量扩容">等量扩容</a></li>
+        <li><a href="#查找过程">查找过程</a></li>
+        <li><a href="#插入过程">插入过程</a></li>
+      </ol>
+    </li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+            <main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+    <header class="article-category">
+        
+            <a href="/categories/golang/" >
+                Golang
+            </a>
+        
+    </header>
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/8.map/">8.map</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    
+    
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Nov 04, 2019</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    3 minute read
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+
+</header>
+
+    <section class="article-content">
+    
+    
+    <p>[toc]</p>
+<h1 id="map">map</h1>
+<h2 id="1-基础知识">1. 基础知识</h2>
+<h3 id="11-声明方式">1.1. 声明方式</h3>
+<p>区分:  数组定义了长度, 就会自动初始化, map make 时定义了长度, 也是 0</p>
+<p>无论 map 是否初始化, 都可以使用 len 进行判断长度</p>
+<p>仅仅声明一个 map , 没有初始化, 是 nil map , 不能使用</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="nx">m</span> <span class="o">:=</span> <span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="kt">string</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="s">&#34;name&#34;</span><span class="p">:</span><span class="s">&#34;ccmouse&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">		<span class="s">&#34;course&#34;</span><span class="p">:</span><span class="s">&#34;golang&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="nx">m2</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">(</span><span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="kt">int</span><span class="p">)</span> <span class="c1">// m2 == {}  即  len(m2) == 0
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">var</span> <span class="nx">m3</span> <span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="kt">int</span>   <span class="c1">// m3 == nil  也可以  len(m3) == 0
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><p>注意不能对 map 中的元素进行取址 , map的key必须是可比较的类型</p>
+<p>禁止对map元素取址的原因是map可能随着元素数量的增长而重新分配更大的内存空间，从而可能导致之前的地址无效。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="nx">_</span> <span class="p">=</span> <span class="o">&amp;</span><span class="nx">ages</span><span class="p">[</span><span class="s">&#34;bob&#34;</span><span class="p">]</span> <span class="c1">// ❌
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><p>不能直接更新 map 中 struct 的元素字段值，注意 : array 和 slice 是可以的直接更新的。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="nx">m</span><span class="p">[</span><span class="s">&#34;x&#34;</span><span class="p">].</span><span class="nx">name</span> <span class="p">=</span> <span class="s">&#34;Jerry&#34;</span> <span class="c1">// ❌
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">data</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">name</span> <span class="kt">string</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">TestData</span><span class="p">(</span><span class="nx">t</span> <span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">m</span> <span class="o">:=</span> <span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="nx">data</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="s">&#34;x&#34;</span><span class="p">:</span> <span class="p">{</span><span class="s">&#34;Tom&#34;</span><span class="p">},</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">r</span> <span class="o">:=</span> <span class="nx">m</span><span class="p">[</span><span class="s">&#34;x&#34;</span><span class="p">]</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">r</span><span class="p">.</span><span class="nx">name</span> <span class="p">=</span> <span class="s">&#34;Jerry&#34;</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">m</span><span class="p">[</span><span class="s">&#34;x&#34;</span><span class="p">]</span> <span class="p">=</span> <span class="nx">r</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">fmt</span><span class="p">.</span><span class="nf">Println</span><span class="p">(</span><span class="nx">m</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="12-遍历数据">1.2. 遍历数据</h3>
+<p>Map的迭代顺序是不确定的, 在实践中，遍历的顺序是随机的，每一次遍历的顺序都不相同。这是故意的，每次都使用随机的遍历顺序可以强制要求程序不会依赖具体的哈希函数实现。如果要按顺序遍历key/value对，我们必须显式地对key进行排序，可以使用sort包的Strings函数对字符串slice进行排序。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="nx">m1</span> <span class="o">:=</span> <span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="kt">string</span><span class="p">{</span><span class="s">&#34;1&#34;</span><span class="p">:</span><span class="s">&#34;2&#34;</span><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">for</span> <span class="nx">k</span><span class="p">,</span><span class="nx">v</span><span class="o">:=</span><span class="k">range</span> <span class="nx">m1</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">t</span><span class="p">.</span><span class="nf">Log</span><span class="p">(</span><span class="nx">k</span><span class="p">,</span><span class="s">&#34; &gt;&gt;&gt; &#34;</span><span class="p">,</span><span class="nx">v</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>如果想要排序, 可以对 key 排序</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kn">import</span> <span class="s">&#34;sort&#34;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">var</span> <span class="nx">names</span> <span class="p">[]</span><span class="kt">string</span>
+</span></span><span class="line"><span class="cl"><span class="k">for</span> <span class="nx">name</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">ages</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">names</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">names</span><span class="p">,</span> <span class="nx">name</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="nx">sort</span><span class="p">.</span><span class="nf">Strings</span><span class="p">(</span><span class="nx">names</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">name</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">names</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">fmt</span><span class="p">.</span><span class="nf">Printf</span><span class="p">(</span><span class="s">&#34;%s\t%d\n&#34;</span><span class="p">,</span> <span class="nx">name</span><span class="p">,</span> <span class="nx">ages</span><span class="p">[</span><span class="nx">name</span><span class="p">])</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>因为我们一开始就知道names的最终大小，因此给slice分配一个合适的大小将会更有效。会避免 <code>append</code> 时浪费内存</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="nx">names</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">([]</span><span class="kt">string</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="nx">ages</span><span class="p">))</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="13-map-为-nil-做操作">1.3. map 为 nil 做操作</h3>
+<p>map上的大部分操作，包括查找、删除、len和range循环都可以安全工作在nil值的map上，它们的行为和一个空的map类似。但是向一个nil值的map存入元素将导致一个panic异常 , 在向map存数据前必须先创建map, 即分配内存空间。</p>
+<p><strong>访问不存在的 key</strong></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="nx">m1</span> <span class="o">:=</span> <span class="kd">map</span><span class="p">[</span><span class="kt">int</span><span class="p">]</span><span class="kt">int</span><span class="p">{}</span>  <span class="c1">// 空 map
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="nx">t</span><span class="p">.</span><span class="nf">Log</span><span class="p">(</span><span class="nx">m1</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>   <span class="c1">// 访问不存在的 key
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><p>返回的结果是零值 ,  当访问的 key 不存在, 会返回 value 对应类型的零值</p>
+<blockquote>
+<p>如果 value 类型是 int, 赋值后是 0 值, 不存在时 也是 0 值, 如何判断?</p>
+</blockquote>
+<p>key 存在, 则  ok 为 ture,  不存在 false</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="k">if</span> <span class="nx">value</span><span class="p">,</span> <span class="nx">ok</span><span class="o">:=</span><span class="nx">m1</span><span class="p">[</span><span class="mi">3</span><span class="p">];</span> <span class="nx">ok</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">t</span><span class="p">.</span><span class="nf">Logf</span><span class="p">(</span> <span class="s">&#34; key 3 is  = %d&#34;</span><span class="p">,</span><span class="nx">value</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>和slice一样，map之间也不能进行相等比较；唯一的例外是和nil进行比较。</p>
+<p><strong>删除某个 key</strong></p>
+<p>使用 delete , 传入 map 和 key 参数</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="nx">m1</span> <span class="o">:=</span> <span class="kd">map</span><span class="p">[</span><span class="kt">int</span><span class="p">]</span><span class="kt">int</span><span class="p">{</span><span class="mi">1</span><span class="p">:</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">:</span><span class="mi">4</span><span class="p">,</span><span class="mi">3</span><span class="p">:</span><span class="mi">9</span><span class="p">,</span><span class="mi">4</span><span class="p">:</span><span class="mi">16</span><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="nb">delete</span><span class="p">(</span><span class="nx">m1</span><span class="p">,</span><span class="mi">1</span><span class="p">)</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><strong>map 的 key</strong></p>
+<ol>
+<li>
+<p>map 使用哈希表, 必须 key 比较相等</p>
+</li>
+<li>
+<p>除了 slice, map, function 的内建类型都可以作为 key</p>
+<blockquote>
+<p>如果想用 slice, 可以定义一个函数获取 slice 的<strong>字符串</strong> , 作为 map 的 key</p>
+</blockquote>
+</li>
+<li>
+<p>struct 类型不包含以上字段(slice,map), 也可以作为 key</p>
+</li>
+</ol>
+<p><strong>作为函数参数</strong></p>
+<p>传递时拷贝地址, 所以有传引用的效果</p>
+<p><strong>set</strong></p>
+<p>内置集合没有 set 实现, 可以使用  map[type]bool</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="nx">set</span> <span class="o">:=</span> <span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="kt">bool</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h2 id="2-使用案例">2. 使用案例</h2>
+<h3 id="21-寻找最长不含有重复字符的子串">2.1. 寻找最长不含有重复字符的子串</h3>
+<p>front 指针从 0 开始, 如果没有遇到重复的字符, 就停止移动, 遍历后面的字符, 通过 当前长度-front 获取最长子串</p>
+<p>如果当前遍历的字符在 front 后面出现过, front 就移动到上一次出现位置+1</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">TestSelectLongOfNotRepeatingSubStr</span><span class="p">(</span><span class="nx">t</span> <span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span>  <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">str</span> <span class="o">:=</span> <span class="s">&#34;abcabcdabacd&#34;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="nx">m1</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">(</span><span class="kd">map</span><span class="p">[</span><span class="kt">rune</span><span class="p">]</span><span class="kt">int</span><span class="p">,</span><span class="nb">len</span><span class="p">(</span><span class="nx">str</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">front</span> <span class="o">:=</span><span class="mi">0</span>  <span class="c1">// 头指针
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">maxLen</span> <span class="o">:=</span><span class="mi">0</span> <span class="c1">// 最大子串长度
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>
+</span></span><span class="line"><span class="cl">	<span class="k">for</span> <span class="nx">i</span><span class="p">,</span><span class="nx">ch</span> <span class="o">:=</span> <span class="k">range</span> <span class="p">[]</span><span class="nb">rune</span><span class="p">(</span><span class="nx">str</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	  <span class="c1">// 如果当前字符在 front 后面出现过一次
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="k">if</span> <span class="nx">back</span><span class="p">,</span><span class="nx">ok</span> <span class="o">:=</span> <span class="nx">m1</span><span class="p">[</span><span class="nx">ch</span><span class="p">];</span> <span class="nx">ok</span> <span class="o">&amp;&amp;</span> <span class="nx">back</span> <span class="o">&gt;=</span> <span class="nx">front</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="c1">// 增加 front 位置, 当前遍历到的字符后一个位置
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>			<span class="nx">front</span> <span class="p">=</span> <span class="nx">back</span> <span class="o">+</span><span class="mi">1</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">maxLen</span> <span class="p">=</span> <span class="nx">i</span><span class="o">-</span><span class="nx">front</span><span class="o">+</span><span class="mi">1</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 更新位置
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="nx">m1</span><span class="p">[</span><span class="nx">ch</span><span class="p">]</span> <span class="p">=</span> <span class="nx">i</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="nx">t</span><span class="p">.</span><span class="nf">Log</span><span class="p">(</span><span class="nx">maxLen</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h2 id="3-注意">3. 注意</h2>
+<h2 id="4-了解源码">4. 了解源码</h2>
+<h3 id="结构体">结构体</h3>
+<p><code>runtime/map.go/hmap</code></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">hmap</span> <span class="kd">struct</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">  	<span class="nx">count</span> <span class="kt">int</span>  <span class="c1">// 键值对数量
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  	<span class="nx">flags</span> <span class="kt">uint8</span>
+</span></span><span class="line"><span class="cl">  	<span class="nx">B</span>			<span class="kt">uint8</span>	<span class="c1">// 桶的数目是 2 的多少次幂
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  	<span class="nx">noverflow</span> <span class="kt">uint8</span>
+</span></span><span class="line"><span class="cl">  	<span class="nx">hash0</span>  <span class="kt">uint32</span>
+</span></span><span class="line"><span class="cl">  
+</span></span><span class="line"><span class="cl">  	<span class="nx">buckets</span> <span class="nx">unsafe</span><span class="p">.</span><span class="nx">Pointer</span> <span class="c1">// 桶在哪里
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  	<span class="nx">oldbuckets</span> <span class="nx">unsafe</span><span class="p">.</span><span class="nx">Pointer</span> <span class="c1">// 用于扩容阶段保存旧桶在哪儿
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  	<span class="nx">nevacuate</span> <span class="kt">uintptr</span>  <span class="c1">// 即将迁移的旧桶编号
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  	<span class="nx">extra</span> <span class="o">*</span><span class="nx">mapextra</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>Golang的map使用哈希表作为底层实现，一个哈希表里可以有多个哈希表节点，也即bucket，而每个bucket就保存了map中的一个或一组键值对。</p>
+<p>下图展示一个拥有4个bucket的map：</p>
+<p><img src="https://static.sitestack.cn/projects/GoExpertProgramming/chapter01/images/map-01-struct.png"
+	
+	
+	
+	loading="lazy"
+	
+	
+></p>
+<h3 id="bucket数据结构">bucket数据结构</h3>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">bmap</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">tophash</span> <span class="p">[</span><span class="mi">8</span><span class="p">]</span><span class="kt">uint8</span> <span class="c1">//存储哈希值的高8位
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="nx">data</span>    <span class="kt">byte</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>  <span class="c1">//key value数据:key/key/key/.../value/value/value...
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="nx">overflow</span> <span class="o">*</span><span class="nx">bmap</span>   <span class="c1">//溢出bucket的地址
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>每个bucket可以存储8个键值对。</p>
+<ul>
+<li>tophash是个长度为8的数组，哈希值相同的键（准确的说是哈希值低位相同的键）存入当前bucket时会将哈希值的高位存储在该数组中，以方便后续匹配。</li>
+<li>data区存放的是key-value数据，存放顺序是key/key/key/…value/value/value，如此存放是为了节省字节对齐带来的空间浪费。</li>
+<li>overflow 指针指向的是下一个bucket，据此将所有冲突的键连接起来。</li>
+</ul>
+<p>下图展示bucket存放8个key-value对：</p>
+<p><img src="https://static.sitestack.cn/projects/GoExpertProgramming/chapter01/images/map-02-struct_sketch.png"
+	
+	
+	
+	loading="lazy"
+	
+	
+></p>
+<h3 id="哈希冲突">哈希冲突</h3>
+<p>当有两个或以上数量的键被哈希到了同一个bucket时，我们称这些键发生了冲突。Go使用链地址法来解决键冲突。由于每个bucket可以存放8个键值对，所以同一个bucket存放超过8个键值对时就会再创建一个键值对，用类似链表的方式将bucket连接起来。</p>
+<p>下图展示产生冲突后的map：</p>
+<p><img src="https://static.sitestack.cn/projects/GoExpertProgramming/chapter01/images/map-03-struct_sketch.png"
+	
+	
+	
+	loading="lazy"
+	
+	
+></p>
+<p>bucket数据结构指示下一个bucket的指针称为overflow bucket，意为当前bucket盛不下而溢出的部分。事实上哈希冲突并不是好事情，它降低了存取效率，好的哈希算法可以保证哈希值的随机性，但冲突过多也是要控制的，后面会再详细介绍。</p>
+<h3 id="负载因子">负载因子</h3>
+<p>负载因子用于衡量一个哈希表冲突情况，公式为：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">负载因子 = 键数量/bucket数量
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>哈希表需要将负载因子控制在合适的大小，超过其阀值需要进行rehash，也即键值对重新组织：</p>
+<ul>
+<li>哈希因子过小，说明空间利用率低</li>
+<li>哈希因子过大，说明冲突严重，存取效率低</li>
+</ul>
+<p>每个哈希表的实现对负载因子容忍程度不同，比如Redis实现中负载因子大于1时就会触发rehash，而Go则在在负载因子达到6.5时才会触发rehash，因为Redis的每个bucket只能存1个键值对，而Go的bucket可能存8个键值对，所以Go可以容忍更高的负载因子。</p>
+<h3 id="渐进式扩容">渐进式扩容</h3>
+<p>为了保证访问效率，当新元素将要添加进map时，都会检查是否需要扩容，扩容实际上是以空间换时间的手段。触发扩容的条件有二个：</p>
+<ol>
+<li>负载因子 &gt; 6.5时，也即平均每个bucket存储的键值对达到6.5个。</li>
+<li>overflow数量 &gt; 2^15时，也即overflow数量超过32768时。</li>
+</ol>
+<h3 id="增量扩容">增量扩容</h3>
+<p>当负载因子过大时，就新建一个bucket，新的bucket长度是原来的2倍，然后旧bucket数据搬迁到新的bucket。考虑到如果map存储了数以亿计的key-value，一次性搬迁将会造成比较大的延时，Go采用逐步搬迁策略，即每次访问map时都会触发一次搬迁，每次搬迁2个键值对。</p>
+<p>下图展示了包含一个bucket满载的map(为了描述方便，图中bucket省略了value区域):</p>
+<p><img src="https://static.sitestack.cn/projects/GoExpertProgramming/chapter01/images/map-04-struct_sketch.png"
+	
+	
+	
+	loading="lazy"
+	
+	
+></p>
+<p>当前map存储了7个键值对，只有1个bucket。此地负载因子为7。再次插入数据时将会触发扩容操作，扩容之后再将新插入键写入新的bucket。</p>
+<p>当第8个键值对插入时，将会触发扩容，扩容后示意图如下：</p>
+<p><img src="https://static.sitestack.cn/projects/GoExpertProgramming/chapter01/images/map-05-struct_sketch.png"
+	
+	
+	
+	loading="lazy"
+	
+	
+></p>
+<p>hmap数据结构中oldbuckets成员指身原bucket，而buckets指向了新申请的bucket。新的键值对被插入新的bucket中。后续对map的访问操作会触发迁移，将oldbuckets中的键值对逐步的搬迁过来。当oldbuckets中的键值对全部搬迁完毕后，删除oldbuckets。</p>
+<p>搬迁完成后的示意图如下：</p>
+<p><img src="https://static.sitestack.cn/projects/GoExpertProgramming/chapter01/images/map-06-struct_sketch.png"
+	
+	
+	
+	loading="lazy"
+	
+	
+></p>
+<p>数据搬迁过程中原bucket中的键值对将存在于新bucket的前面，新插入的键值对将存在于新bucket的后面。实际搬迁过程中比较复杂，将在后续源码分析中详细介绍。</p>
+<h3 id="等量扩容">等量扩容</h3>
+<p>所谓等量扩容，实际上并不是扩大容量，buckets数量不变，重新做一遍类似增量扩容的搬迁动作，把松散的键值对重新排列一次，以使bucket的使用率更高，进而保证更快的存取。在极端场景下，比如不断的增删，而键值对正好集中在一小部分的bucket，这样会造成overflow的bucket数量增多，但负载因子又不高，从而无法执行增量搬迁的情况，如下图所示：</p>
+<p><img src="https://static.sitestack.cn/projects/GoExpertProgramming/chapter01/images/map-07-struct_sketch.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="1.3 map - 图7"
+	
+	
+></p>
+<p>上图可见，overflow的buckt中大部分是空的，访问效率会很差。此时进行一次等量扩容，即buckets数量不变，经过重新组织后overflow的bucket数量会减少，即节省了空间又会提高访问效率。</p>
+<h3 id="查找过程">查找过程</h3>
+<p>查找过程如下：</p>
+<ol>
+<li>跟据key值算出哈希值</li>
+<li>取哈希值低位与hmpa.B取模确定bucket位置</li>
+<li>取哈希值高位在tophash数组中查询</li>
+<li>如果tophash[i]中存储值也哈希值相等，则去找到该bucket中的key值进行比较</li>
+<li>当前bucket没有找到，则继续从下个overflow的bucket中查找。</li>
+<li>如果当前处于搬迁过程，则优先从oldbuckets查找</li>
+</ol>
+<p>注：如果查找不到，也不会返回空值，而是返回相应类型的0值。</p>
+<h3 id="插入过程">插入过程</h3>
+<p>新员素插入过程如下：</p>
+<ol>
+<li>跟据key值算出哈希值</li>
+<li>取哈希值低位与hmap.B取模确定bucket位置</li>
+<li>查找该key是否已经存在，如果存在则直接更新值</li>
+<li>如果没找到将key，将key插入</li>
+</ol>
+
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/go/">Go</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">Related content</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/json-%E7%BB%86%E8%8A%82/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">JSON 细节</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/25.%E6%B3%9B%E5%9E%8B/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">25.泛型</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/22.%E6%B5%8B%E8%AF%95/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">22.测试</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/go-%E7%BC%96%E7%A0%81%E8%A7%84%E8%8C%83/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Go 编码规范</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/go-module/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Go Module</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script src="https://utteranc.es/client.js" 
+        repo="ixugo/ixugo.github.io"
+        issue-term="pathname"
+        
+        crossorigin="anonymous"
+        async
+        >
+</script>
+
+<style>
+    .utterances {
+        max-width: unset;
+    }
+</style>
+
+<script>
+    function setUtterancesTheme(theme) {
+        let utterances = document.querySelector('.utterances iframe');
+        if (utterances) {
+            utterances.contentWindow.postMessage(
+                {
+                    type: 'set-theme',
+                    theme: `github-${theme}`
+                },
+                'https://utteranc.es'
+            );
+        }
+    }
+
+    addEventListener('message', event => {
+        if (event.origin !== 'https://utteranc.es') return;
+        setUtterancesTheme(document.documentElement.dataset.scheme)
+    });
+
+    window.addEventListener('onColorSchemeChange', (e) => {
+        setUtterancesTheme(e.detail)
+    })
+</script>
+
+
+    
+
+    <footer class="site-footer">
+  <section class="copyright">
+    &copy;
+    
+    2018 -
+    
+    2023 ixugo
+  </section>
+  <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+  <section class="powerby">
+
+    
+    <span id="busuanzi_container_page_pv">本文阅读量
+      <span style="font-size: 14px" id="busuanzi_value_page_pv"></span>
+      次，</span>
+    <span id="busuanzi_container_site_pv">总访问量
+      <span style="font-size: 14px" id="busuanzi_value_site_pv"></span>
+      次 </span>，总访客数
+    <span style="font-size: 14px" id="busuanzi_value_site_uv"></span> 人
+    <br />
+
+
+    Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> .&nbsp;&nbsp;
+    Theme <a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener"
+      data-version="3.16.0">Stack</a> designed by <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a>
+  </section>
+
+
+
+
+  <script>
+    function count() {
+      let href = window.location.href;
+      let regexp = /^https?:\/\/blog.golang.space\/?(page\/[\d]+\/?)?$/;
+      if (regexp.test(href)) {
+        let e = document.getElementById("busuanzi_container_page_pv");
+        e.innerText = "";
+      }
+    }
+    window.onload = count;
+  </script>
+</footer>
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

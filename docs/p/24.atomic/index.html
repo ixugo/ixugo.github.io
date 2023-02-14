@@ -1,0 +1,1032 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='atomic 1. 基础知识 1.1. 概念 原子性：一个或多个操作在CPU的执行过程中不被中断的特性，称为原子性。这些操作对外表现成一个不可分割的整体，他们要么都执行，要么都不执行，外界不会看到他们只执行到一半的状态。
+原子操作：进行过程中不能被中断的操作，原子操作由底层硬件支持，而锁则是由操作系统提供的API实现，若实现相同的功能，前者通常会更有效率
+1.2. 介绍 atomic包提供了底层的原子级内存操作，对于同步算法的实现很有用。
+这些函数必须谨慎地保证正确使用。除了某些特殊的底层应用，使用通道或者sync包的函数/类型实现同步更好。
+应通过通信来共享内存，而不通过共享内存实现通信。
+被SwapT系列函数实现的交换操作，在原子性上等价于：
+1 2 3 old = *addr *addr = new return old CompareAndSwapT系列函数实现的比较-交换操作，在原子性上等价于：
+1 2 3 4 5 if *addr == old { *addr = new return true } return false AddT 系列函数实现加法操作，在原子性上等价于：
+1 2 *addr &#43;= delta return *addr LoadT和StoreT系列函数实现的加载和保持操作，在原子性上等价于：&amp;ldquo;return *addr&amp;quot;和&amp;rdquo;*addr = val&amp;quot;。
+1.3. 类型与函数 atomic包中支持六种类型
+int32 uint32 int64 uint64 uintptr unsafe.Pointer 对于每一种类型，提供了五类原子操作：
+LoadXXX(addr): 原子性的获取*addr的值，等价于：
+1 return *addr StoreXXX(addr, val): 原子性的将val的值保存到*addr，等价于：'>
+<title>24.atomic</title>
+
+<link rel='canonical' href='https://blog.golang.space/p/24.atomic/'>
+
+<link rel="stylesheet" href="/scss/style.min.8191399262444ab68b72a18c97392f5349be20a1615d77445be51e974c144cff.css"><meta property='og:title' content='24.atomic'>
+<meta property='og:description' content='atomic 1. 基础知识 1.1. 概念 原子性：一个或多个操作在CPU的执行过程中不被中断的特性，称为原子性。这些操作对外表现成一个不可分割的整体，他们要么都执行，要么都不执行，外界不会看到他们只执行到一半的状态。
+原子操作：进行过程中不能被中断的操作，原子操作由底层硬件支持，而锁则是由操作系统提供的API实现，若实现相同的功能，前者通常会更有效率
+1.2. 介绍 atomic包提供了底层的原子级内存操作，对于同步算法的实现很有用。
+这些函数必须谨慎地保证正确使用。除了某些特殊的底层应用，使用通道或者sync包的函数/类型实现同步更好。
+应通过通信来共享内存，而不通过共享内存实现通信。
+被SwapT系列函数实现的交换操作，在原子性上等价于：
+1 2 3 old = *addr *addr = new return old CompareAndSwapT系列函数实现的比较-交换操作，在原子性上等价于：
+1 2 3 4 5 if *addr == old { *addr = new return true } return false AddT 系列函数实现加法操作，在原子性上等价于：
+1 2 *addr &#43;= delta return *addr LoadT和StoreT系列函数实现的加载和保持操作，在原子性上等价于：&amp;ldquo;return *addr&amp;quot;和&amp;rdquo;*addr = val&amp;quot;。
+1.3. 类型与函数 atomic包中支持六种类型
+int32 uint32 int64 uint64 uintptr unsafe.Pointer 对于每一种类型，提供了五类原子操作：
+LoadXXX(addr): 原子性的获取*addr的值，等价于：
+1 return *addr StoreXXX(addr, val): 原子性的将val的值保存到*addr，等价于：'>
+<meta property='og:url' content='https://blog.golang.space/p/24.atomic/'>
+<meta property='og:site_name' content='ixugo'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='Go' /><meta property='article:tag' content='并发' /><meta property='article:published_time' content='2020-01-05T15:00:00&#43;00:00'/><meta property='article:modified_time' content='2020-01-05T15:00:00&#43;00:00'/>
+<meta name="twitter:title" content="24.atomic">
+<meta name="twitter:description" content="atomic 1. 基础知识 1.1. 概念 原子性：一个或多个操作在CPU的执行过程中不被中断的特性，称为原子性。这些操作对外表现成一个不可分割的整体，他们要么都执行，要么都不执行，外界不会看到他们只执行到一半的状态。
+原子操作：进行过程中不能被中断的操作，原子操作由底层硬件支持，而锁则是由操作系统提供的API实现，若实现相同的功能，前者通常会更有效率
+1.2. 介绍 atomic包提供了底层的原子级内存操作，对于同步算法的实现很有用。
+这些函数必须谨慎地保证正确使用。除了某些特殊的底层应用，使用通道或者sync包的函数/类型实现同步更好。
+应通过通信来共享内存，而不通过共享内存实现通信。
+被SwapT系列函数实现的交换操作，在原子性上等价于：
+1 2 3 old = *addr *addr = new return old CompareAndSwapT系列函数实现的比较-交换操作，在原子性上等价于：
+1 2 3 4 5 if *addr == old { *addr = new return true } return false AddT 系列函数实现加法操作，在原子性上等价于：
+1 2 *addr &#43;= delta return *addr LoadT和StoreT系列函数实现的加载和保持操作，在原子性上等价于：&amp;ldquo;return *addr&amp;quot;和&amp;rdquo;*addr = val&amp;quot;。
+1.3. 类型与函数 atomic包中支持六种类型
+int32 uint32 int64 uint64 uintptr unsafe.Pointer 对于每一种类型，提供了五类原子操作：
+LoadXXX(addr): 原子性的获取*addr的值，等价于：
+1 return *addr StoreXXX(addr, val): 原子性的将val的值保存到*addr，等价于：">
+    <link rel="shortcut icon" href="img/favicon.ico" />
+
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+	(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+	m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+	})(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+	ga('create', 'UA-192125643-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="Toggle Menu">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu0b04ba6d7249c9f90c92db974439eb8c_208246_300x0_resize_box_3.png" width="300"
+                            height="321" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🧐</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">ixugo</a></h1>
+            <h2 class="site-description">走出舒适区</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/ixugo'
+                        target="_blank"
+                        title="GitHub"
+                        rel="me"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>Home</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/about/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>About</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>Archives</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>Search</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>Dark Mode</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">Table of contents</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#1-基础知识">1. 基础知识</a>
+      <ol>
+        <li><a href="#11-概念">1.1. 概念</a></li>
+        <li><a href="#12-介绍">1.2. 介绍</a></li>
+        <li><a href="#13-类型与函数">1.3. 类型与函数</a></li>
+        <li><a href="#14-支持任意类型的-atomicvalue">1.4. 支持任意类型的 atomic.Value</a></li>
+      </ol>
+    </li>
+    <li><a href="#2-使用案例">2. 使用案例</a>
+      <ol>
+        <li><a href="#21-atomicaddint32">2.1. atomic.AddInt32</a></li>
+        <li><a href="#22-atomicvalue">2.2. atomic.Value</a></li>
+      </ol>
+    </li>
+    <li><a href="#3-注意事项">3. 注意事项</a></li>
+    <li><a href="#4-源码浅析">4. 源码浅析</a>
+      <ol>
+        <li><a href="#41-value">4.1. Value</a></li>
+      </ol>
+    </li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+            <main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+    <header class="article-category">
+        
+            <a href="/categories/golang/" >
+                Golang
+            </a>
+        
+    </header>
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/24.atomic/">24.atomic</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    
+    
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Jan 05, 2020</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    3 minute read
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+
+</header>
+
+    <section class="article-content">
+    
+    
+    <h1 id="atomic">atomic</h1>
+<h2 id="1-基础知识">1. 基础知识</h2>
+<h3 id="11-概念">1.1. 概念</h3>
+<p>原子性：<strong>一个或多个操作在CPU的执行过程中不被中断的特性，称为原子性。这些操作对外表现成一个不可分割的整体，他们要么都执行，要么都不执行，外界不会看到他们只执行到一半的状态。</strong></p>
+<p>原子操作：<strong>进行过程中不能被中断的操作，原子操作由底层硬件支持，而锁则是由操作系统提供的API实现，若实现相同的功能，前者通常会更有效率</strong></p>
+<h3 id="12-介绍">1.2. 介绍</h3>
+<p>atomic包提供了底层的原子级内存操作，对于同步算法的实现很有用。</p>
+<p>这些函数必须谨慎地保证正确使用。除了某些特殊的底层应用，使用通道或者sync包的函数/类型实现同步更好。</p>
+<p>应通过通信来共享内存，而不通过共享内存实现通信。</p>
+<p>被SwapT系列函数实现的交换操作，在原子性上等价于：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">old = *addr
+</span></span><span class="line"><span class="cl">*addr = new
+</span></span><span class="line"><span class="cl">return old
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>CompareAndSwapT系列函数实现的比较-交换操作，在原子性上等价于：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">if *addr == old {
+</span></span><span class="line"><span class="cl">	*addr = new
+</span></span><span class="line"><span class="cl">	return true
+</span></span><span class="line"><span class="cl">}
+</span></span><span class="line"><span class="cl">return false
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>AddT 系列函数实现加法操作，在原子性上等价于：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">*addr += delta
+</span></span><span class="line"><span class="cl">return *addr
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>LoadT和StoreT系列函数实现的加载和保持操作，在原子性上等价于：&ldquo;return *addr&quot;和&rdquo;*addr = val&quot;。</p>
+<h3 id="13-类型与函数">1.3. 类型与函数</h3>
+<p>atomic包中支持六种类型</p>
+<ul>
+<li><strong>int32</strong></li>
+<li><strong>uint32</strong></li>
+<li><strong>int64</strong></li>
+<li><strong>uint64</strong></li>
+<li><strong>uintptr</strong></li>
+<li><strong>unsafe.Pointer</strong></li>
+</ul>
+<p>对于每一种类型，提供了五类原子操作：</p>
+<p><code>LoadXXX(addr)</code>: 原子性的获取<code>*addr</code>的值，等价于：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="k">return</span> <span class="o">*</span><span class="nx">addr</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><code>StoreXXX(addr, val)</code>: 原子性的将<code>val</code>的值保存到<code>*addr</code>，等价于：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">addr = val
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><code>AddXXX(addr, delta)</code>: 原子性的将<code>delta</code>的值添加到<code>*addr</code>并返回新值（<code>unsafe.Pointer</code>不支持），等价于：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="o">*</span><span class="nx">addr</span> <span class="o">+=</span> <span class="nx">delta</span>
+</span></span><span class="line"><span class="cl"><span class="k">return</span> <span class="o">*</span><span class="nx">addr</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><code>SwapXXX(addr, new) old</code>: 原子性的将<code>new</code>的值保存到<code>*addr</code>并返回旧值，等价于：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="nx">old</span> <span class="p">=</span> <span class="o">*</span><span class="nx">addr</span>
+</span></span><span class="line"><span class="cl"><span class="o">*</span><span class="nx">addr</span> <span class="p">=</span> <span class="nx">new</span>
+</span></span><span class="line"><span class="cl"><span class="k">return</span> <span class="nx">old</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><code>CompareAndSwapXXX(addr, old, new) bool</code>: 原子性的比较<code>*addr</code>和<code>old</code>，如果相同则将<code>new</code>赋值给<code>*addr</code>并返回<code>true</code>，等价于：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="k">if</span> <span class="o">*</span><span class="nx">addr</span> <span class="o">==</span> <span class="nx">old</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="o">*</span><span class="nx">addr</span> <span class="p">=</span> <span class="nx">new</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="kc">true</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="k">return</span> <span class="kc">false</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="14-支持任意类型的-atomicvalue">1.4. 支持任意类型的 atomic.Value</h3>
+<p>Go语言在1.4版本的时候向<code>sync/atomic</code>包中添加了新的类型<code>Value</code>，此类型相当于一个容器，被用来&quot;原子地&quot;存储（Store）和加载任意类型的值</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">TestGosched</span><span class="p">(</span><span class="nx">t</span> <span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">done</span> <span class="o">:=</span> <span class="kc">false</span>
+</span></span><span class="line"><span class="cl">	<span class="kd">var</span> <span class="nx">v</span> <span class="nx">atomic</span><span class="p">.</span><span class="nx">Value</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">v</span><span class="p">.</span><span class="nf">Store</span><span class="p">(</span><span class="nx">done</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">go</span> <span class="kd">func</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">v</span><span class="p">.</span><span class="nf">Store</span><span class="p">(</span><span class="kc">true</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}()</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">for</span> <span class="p">!</span><span class="nx">v</span><span class="p">.</span><span class="nf">Load</span><span class="p">().(</span><span class="kt">bool</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="nb">println</span><span class="p">(</span><span class="s">&#34;done !&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h2 id="2-使用案例">2. 使用案例</h2>
+<h3 id="21-atomicaddint32">2.1. atomic.AddInt32</h3>
+<p>多个 goroutine 令 count 递增，在没有任何保护措施情况下，会发生 data race。此处使用 <strong>atomic.AddInt32</strong> 来保证原子性。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">TestAtomicAddInt32</span><span class="p">(</span><span class="nx">t</span> <span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="kd">var</span> <span class="nx">count</span> <span class="kt">int32</span>
+</span></span><span class="line"><span class="cl">	<span class="kd">var</span> <span class="nx">wg</span> <span class="nx">sync</span><span class="p">.</span><span class="nx">WaitGroup</span>
+</span></span><span class="line"><span class="cl">	<span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="mi">0</span><span class="p">;</span> <span class="nx">i</span> <span class="p">&lt;</span> <span class="mi">100</span><span class="p">;</span> <span class="nx">i</span><span class="o">++</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">wg</span><span class="p">.</span><span class="nf">Add</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="k">go</span> <span class="kd">func</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="k">defer</span> <span class="nx">wg</span><span class="p">.</span><span class="nf">Done</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">			<span class="nx">atomic</span><span class="p">.</span><span class="nf">AddInt32</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">count</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}()</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">wg</span><span class="p">.</span><span class="nf">Wait</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">fmt</span><span class="p">.</span><span class="nf">Println</span><span class="p">(</span><span class="s">&#34;count: &#34;</span><span class="p">,</span> <span class="nx">count</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="22-atomicvalue">2.2. atomic.Value</h3>
+<h2 id="3-注意事项">3. 注意事项</h2>
+<h2 id="4-源码浅析">4. 源码浅析</h2>
+<h3 id="41-value">4.1. Value</h3>
+<p><strong><a class="link" href="mailto:go@1.16.5" >go@1.16.5</a></strong></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span><span class="lnt">51
+</span><span class="lnt">52
+</span><span class="lnt">53
+</span><span class="lnt">54
+</span><span class="lnt">55
+</span><span class="lnt">56
+</span><span class="lnt">57
+</span><span class="lnt">58
+</span><span class="lnt">59
+</span><span class="lnt">60
+</span><span class="lnt">61
+</span><span class="lnt">62
+</span><span class="lnt">63
+</span><span class="lnt">64
+</span><span class="lnt">65
+</span><span class="lnt">66
+</span><span class="lnt">67
+</span><span class="lnt">68
+</span><span class="lnt">69
+</span><span class="lnt">70
+</span><span class="lnt">71
+</span><span class="lnt">72
+</span><span class="lnt">73
+</span><span class="lnt">74
+</span><span class="lnt">75
+</span><span class="lnt">76
+</span><span class="lnt">77
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// 提供原子的加载和存储
+</span></span></span><span class="line"><span class="cl"><span class="c1">// 零值为 nil
+</span></span></span><span class="line"><span class="cl"><span class="c1">// 调用 Store 后，禁止复制 Value
+</span></span></span><span class="line"><span class="cl"><span class="c1">// 第一次使用后，禁止复制
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">type</span> <span class="nx">Value</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">v</span> <span class="kd">interface</span><span class="p">{}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// ifaceWords 是 interface{} 内部表示
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">type</span> <span class="nx">ifaceWords</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">typ</span>  <span class="nx">unsafe</span><span class="p">.</span><span class="nx">Pointer</span>  <span class="c1">// 原始类型
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">data</span> <span class="nx">unsafe</span><span class="p">.</span><span class="nx">Pointer</span>	 <span class="c1">// 值
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// 返回最近 Store 设置的值
+</span></span></span><span class="line"><span class="cl"><span class="c1">// 如果没有调用 Store 则返回 nil
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">v</span> <span class="o">*</span><span class="nx">Value</span><span class="p">)</span> <span class="nf">Load</span><span class="p">()</span> <span class="p">(</span><span class="nx">x</span> <span class="kd">interface</span><span class="p">{})</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">vp</span> <span class="o">:=</span> <span class="p">(</span><span class="o">*</span><span class="nx">ifaceWords</span><span class="p">)(</span><span class="nx">unsafe</span><span class="p">.</span><span class="nf">Pointer</span><span class="p">(</span><span class="nx">v</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">typ</span> <span class="o">:=</span> <span class="nf">LoadPointer</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">vp</span><span class="p">.</span><span class="nx">typ</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="nx">typ</span> <span class="o">==</span> <span class="kc">nil</span> <span class="o">||</span> <span class="nb">uintptr</span><span class="p">(</span><span class="nx">typ</span><span class="p">)</span> <span class="o">==</span> <span class="p">^</span><span class="nb">uintptr</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="c1">// 第一次存储没有完成
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="k">return</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">data</span> <span class="o">:=</span> <span class="nf">LoadPointer</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">vp</span><span class="p">.</span><span class="nx">data</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">xp</span> <span class="o">:=</span> <span class="p">(</span><span class="o">*</span><span class="nx">ifaceWords</span><span class="p">)(</span><span class="nx">unsafe</span><span class="p">.</span><span class="nf">Pointer</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">x</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">xp</span><span class="p">.</span><span class="nx">typ</span> <span class="p">=</span> <span class="nx">typ</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">xp</span><span class="p">.</span><span class="nx">data</span> <span class="p">=</span> <span class="nx">data</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// Store 将 Value 的值设置为 x
+</span></span></span><span class="line"><span class="cl"><span class="c1">// 所有 Store 调用必须使用相同类型的值
+</span></span></span><span class="line"><span class="cl"><span class="c1">// 类型不一致会发生 panic， Store(nil) 也是如此
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">v</span> <span class="o">*</span><span class="nx">Value</span><span class="p">)</span> <span class="nf">Store</span><span class="p">(</span><span class="nx">x</span> <span class="kd">interface</span><span class="p">{})</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="nx">x</span> <span class="o">==</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="nb">panic</span><span class="p">(</span><span class="s">&#34;sync/atomic: store of nil value into Value&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// 将 V 和 x 转换为 ifaceWords 类型，这样下一步方便获取原始类型和值
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">vp</span> <span class="o">:=</span> <span class="p">(</span><span class="o">*</span><span class="nx">ifaceWords</span><span class="p">)(</span><span class="nx">unsafe</span><span class="p">.</span><span class="nf">Pointer</span><span class="p">(</span><span class="nx">v</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">xp</span> <span class="o">:=</span> <span class="p">(</span><span class="o">*</span><span class="nx">ifaceWords</span><span class="p">)(</span><span class="nx">unsafe</span><span class="p">.</span><span class="nf">Pointer</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">x</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">	<span class="k">for</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 现有的值
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="nx">typ</span> <span class="o">:=</span> <span class="nf">LoadPointer</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">vp</span><span class="p">.</span><span class="nx">typ</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="c1">// 如果 typ = nil 则表示第一次 Store 
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="k">if</span> <span class="nx">typ</span> <span class="o">==</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="c1">// 开始第一次存储
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>			<span class="nf">runtime_procPin</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">      
+</span></span><span class="line"><span class="cl">			<span class="k">if</span> <span class="p">!</span><span class="nf">CompareAndSwapPointer</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">vp</span><span class="p">.</span><span class="nx">typ</span><span class="p">,</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">unsafe</span><span class="p">.</span><span class="nf">Pointer</span><span class="p">(^</span><span class="nb">uintptr</span><span class="p">(</span><span class="mi">0</span><span class="p">)))</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">				<span class="nf">runtime_procUnpin</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">				<span class="k">continue</span>
+</span></span><span class="line"><span class="cl">			<span class="p">}</span>
+</span></span><span class="line"><span class="cl">			<span class="c1">// Complete first store.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>			<span class="nf">StorePointer</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">vp</span><span class="p">.</span><span class="nx">data</span><span class="p">,</span> <span class="nx">xp</span><span class="p">.</span><span class="nx">data</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">			<span class="nf">StorePointer</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">vp</span><span class="p">.</span><span class="nx">typ</span><span class="p">,</span> <span class="nx">xp</span><span class="p">.</span><span class="nx">typ</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">			<span class="nf">runtime_procUnpin</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">			<span class="k">return</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="nb">uintptr</span><span class="p">(</span><span class="nx">typ</span><span class="p">)</span> <span class="o">==</span> <span class="p">^</span><span class="nb">uintptr</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="c1">// 如果typ为^uintptr(0)说明第一次写入还没有完成，继续循环等待
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>			<span class="k">continue</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">		<span class="c1">// 类型不一致，panic
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="k">if</span> <span class="nx">typ</span> <span class="o">!=</span> <span class="nx">xp</span><span class="p">.</span><span class="nx">typ</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="nb">panic</span><span class="p">(</span><span class="s">&#34;sync/atomic: store of inconsistently typed value into Value&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 覆盖数据
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="nf">StorePointer</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">vp</span><span class="p">.</span><span class="nx">data</span><span class="p">,</span> <span class="nx">xp</span><span class="p">.</span><span class="nx">data</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// 禁用/启用 抢占, 在 runtime 实现
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="nf">runtime_procPin</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">runtime_procUnpin</span><span class="p">()</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><strong>runtime_procPin</strong> 可以将一个 Goroutine 占用当前使用的 P，不允许其他的 Gouroutine 抢占，<strong>runtime_procUnpin</strong> 释放。</p>
+
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/go/">Go</a>
+        
+            <a href="/tags/%E5%B9%B6%E5%8F%91/">并发</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">Related content</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/20.%E5%85%B1%E4%BA%AB%E5%8F%98%E9%87%8F%E7%9A%84%E5%B9%B6%E5%8F%91/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">20.共享变量的并发</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/19.channels/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">19.Channels</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/18.goroutine/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">18.Goroutine</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/json-%E7%BB%86%E8%8A%82/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">JSON 细节</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/25.%E6%B3%9B%E5%9E%8B/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">25.泛型</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script src="https://utteranc.es/client.js" 
+        repo="ixugo/ixugo.github.io"
+        issue-term="pathname"
+        
+        crossorigin="anonymous"
+        async
+        >
+</script>
+
+<style>
+    .utterances {
+        max-width: unset;
+    }
+</style>
+
+<script>
+    function setUtterancesTheme(theme) {
+        let utterances = document.querySelector('.utterances iframe');
+        if (utterances) {
+            utterances.contentWindow.postMessage(
+                {
+                    type: 'set-theme',
+                    theme: `github-${theme}`
+                },
+                'https://utteranc.es'
+            );
+        }
+    }
+
+    addEventListener('message', event => {
+        if (event.origin !== 'https://utteranc.es') return;
+        setUtterancesTheme(document.documentElement.dataset.scheme)
+    });
+
+    window.addEventListener('onColorSchemeChange', (e) => {
+        setUtterancesTheme(e.detail)
+    })
+</script>
+
+
+    
+
+    <footer class="site-footer">
+  <section class="copyright">
+    &copy;
+    
+    2018 -
+    
+    2023 ixugo
+  </section>
+  <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+  <section class="powerby">
+
+    
+    <span id="busuanzi_container_page_pv">本文阅读量
+      <span style="font-size: 14px" id="busuanzi_value_page_pv"></span>
+      次，</span>
+    <span id="busuanzi_container_site_pv">总访问量
+      <span style="font-size: 14px" id="busuanzi_value_site_pv"></span>
+      次 </span>，总访客数
+    <span style="font-size: 14px" id="busuanzi_value_site_uv"></span> 人
+    <br />
+
+
+    Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> .&nbsp;&nbsp;
+    Theme <a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener"
+      data-version="3.16.0">Stack</a> designed by <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a>
+  </section>
+
+
+
+
+  <script>
+    function count() {
+      let href = window.location.href;
+      let regexp = /^https?:\/\/blog.golang.space\/?(page\/[\d]+\/?)?$/;
+      if (regexp.test(href)) {
+        let e = document.getElementById("busuanzi_container_page_pv");
+        e.innerText = "";
+      }
+    }
+    window.onload = count;
+  </script>
+</footer>
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

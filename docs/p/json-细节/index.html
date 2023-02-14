@@ -1,0 +1,1387 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='JSON JSON charset web 响应要指定 Content-Type，你可能见过 Content-Type: application/json; charset=utf-8
+在 RFC 中指出:
+JSON text exchanged between systems that are not part of a closed ecosystem MUST be encoded using UTF-8.
+面向公众的应用程序必须始终采用 UTF-8 编码，所以不需要标注字符集，Content-Type: application/json 即可
+JSON encode time.Time 值将会被编码为 RFC 3339 格式的字符串，例如&amp;quot;2020-11-08T06:27:59&#43;01:00&amp;quot; []byte 切片将被编码为 base64 字符串 无法对 channel/function/complex 进行编码，如果这样做，在运行时将会得到 json.UnsupportedTypeError的错误 任意指针都编码为指向的值 如果你有一个 io.Writer ，可以使用 err := json.NewEncoder(w).Encode(data) 直接写入。
+json.Encoder 和 json.Marshal() 性能差异 json.Marshal() 比 json.Encoder 多一次堆内存分配。
+嵌套结构体序列化不会 omitempty 1 2 3 4 5 type A struct{ b struct{ Bar string `json:&amp;#34;,omitempty&amp;#34;` } `json:&amp;#34;,omitempty&amp;#34;` } 结构体为值类型，不存在 nil 的情况，所以不会 omitempty。'>
+<title>JSON 细节</title>
+
+<link rel='canonical' href='https://blog.golang.space/p/json-%E7%BB%86%E8%8A%82/'>
+
+<link rel="stylesheet" href="/scss/style.min.8191399262444ab68b72a18c97392f5349be20a1615d77445be51e974c144cff.css"><meta property='og:title' content='JSON 细节'>
+<meta property='og:description' content='JSON JSON charset web 响应要指定 Content-Type，你可能见过 Content-Type: application/json; charset=utf-8
+在 RFC 中指出:
+JSON text exchanged between systems that are not part of a closed ecosystem MUST be encoded using UTF-8.
+面向公众的应用程序必须始终采用 UTF-8 编码，所以不需要标注字符集，Content-Type: application/json 即可
+JSON encode time.Time 值将会被编码为 RFC 3339 格式的字符串，例如&amp;quot;2020-11-08T06:27:59&#43;01:00&amp;quot; []byte 切片将被编码为 base64 字符串 无法对 channel/function/complex 进行编码，如果这样做，在运行时将会得到 json.UnsupportedTypeError的错误 任意指针都编码为指向的值 如果你有一个 io.Writer ，可以使用 err := json.NewEncoder(w).Encode(data) 直接写入。
+json.Encoder 和 json.Marshal() 性能差异 json.Marshal() 比 json.Encoder 多一次堆内存分配。
+嵌套结构体序列化不会 omitempty 1 2 3 4 5 type A struct{ b struct{ Bar string `json:&amp;#34;,omitempty&amp;#34;` } `json:&amp;#34;,omitempty&amp;#34;` } 结构体为值类型，不存在 nil 的情况，所以不会 omitempty。'>
+<meta property='og:url' content='https://blog.golang.space/p/json-%E7%BB%86%E8%8A%82/'>
+<meta property='og:site_name' content='ixugo'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='读书笔记' /><meta property='article:tag' content='Go' /><meta property='article:published_time' content='2023-01-12T16:11:45&#43;00:00'/><meta property='article:modified_time' content='2023-01-12T16:11:45&#43;00:00'/>
+<meta name="twitter:title" content="JSON 细节">
+<meta name="twitter:description" content="JSON JSON charset web 响应要指定 Content-Type，你可能见过 Content-Type: application/json; charset=utf-8
+在 RFC 中指出:
+JSON text exchanged between systems that are not part of a closed ecosystem MUST be encoded using UTF-8.
+面向公众的应用程序必须始终采用 UTF-8 编码，所以不需要标注字符集，Content-Type: application/json 即可
+JSON encode time.Time 值将会被编码为 RFC 3339 格式的字符串，例如&amp;quot;2020-11-08T06:27:59&#43;01:00&amp;quot; []byte 切片将被编码为 base64 字符串 无法对 channel/function/complex 进行编码，如果这样做，在运行时将会得到 json.UnsupportedTypeError的错误 任意指针都编码为指向的值 如果你有一个 io.Writer ，可以使用 err := json.NewEncoder(w).Encode(data) 直接写入。
+json.Encoder 和 json.Marshal() 性能差异 json.Marshal() 比 json.Encoder 多一次堆内存分配。
+嵌套结构体序列化不会 omitempty 1 2 3 4 5 type A struct{ b struct{ Bar string `json:&amp;#34;,omitempty&amp;#34;` } `json:&amp;#34;,omitempty&amp;#34;` } 结构体为值类型，不存在 nil 的情况，所以不会 omitempty。">
+    <link rel="shortcut icon" href="img/favicon.ico" />
+
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+	(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+	m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+	})(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+	ga('create', 'UA-192125643-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="Toggle Menu">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu0b04ba6d7249c9f90c92db974439eb8c_208246_300x0_resize_box_3.png" width="300"
+                            height="321" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🧐</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">ixugo</a></h1>
+            <h2 class="site-description">走出舒适区</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/ixugo'
+                        target="_blank"
+                        title="GitHub"
+                        rel="me"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>Home</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/about/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>About</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>Archives</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>Search</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>Dark Mode</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">Table of contents</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li>
+      <ol>
+        <li><a href="#json-charset">JSON charset</a></li>
+        <li><a href="#json-encode">JSON encode</a></li>
+        <li><a href="#jsonencoder-和-jsonmarshal-性能差异"><code>json.Encoder</code> 和 <code>json.Marshal()</code> 性能差异</a></li>
+        <li><a href="#嵌套结构体序列化不会-omitempty">嵌套结构体序列化不会 omitempty</a></li>
+      </ol>
+    </li>
+    <li><a href="#转义字符">转义字符</a>
+      <ol>
+        <li><a href="#删除-float-小数点末尾的-0">删除 float 小数点末尾的 0</a></li>
+        <li><a href="#预编码-json">预编码 JSON</a></li>
+        <li><a href="#marshaltext">MarshalText</a></li>
+        <li><a href="#marshaljson-的接收器">MarshalJSON 的接收器</a></li>
+        <li><a href="#部分-json-解码">部分 JSON 解码</a></li>
+        <li><a href="#解码成任意类型">解码成任意类型</a></li>
+        <li><a href="#struct-tag-指令">struct tag 指令</a></li>
+        <li><a href="#自定义编码">自定义编码</a></li>
+        <li><a href="#解码类型">解码类型</a></li>
+        <li><a href="#json-错误分类">JSON 错误分类</a></li>
+        <li><a href="#反序列时想对部分字段不赋值">反序列时想对部分字段不赋值</a></li>
+      </ol>
+    </li>
+    <li><a href="#参考">参考</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+            <main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+    <header class="article-category">
+        
+            <a href="/categories/golang/" >
+                Golang
+            </a>
+        
+    </header>
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/json-%E7%BB%86%E8%8A%82/">JSON 细节</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    
+    
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Jan 12, 2023</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    7 minute read
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+
+</header>
+
+    <section class="article-content">
+    
+    
+    <h1 id="json">JSON</h1>
+<h3 id="json-charset">JSON charset</h3>
+<p>web 响应要指定 <code>Content-Type</code>，你可能见过 <code>Content-Type: application/json; charset=utf-8</code></p>
+<p>在 <a class="link" href="https://tools.ietf.org/html/rfc8259#section-8.1"  target="_blank" rel="noopener"
+    >RFC</a> 中指出:</p>
+<blockquote>
+<p>JSON text exchanged between systems that are not part of a closed ecosystem MUST be
+encoded using UTF-8.</p>
+</blockquote>
+<p>面向公众的应用程序必须始终采用 UTF-8 编码，所以不需要标注字符集，<code>Content-Type: application/json</code> 即可</p>
+<h3 id="json-encode">JSON encode</h3>
+<p><img src="http://img.golang.space/img-1673425569748.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20230111162609606"
+	
+	
+></p>
+<ul>
+<li>time.Time 值将会被编码为 RFC 3339 格式的字符串，例如<code>&quot;2020-11-08T06:27:59+01:00&quot;</code></li>
+<li>[]byte 切片将被编码为 base64 字符串</li>
+<li>无法对 channel/function/complex 进行编码，如果这样做，在运行时将会得到 <code>json.UnsupportedTypeError</code>的错误</li>
+<li>任意指针都编码为指向的值</li>
+</ul>
+<p>如果你有一个 <code>io.Writer</code> ，可以使用 <code>err := json.NewEncoder(w).Encode(data) </code>直接写入。</p>
+<h3 id="jsonencoder-和-jsonmarshal-性能差异"><code>json.Encoder</code> 和 <code>json.Marshal()</code> 性能差异</h3>
+<p><img src="http://img.golang.space/img-1673430820853.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20230111175340730"
+	
+	
+></p>
+<p>json.Marshal()  比 json.Encoder 多一次堆内存分配。</p>
+<h3 id="嵌套结构体序列化不会-omitempty">嵌套结构体序列化不会 omitempty</h3>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">A</span> <span class="kd">struct</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">b</span> <span class="kd">struct</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">Bar</span> <span class="kt">string</span> <span class="s">`json:&#34;,omitempty&#34;`</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span> <span class="s">`json:&#34;,omitempty&#34;`</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>结构体为值类型，不存在 nil 的情况，所以不会 omitempty。</p>
+<p>如果需要省略，建议替换成 pointer。</p>
+<h2 id="转义字符">转义字符</h2>
+<p>如果字符串中包含 <code>&lt;&gt;&amp;</code> 字符，将会转义成 unicode，这是为了防止某些 web 浏览器意外解释 JSON 响应为 HTML，如果不需要转义，使用 <code>json.Encoder</code>  <code>SetEscapeHTML(false)</code> 执行编码。</p>
+<div class="table-wrapper"><table>
+<thead>
+<tr>
+<th>转义字符</th>
+<th>unicode</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>&lt;</td>
+<td>\u003c</td>
+</tr>
+<tr>
+<td>&gt;</td>
+<td>\u003e</td>
+</tr>
+<tr>
+<td>&amp;</td>
+<td>\u0026</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="删除-float-小数点末尾的-0">删除 float 小数点末尾的 0</h3>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="nx">s</span> <span class="o">:=</span> <span class="p">[]</span><span class="kt">float64</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl"><span class="mf">123.0</span><span class="p">,</span> 
+</span></span><span class="line"><span class="cl"><span class="mf">456.100</span><span class="p">,</span> 
+</span></span><span class="line"><span class="cl"><span class="mf">789.990</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>编码后将得到</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-json" data-lang="json"><span class="line"><span class="cl"><span class="p">[</span><span class="mi">123</span><span class="p">,</span><span class="mf">456.1</span><span class="p">,</span><span class="mf">789.99</span><span class="p">]</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="预编码-json">预编码 JSON</h3>
+<p>如果你有一个包含预编码的 string 或者 []byte，使用 JSON tag 将会被转义并编码为 json 字符串</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="nx">m</span> <span class="o">:=</span> <span class="kd">struct</span> <span class="p">{</span> 
+</span></span><span class="line"><span class="cl">	<span class="nx">Person</span> <span class="kt">string</span>
+</span></span><span class="line"><span class="cl"><span class="p">}{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">Person</span><span class="p">:</span> <span class="s">`{&#34;name&#34;: &#34;Alice&#34;, &#34;age&#34;: 21}`</span><span class="p">,</span> 
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>编码后得到</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-json" data-lang="json"><span class="line"><span class="cl"><span class="p">{</span><span class="nt">&#34;Person&#34;</span><span class="p">:</span><span class="s2">&#34;{\&#34;name\&#34;: \&#34;Alice\&#34;, \&#34;age\&#34;: 21}&#34;</span><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>如果想插入 JSON 而非 JSON 字符串，可以使用 <code>json.RawMessage</code></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="nx">m</span> <span class="o">:=</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">Person</span> <span class="nx">json</span><span class="p">.</span><span class="nx">RawMessage</span> 
+</span></span><span class="line"><span class="cl"><span class="p">}{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">Person</span><span class="p">:</span> <span class="nx">json</span><span class="p">.</span><span class="nf">RawMessage</span><span class="p">(</span><span class="s">`{&#34;name&#34;: &#34;Alice&#34;, &#34;age&#34;: 21}`</span><span class="p">),</span> 
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>编码后得到</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-json" data-lang="json"><span class="line"><span class="cl"><span class="p">{</span><span class="nt">&#34;Person&#34;</span><span class="p">:{</span><span class="nt">&#34;name&#34;</span><span class="p">:</span><span class="s2">&#34;Alice&#34;</span><span class="p">,</span><span class="nt">&#34;age&#34;</span><span class="p">:</span><span class="mi">21</span><span class="p">}}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>使用 <code>json.RawMessage</code> 要确保预编码的值是有效的 JSON，否则会出错。如果需要在运行时检查 JSON  是否有效，可以使用 <code>json.Valid()</code> 函数</p>
+<h3 id="marshaltext">MarshalText</h3>
+<p>如果类型有没有 <code>MarshalJSON()</code> 方法，但是有 <code>MarshalText()</code> 方法，以实现 <code> encoding.TextMarshaler</code> 接口，使用 JSON 编码将会显示 json 字符串。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">myFloat</span> <span class="kt">float64</span>
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">f</span> <span class="nx">myFloat</span><span class="p">)</span> <span class="nf">MarshalText</span><span class="p">()</span> <span class="p">([]</span><span class="kt">byte</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span> 
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="p">[]</span><span class="nb">byte</span><span class="p">(</span><span class="nx">fmt</span><span class="p">.</span><span class="nf">Sprintf</span><span class="p">(</span><span class="s">&#34;%.2f&#34;</span><span class="p">,</span> <span class="nx">f</span><span class="p">)),</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">main</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">f</span> <span class="o">:=</span> <span class="nf">myFloat</span><span class="p">(</span><span class="mf">1.0</span><span class="o">/</span><span class="mf">3.0</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">js</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">json</span><span class="p">.</span><span class="nf">Marshal</span><span class="p">(</span><span class="nx">f</span><span class="p">)</span> 
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">log</span><span class="p">.</span><span class="nf">Fatal</span><span class="p">(</span><span class="nx">err</span><span class="p">)</span> 
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">fmt</span><span class="p">.</span><span class="nf">Printf</span><span class="p">(</span><span class="s">&#34;%s&#34;</span><span class="p">,</span> <span class="nx">js</span><span class="p">)</span> 
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>它将会打印由 <code>MarshalText()</code> 函数返回的 JSON 字符串</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-json" data-lang="json"><span class="line"><span class="cl"><span class="mf">0.33</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="marshaljson-的接收器">MarshalJSON 的接收器</h3>
+<p>当自定义类型实现了 MarshalJSON()，并使用 pointer 接收器时，仅传递指针时函数有效。</p>
+<blockquote>
+<p>关于接收器的指针与值的规则是:</p>
+<p>值方法可以用指针或值调用，但指针方法只能在指针上调用。</p>
+</blockquote>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="nb">type</span> myFloat float64
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">// This has a pointer receiver.
+</span></span><span class="line"><span class="cl">func <span class="o">(</span>f *myFloat<span class="o">)</span> MarshalJSON<span class="o">()</span> <span class="o">([]</span>byte, error<span class="o">)</span> <span class="o">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="o">[]</span>byte<span class="o">(</span>fmt.Sprintf<span class="o">(</span><span class="s2">&#34;%.2f&#34;</span>, *f<span class="o">))</span>, nil
+</span></span><span class="line"><span class="cl"><span class="o">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">func main<span class="o">()</span> <span class="o">{</span>
+</span></span><span class="line"><span class="cl">	f :<span class="o">=</span> myFloat<span class="o">(</span>1.0 / 3.0<span class="o">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	// When encoding a value, the MarshalJSON method is used.
+</span></span><span class="line"><span class="cl">	// 得到 0.33
+</span></span><span class="line"><span class="cl">	js, err :<span class="o">=</span> json.Marshal<span class="o">(</span><span class="p">&amp;</span>f<span class="o">)</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> err !<span class="o">=</span> nil <span class="o">{</span>
+</span></span><span class="line"><span class="cl">		log.Fatal<span class="o">(</span>err<span class="o">)</span>
+</span></span><span class="line"><span class="cl">	<span class="o">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	fmt.Printf<span class="o">(</span><span class="s2">&#34;%s\n&#34;</span>, js<span class="o">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	// When encoding a value, the MarshalJSON method is ignored.
+</span></span><span class="line"><span class="cl">	// 得到默认的 0.3333333333333333
+</span></span><span class="line"><span class="cl">	js, <span class="nv">err</span> <span class="o">=</span> json.Marshal<span class="o">(</span>f<span class="o">)</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> err !<span class="o">=</span> nil <span class="o">{</span>
+</span></span><span class="line"><span class="cl">		log.Fatal<span class="o">(</span>err<span class="o">)</span>
+</span></span><span class="line"><span class="cl">	<span class="o">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	fmt.Printf<span class="o">(</span><span class="s2">&#34;%s&#34;</span>, js<span class="o">)</span>
+</span></span><span class="line"><span class="cl"><span class="o">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="部分-json-解码">部分 JSON 解码</h3>
+<p>如果你只需要处理 JSON 中的一小部分</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// Let&#39;s say that the only thing we&#39;re interested in is processing the &#34;genres&#34; array in 
+</span></span></span><span class="line"><span class="cl"><span class="c1">// the following JSON object
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="nx">js</span> <span class="o">:=</span> <span class="s">`{&#34;title&#34;: &#34;Top Gun&#34;, &#34;genres&#34;: [&#34;action&#34;, &#34;romance&#34;], &#34;year&#34;: 1986}`</span>
+</span></span><span class="line"><span class="cl"><span class="c1">// Decode the JSON object to a map[string]json.RawMessage type. The json.RawMessage 
+</span></span></span><span class="line"><span class="cl"><span class="c1">// values in the map will retain their original, un-decoded, JSON values.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">var</span> <span class="nx">m</span> <span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="nx">json</span><span class="p">.</span><span class="nx">RawMessage</span>
+</span></span><span class="line"><span class="cl"><span class="nx">err</span> <span class="o">:=</span> <span class="nx">json</span><span class="p">.</span><span class="nf">NewDecoder</span><span class="p">(</span><span class="nx">strings</span><span class="p">.</span><span class="nf">NewReader</span><span class="p">(</span><span class="nx">js</span><span class="p">)).</span><span class="nf">Decode</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">m</span><span class="p">)</span> 
+</span></span><span class="line"><span class="cl"><span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl"><span class="nx">log</span><span class="p">.</span><span class="nf">Fatal</span><span class="p">(</span><span class="nx">err</span><span class="p">)</span> 
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="c1">// We can then access the JSON &#34;genres&#34; value from the map and decode it as normal using 
+</span></span></span><span class="line"><span class="cl"><span class="c1">// the json.Unmarshal() function.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">var</span> <span class="nx">genres</span> <span class="p">[]</span><span class="kt">string</span>
+</span></span><span class="line"><span class="cl"><span class="nx">err</span> <span class="p">=</span> <span class="nx">json</span><span class="p">.</span><span class="nf">Unmarshal</span><span class="p">(</span><span class="nx">m</span><span class="p">[</span><span class="s">&#34;genres&#34;</span><span class="p">],</span> <span class="o">&amp;</span><span class="nx">genres</span><span class="p">)</span> 
+</span></span><span class="line"><span class="cl"><span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl"><span class="nx">log</span><span class="p">.</span><span class="nf">Fatal</span><span class="p">(</span><span class="nx">err</span><span class="p">)</span> 
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="nx">fmt</span><span class="p">.</span><span class="nf">Printf</span><span class="p">(</span><span class="s">&#34;genres: %v\n&#34;</span><span class="p">,</span> <span class="nx">genres</span><span class="p">)</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>解码后得到</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">genres: <span class="o">[</span>action romance<span class="o">]</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="解码成任意类型">解码成任意类型</h3>
+<p><img src="http://img.golang.space/img-1673490129979.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20230112102209838"
+	
+	
+></p>
+<p>解码成任意类型在以下情况很有用</p>
+<ul>
+<li>事先不知道解码的是什么</li>
+<li>需要解码包含不同类型的的 array/map</li>
+</ul>
+<p>数字解码到任意类型时，为 float64 ，即使它是整数。</p>
+<p>如果想获得整数形式(而非 float64)，应该在 <code>json.Decoder</code> 实例使用 <code>UseNumber()</code> 方法，将会导致解码为 <code>json.Number</code> 类型。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="nx">js</span> <span class="o">:=</span> <span class="s">`10`</span> 
+</span></span><span class="line"><span class="cl"><span class="kd">var</span> <span class="nx">n</span> <span class="nx">any</span>
+</span></span><span class="line"><span class="cl"><span class="nx">dec</span> <span class="o">:=</span> <span class="nx">json</span><span class="p">.</span><span class="nf">NewDecoder</span><span class="p">(</span><span class="nx">strings</span><span class="p">.</span><span class="nf">NewReader</span><span class="p">(</span><span class="nx">js</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl"><span class="nx">dec</span><span class="p">.</span><span class="nf">UseNumber</span><span class="p">()</span> <span class="c1">// Call the UseNumber() method on the decoder before using it. 
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="nx">err</span> <span class="o">:=</span> <span class="nx">dec</span><span class="p">.</span><span class="nf">Decode</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">n</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span> 
+</span></span><span class="line"><span class="cl">	<span class="nx">log</span><span class="p">.</span><span class="nf">Fatal</span><span class="p">(</span><span class="nx">err</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="c1">// Type assert the any value to a json.Number, and then call the Int64() method 
+</span></span></span><span class="line"><span class="cl"><span class="c1">// to get the number as a Go int64.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="nx">nInt64</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">n</span><span class="p">.(</span><span class="nx">json</span><span class="p">.</span><span class="nx">Number</span><span class="p">).</span><span class="nf">Int64</span><span class="p">()</span> 
+</span></span><span class="line"><span class="cl"><span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">log</span><span class="p">.</span><span class="nf">Fatal</span><span class="p">(</span><span class="nx">err</span><span class="p">)</span> 
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="c1">// Likewise, you can use the String() method to get the number as a Go string. 
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="nx">nString</span> <span class="o">:=</span> <span class="nx">n</span><span class="p">.(</span><span class="nx">json</span><span class="p">.</span><span class="nx">Number</span><span class="p">).</span><span class="nf">String</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="nx">fmt</span><span class="p">.</span><span class="nf">Printf</span><span class="p">(</span><span class="s">&#34;type: %T; value: %v\n&#34;</span><span class="p">,</span> <span class="nx">n</span><span class="p">,</span> <span class="nx">n</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="nx">fmt</span><span class="p">.</span><span class="nf">Printf</span><span class="p">(</span><span class="s">&#34;type: %T; value: %v\n&#34;</span><span class="p">,</span> <span class="nx">nInt64</span><span class="p">,</span> <span class="nx">nInt64</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="nx">fmt</span><span class="p">.</span><span class="nf">Printf</span><span class="p">(</span><span class="s">&#34;type: %T; value: %v\n&#34;</span><span class="p">,</span> <span class="nx">nString</span><span class="p">,</span> <span class="nx">nString</span><span class="p">)</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>out:</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">type: json.Number<span class="p">;</span> value: <span class="m">10</span>
+</span></span><span class="line"><span class="cl">type: int64<span class="p">;</span> value: <span class="m">10</span>
+</span></span><span class="line"><span class="cl">type: string<span class="p">;</span> value: <span class="m">10</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="struct-tag-指令">struct tag 指令</h3>
+<div class="table-wrapper"><table>
+<thead>
+<tr>
+<th>指令</th>
+<th>说明</th>
+<th>备注</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>json:&quot;-&quot;</code></td>
+<td>编解码时忽略( 属性名首字母小写也可以忽略 )</td>
+<td></td>
+</tr>
+<tr>
+<td><code>json:&quot;,omitempty&quot;</code></td>
+<td>解码时为零值则忽略</td>
+<td>嵌套结构体无效</td>
+</tr>
+<tr>
+<td><code>json:&quot;,omitempty,string&quot;</code></td>
+<td>以字符串类型编解码</td>
+<td>适用于数字/布尔/数字指针类型</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="自定义编码">自定义编码</h3>
+<p>方法一</p>
+<p>在 MarshalJSON 中定义个新的结构体，对其编码</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">// Note that there are no struct tags on the Movie struct itself. 
+</span></span><span class="line"><span class="cl"><span class="nb">type</span> Movie struct <span class="o">{</span>
+</span></span><span class="line"><span class="cl">  ID        int64 
+</span></span><span class="line"><span class="cl">  CreatedAt time.Time 
+</span></span><span class="line"><span class="cl">  Title     string 
+</span></span><span class="line"><span class="cl">  Year      int32 
+</span></span><span class="line"><span class="cl">  Runtime   int32 
+</span></span><span class="line"><span class="cl">  Genres    <span class="o">[]</span>string 
+</span></span><span class="line"><span class="cl">  Version   int32
+</span></span><span class="line"><span class="cl"><span class="o">}</span>
+</span></span><span class="line"><span class="cl">// Implement a MarshalJSON<span class="o">()</span> method on the Movie struct, so that it satisfies the 
+</span></span><span class="line"><span class="cl">// json.Marshaler interface.
+</span></span><span class="line"><span class="cl">func <span class="o">(</span>m Movie<span class="o">)</span> MarshalJSON<span class="o">()</span> <span class="o">([]</span>byte, error<span class="o">)</span> <span class="o">{</span>
+</span></span><span class="line"><span class="cl">  // Declare a variable to hold the custom runtime string <span class="o">(</span>this will be the empty 
+</span></span><span class="line"><span class="cl">  // string <span class="s2">&#34;&#34;</span> by default<span class="o">)</span>.
+</span></span><span class="line"><span class="cl">  var runtime string
+</span></span><span class="line"><span class="cl">  // If the value of the Runtime field is not zero, <span class="nb">set</span> the runtime variable to be a 
+</span></span><span class="line"><span class="cl">  // string in the format <span class="s2">&#34;&lt;runtime&gt; mins&#34;</span>.
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> m.Runtime !<span class="o">=</span> <span class="m">0</span> <span class="o">{</span>
+</span></span><span class="line"><span class="cl">  	<span class="nv">runtime</span> <span class="o">=</span> fmt.Sprintf<span class="o">(</span><span class="s2">&#34;%d mins&#34;</span>, m.Runtime<span class="o">)</span> 
+</span></span><span class="line"><span class="cl">	<span class="o">}</span>
+</span></span><span class="line"><span class="cl">  // Create an anonymous struct to hold the data <span class="k">for</span> JSON encoding. This has exactly 
+</span></span><span class="line"><span class="cl">  // the same fields, types and tags as our Movie struct, except that the Runtime 
+</span></span><span class="line"><span class="cl">  // field here is a string, instead of an int32. Also notice that we don<span class="s1">&#39;t include 
+</span></span></span><span class="line"><span class="cl"><span class="s1">  // a CreatedAt field at all (there&#39;</span>s no point including one, because we don<span class="err">&#39;</span>t want 
+</span></span><span class="line"><span class="cl">  // it to appear in the JSON output<span class="o">)</span>.
+</span></span><span class="line"><span class="cl">  aux :<span class="o">=</span> struct <span class="o">{</span>
+</span></span><span class="line"><span class="cl">    ID      int64    <span class="sb">`</span>json:<span class="s2">&#34;id&#34;</span><span class="sb">`</span> 
+</span></span><span class="line"><span class="cl">    Title   string   <span class="sb">`</span>json:<span class="s2">&#34;title&#34;</span><span class="sb">`</span>
+</span></span><span class="line"><span class="cl">    Year    int32    <span class="sb">`</span>json:<span class="s2">&#34;year,omitempty&#34;</span><span class="sb">`</span>
+</span></span><span class="line"><span class="cl">    Runtime string   <span class="sb">`</span>json:<span class="s2">&#34;runtime,omitempty&#34;</span><span class="sb">`</span> // This is a string. 
+</span></span><span class="line"><span class="cl">    Genres  <span class="o">[]</span>string <span class="sb">`</span>json:<span class="s2">&#34;genres,omitempty&#34;</span><span class="sb">`</span>
+</span></span><span class="line"><span class="cl">    Version int32    <span class="sb">`</span>json:<span class="s2">&#34;version&#34;</span><span class="sb">`</span> 
+</span></span><span class="line"><span class="cl">  <span class="o">}{</span>
+</span></span><span class="line"><span class="cl">    // Set the values <span class="k">for</span> the anonymous struct.
+</span></span><span class="line"><span class="cl">    ID:      m.ID,
+</span></span><span class="line"><span class="cl">    Title:   m.Title,
+</span></span><span class="line"><span class="cl">    Year:    m.Year,
+</span></span><span class="line"><span class="cl">    Runtime: runtime, // Note that we assign the value from the runtime variable here. 
+</span></span><span class="line"><span class="cl">    Genres:  m.Genres,
+</span></span><span class="line"><span class="cl">    Version: m.Version, 
+</span></span><span class="line"><span class="cl"><span class="o">}</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> json.Marshal<span class="o">(</span>aux<span class="o">)</span>
+</span></span><span class="line"><span class="cl"><span class="o">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>方法二</p>
+<p>嵌入别名，为结构体设置别名，以避免序列化死循环。</p>
+<p>用一个新的结构体，匿名嵌套上面的别名，并在新结构体里设置同名参数以覆盖。</p>
+<p>缺点:</p>
+<ul>
+<li>将失去编码后的顺序，如果你的应用场景需要固定顺序，如对 JSON 求 MD5。</li>
+</ul>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// Notice that we use the - directive on the Runtime field, so that it never appears 
+</span></span></span><span class="line"><span class="cl"><span class="c1">// in the JSON output.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">type</span> <span class="nx">Movie</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">ID</span>
+</span></span><span class="line"><span class="cl">  <span class="kt">int64</span>     <span class="s">`json:&#34;id&#34;`</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">CreatedAt</span> <span class="nx">time</span><span class="p">.</span><span class="nx">Time</span> <span class="s">`json:&#34;-&#34;`</span> 
+</span></span><span class="line"><span class="cl">  <span class="nx">Title</span>     <span class="kt">string</span>    <span class="s">`json:&#34;title&#34;`</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">Year</span>      <span class="kt">int32</span>     <span class="s">`json:&#34;year,omitempty&#34;`</span> 
+</span></span><span class="line"><span class="cl">  <span class="nx">Runtime</span>   <span class="kt">int32</span>     <span class="s">`json:&#34;-&#34;`</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">Genres</span>    <span class="p">[]</span><span class="kt">string</span>  <span class="s">`json:&#34;genres,omitempty&#34;`</span> 
+</span></span><span class="line"><span class="cl">  <span class="nx">Version</span>   <span class="kt">int32</span>     <span class="s">`json:&#34;version&#34;`</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">m</span> <span class="nx">Movie</span><span class="p">)</span> <span class="nf">MarshalJSON</span><span class="p">()</span> <span class="p">([]</span><span class="kt">byte</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// Create a variable holding the custom runtime string, just like before. 
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="kd">var</span> <span class="nx">runtime</span> <span class="kt">string</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">m</span><span class="p">.</span><span class="nx">Runtime</span> <span class="o">!=</span> <span class="mi">0</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">runtime</span> <span class="p">=</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Sprintf</span><span class="p">(</span><span class="s">&#34;%d mins&#34;</span><span class="p">,</span> <span class="nx">m</span><span class="p">.</span><span class="nx">Runtime</span><span class="p">)</span> 
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// Define a MovieAlias type which has the underlying type Movie. Due to the way that 
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">// Go handles type definitions (https://golang.org/ref/spec#Type_definitions) the 
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">// MovieAlias type will contain all the fields that our Movie struct has but,
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">// importantly, none of the methods. 
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="kd">type</span> <span class="nx">MovieAlias</span> <span class="nx">Movie</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// Embed the MovieAlias type inside the anonymous struct, along with a Runtime field 
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">// that has the type string and the necessary struct tags. It&#39;s important that we 
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">// embed the MovieAlias type here, rather than the Movie type directly, to avoid
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">// inheriting the MarshalJSON() method of the Movie type (which would result in an 
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">// infinite loop during encoding).
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">aux</span> <span class="o">:=</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">MovieAlias</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">Runtime</span> <span class="kt">string</span> <span class="s">`json:&#34;runtime,omitempty&#34;`</span> 
+</span></span><span class="line"><span class="cl">  <span class="p">}{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">MovieAlias</span><span class="p">:</span> <span class="nf">MovieAlias</span><span class="p">(</span><span class="nx">m</span><span class="p">),</span> 
+</span></span><span class="line"><span class="cl">    <span class="nx">Runtime</span><span class="p">:</span>    <span class="nx">runtime</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="k">return</span> <span class="nx">json</span><span class="p">.</span><span class="nf">Marshal</span><span class="p">(</span><span class="nx">aux</span><span class="p">)</span> 
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="解码类型">解码类型</h3>
+<div class="table-wrapper"><table>
+<thead>
+<tr>
+<th>JSON type</th>
+<th>Supported Go types</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>boolean</td>
+<td>bool</td>
+</tr>
+<tr>
+<td>string</td>
+<td>string</td>
+</tr>
+<tr>
+<td>number</td>
+<td><code>int*,uint*,float*,rune</code></td>
+</tr>
+<tr>
+<td>array</td>
+<td>array,slice</td>
+</tr>
+<tr>
+<td>object</td>
+<td>struct, map</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="json-错误分类">JSON 错误分类</h3>
+<p>对于面向公众的 API，错误消息本身并不理想。有些令人困惑且难以理解，或暴露了底层 API 细节信息。</p>
+<p>Decode 方法，可能会返回 5 种类型的错误</p>
+<div class="table-wrapper"><table>
+<thead>
+<tr>
+<th>Error types</th>
+<th>原因</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>json.SyntaxError</td>
+<td>json 语法存在问题</td>
+</tr>
+<tr>
+<td>io.ErrUnexpectedEOF</td>
+<td>json 语法存在问题</td>
+</tr>
+<tr>
+<td>json.UnmarshalTypeError</td>
+<td>JSON 值不适用于目标 Go 类型。</td>
+</tr>
+<tr>
+<td>json.InvalidUnmarshalError</td>
+<td>解码目标无效，通常因为它不是指针，这实际上是程序代码的问题</td>
+</tr>
+<tr>
+<td>io.EOF</td>
+<td>json 为空</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="反序列时想对部分字段不赋值">反序列时想对部分字段不赋值</h3>
+<p>客户端传递的 json 是无法控制的。</p>
+<p>你可以在反序列化后对指定字段置零，但这显得有点笨拙，如果结构体增加了字段但忘记反序列化后置零，这样的写法会给未来留下技术栈。</p>
+<p>建议新建一个结构体用于序列化，时候赋值给指定结构体。如:</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">User</span> <span class="kd">struct</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">Name</span> <span class="kt">string</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">Age</span> <span class="kt">int</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">main</span><span class="p">(){</span>
+</span></span><span class="line"><span class="cl">  <span class="kd">var</span> <span class="nx">input</span> <span class="kd">struct</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">Name</span> <span class="kt">string</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">s</span> <span class="o">:=</span> <span class="s">`{&#34;name&#34;:&#34;Nacy&#34;}`</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span>  <span class="nx">json</span><span class="p">.</span><span class="nf">UnmarshalJSON</span><span class="p">([]</span><span class="nb">byte</span><span class="p">(</span><span class="nx">s</span><span class="p">),</span> <span class="o">&amp;</span><span class="nx">input</span><span class="p">);</span><span class="nx">err</span><span class="o">!=</span><span class="kc">nil</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nb">panic</span><span class="p">(</span><span class="nx">err</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  
+</span></span><span class="line"><span class="cl">  <span class="nx">user</span> <span class="o">:=</span> <span class="nx">User</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">Name</span><span class="p">:</span> <span class="nx">input</span><span class="p">.</span><span class="nx">Name</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  
+</span></span><span class="line"><span class="cl"> 	<span class="nx">_</span> <span class="p">=</span> <span class="nx">user</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h2 id="参考">参考</h2>
+<p>此文章内容为 Let&rsquo;s Go Further 读书笔记</p>
+
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/">读书笔记</a>
+        
+            <a href="/tags/go/">Go</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">Related content</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/25.%E6%B3%9B%E5%9E%8B/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">25.泛型</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/22.%E6%B5%8B%E8%AF%95/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">22.测试</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/go-%E7%BC%96%E7%A0%81%E8%A7%84%E8%8C%83/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Go 编码规范</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/go-module/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Go Module</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/nginx-%E5%85%A5%E9%97%A8/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">nginx 入门</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script src="https://utteranc.es/client.js" 
+        repo="ixugo/ixugo.github.io"
+        issue-term="pathname"
+        
+        crossorigin="anonymous"
+        async
+        >
+</script>
+
+<style>
+    .utterances {
+        max-width: unset;
+    }
+</style>
+
+<script>
+    function setUtterancesTheme(theme) {
+        let utterances = document.querySelector('.utterances iframe');
+        if (utterances) {
+            utterances.contentWindow.postMessage(
+                {
+                    type: 'set-theme',
+                    theme: `github-${theme}`
+                },
+                'https://utteranc.es'
+            );
+        }
+    }
+
+    addEventListener('message', event => {
+        if (event.origin !== 'https://utteranc.es') return;
+        setUtterancesTheme(document.documentElement.dataset.scheme)
+    });
+
+    window.addEventListener('onColorSchemeChange', (e) => {
+        setUtterancesTheme(e.detail)
+    })
+</script>
+
+
+    
+
+    <footer class="site-footer">
+  <section class="copyright">
+    &copy;
+    
+    2018 -
+    
+    2023 ixugo
+  </section>
+  <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+  <section class="powerby">
+
+    
+    <span id="busuanzi_container_page_pv">本文阅读量
+      <span style="font-size: 14px" id="busuanzi_value_page_pv"></span>
+      次，</span>
+    <span id="busuanzi_container_site_pv">总访问量
+      <span style="font-size: 14px" id="busuanzi_value_site_pv"></span>
+      次 </span>，总访客数
+    <span style="font-size: 14px" id="busuanzi_value_site_uv"></span> 人
+    <br />
+
+
+    Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> .&nbsp;&nbsp;
+    Theme <a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener"
+      data-version="3.16.0">Stack</a> designed by <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a>
+  </section>
+
+
+
+
+  <script>
+    function count() {
+      let href = window.location.href;
+      let regexp = /^https?:\/\/blog.golang.space\/?(page\/[\d]+\/?)?$/;
+      if (regexp.test(href)) {
+        let e = document.getElementById("busuanzi_container_page_pv");
+        e.innerText = "";
+      }
+    }
+    window.onload = count;
+  </script>
+</footer>
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='包和工具 查看标准包数量
+1 go list std | wc -l 检索包地址
+前言 特性 : 快
+Go语言的闪电般的编译速度主要得益于三个语言特性。
+导包在文件开头显示声明 禁止包环装依赖 , 形成有向无环图 记录包的依赖关系, 无需遍历所有依赖文件 ( 解决重复依赖 ) main 包
+名字为main的包是给go build 构建命令一个信息，这个包编译完之后必须调用连接器生成一个可执行程序。
+_test.go 为后缀的包
+_ 和 . 开头的源文件会被构建工具忽略
+所有以_test为后缀包名的测试外部扩展包都由go test命令独立编译
+1. 包 1.1. 导入包 在包声明语句后 , 添加导包声明 , 可以使用圆括号同时导入多个 包之间可添加空行分组, 每个分组的导入顺序会被 gofmt 格式化成字母顺序 循环依赖构建工具会报错 本地化导入
+1 2 import . &amp;#34;strings&amp;#34; Swap(1,3) 别名导入 用于解决包重名, 或长包名
+1 2 import st &amp;#34;strings&amp;#34; st.Swap(1,3) 匿名导入 它会计算包级变量的初始化表达式和执行导入包的init初始化函数
+1 import _ &amp;#34;strings&amp;#34; 1.'>
+<title>21.包和工具</title>
+
+<link rel='canonical' href='https://blog.golang.space/p/21.%E5%8C%85%E5%92%8C%E5%B7%A5%E5%85%B7/'>
+
+<link rel="stylesheet" href="/scss/style.min.8191399262444ab68b72a18c97392f5349be20a1615d77445be51e974c144cff.css"><meta property='og:title' content='21.包和工具'>
+<meta property='og:description' content='包和工具 查看标准包数量
+1 go list std | wc -l 检索包地址
+前言 特性 : 快
+Go语言的闪电般的编译速度主要得益于三个语言特性。
+导包在文件开头显示声明 禁止包环装依赖 , 形成有向无环图 记录包的依赖关系, 无需遍历所有依赖文件 ( 解决重复依赖 ) main 包
+名字为main的包是给go build 构建命令一个信息，这个包编译完之后必须调用连接器生成一个可执行程序。
+_test.go 为后缀的包
+_ 和 . 开头的源文件会被构建工具忽略
+所有以_test为后缀包名的测试外部扩展包都由go test命令独立编译
+1. 包 1.1. 导入包 在包声明语句后 , 添加导包声明 , 可以使用圆括号同时导入多个 包之间可添加空行分组, 每个分组的导入顺序会被 gofmt 格式化成字母顺序 循环依赖构建工具会报错 本地化导入
+1 2 import . &amp;#34;strings&amp;#34; Swap(1,3) 别名导入 用于解决包重名, 或长包名
+1 2 import st &amp;#34;strings&amp;#34; st.Swap(1,3) 匿名导入 它会计算包级变量的初始化表达式和执行导入包的init初始化函数
+1 import _ &amp;#34;strings&amp;#34; 1.'>
+<meta property='og:url' content='https://blog.golang.space/p/21.%E5%8C%85%E5%92%8C%E5%B7%A5%E5%85%B7/'>
+<meta property='og:site_name' content='ixugo'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='Go' /><meta property='article:tag' content='工具' /><meta property='article:published_time' content='2019-11-24T15:00:00&#43;00:00'/><meta property='article:modified_time' content='2019-11-24T15:00:00&#43;00:00'/>
+<meta name="twitter:title" content="21.包和工具">
+<meta name="twitter:description" content="包和工具 查看标准包数量
+1 go list std | wc -l 检索包地址
+前言 特性 : 快
+Go语言的闪电般的编译速度主要得益于三个语言特性。
+导包在文件开头显示声明 禁止包环装依赖 , 形成有向无环图 记录包的依赖关系, 无需遍历所有依赖文件 ( 解决重复依赖 ) main 包
+名字为main的包是给go build 构建命令一个信息，这个包编译完之后必须调用连接器生成一个可执行程序。
+_test.go 为后缀的包
+_ 和 . 开头的源文件会被构建工具忽略
+所有以_test为后缀包名的测试外部扩展包都由go test命令独立编译
+1. 包 1.1. 导入包 在包声明语句后 , 添加导包声明 , 可以使用圆括号同时导入多个 包之间可添加空行分组, 每个分组的导入顺序会被 gofmt 格式化成字母顺序 循环依赖构建工具会报错 本地化导入
+1 2 import . &amp;#34;strings&amp;#34; Swap(1,3) 别名导入 用于解决包重名, 或长包名
+1 2 import st &amp;#34;strings&amp;#34; st.Swap(1,3) 匿名导入 它会计算包级变量的初始化表达式和执行导入包的init初始化函数
+1 import _ &amp;#34;strings&amp;#34; 1.">
+    <link rel="shortcut icon" href="img/favicon.ico" />
+
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+	(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+	m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+	})(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+	ga('create', 'UA-192125643-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="Toggle Menu">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu0b04ba6d7249c9f90c92db974439eb8c_208246_300x0_resize_box_3.png" width="300"
+                            height="321" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🧐</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">ixugo</a></h1>
+            <h2 class="site-description">走出舒适区</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/ixugo'
+                        target="_blank"
+                        title="GitHub"
+                        rel="me"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>Home</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/about/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>About</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>Archives</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>Search</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>Dark Mode</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">Table of contents</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#前言">前言</a></li>
+    <li><a href="#1-包">1. 包</a>
+      <ol>
+        <li><a href="#11-导入包">1.1. 导入包</a></li>
+        <li><a href="#12-包名">1.2. 包名</a></li>
+        <li><a href="#13--internal-内部包">1.3.  <code>internal</code> 内部包</a></li>
+        <li><a href="#14-go-list-查询包">1.4. <code>go list </code>查询包</a></li>
+        <li><a href="#15-如何给已有的包添加方法-实现继承想要做的事情-">1.5. 如何给已有的包添加方法( 实现继承想要做的事情 )</a></li>
+      </ol>
+    </li>
+    <li><a href="#2-工具">2. 工具</a>
+      <ol>
+        <li><a href="#21-下载包">2.1. 下载包</a></li>
+        <li><a href="#22-构建包">2.2. 构建包</a></li>
+        <li><a href="#23-注释的技巧">2.3. 注释的技巧</a></li>
+      </ol>
+    </li>
+    <li><a href="#3-文档">3. 文档</a>
+      <ol>
+        <li><a href="#31-命令">3.1. 命令</a></li>
+      </ol>
+    </li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+            <main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+    <header class="article-category">
+        
+            <a href="/categories/golang/" >
+                Golang
+            </a>
+        
+    </header>
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/21.%E5%8C%85%E5%92%8C%E5%B7%A5%E5%85%B7/">21.包和工具</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    
+    
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Nov 24, 2019</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    2 minute read
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+
+</header>
+
+    <section class="article-content">
+    
+    
+    <h1 id="包和工具">包和工具</h1>
+<p>查看标准包数量</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">go list std <span class="p">|</span> wc -l
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><a class="link" href="http://godoc.org/"  target="_blank" rel="noopener"
+    >检索包地址</a></p>
+<h2 id="前言">前言</h2>
+<p><strong>特性 : 快</strong></p>
+<p>Go语言的闪电般的编译速度主要得益于三个语言特性。</p>
+<ol>
+<li>导包在文件开头显示声明</li>
+<li>禁止包环装依赖 , 形成有向无环图</li>
+<li>记录包的依赖关系, 无需遍历所有依赖文件 ( 解决重复依赖 )</li>
+</ol>
+<p><strong>main 包</strong></p>
+<p>名字为main的包是给go build 构建命令一个信息，这个包编译完之后必须调用连接器生成一个可执行程序。</p>
+<p><strong>_test.go 为后缀的包</strong></p>
+<p><code>_</code> 和 <code>.</code> 开头的源文件会被构建工具忽略</p>
+<p>所有以<code>_test</code>为后缀包名的测试外部扩展包都由go test命令独立编译</p>
+<h2 id="1-包">1. 包</h2>
+<h3 id="11-导入包">1.1. 导入包</h3>
+<ul>
+<li>在包声明语句后 , 添加导包声明 , 可以使用圆括号同时导入多个</li>
+<li>包之间可添加空行分组, 每个分组的导入顺序会被 gofmt 格式化成字母顺序</li>
+<li>循环依赖构建工具会报错</li>
+</ul>
+<p><strong>本地化导入</strong></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kn">import</span> <span class="p">.</span> <span class="s">&#34;strings&#34;</span>
+</span></span><span class="line"><span class="cl"><span class="nf">Swap</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">3</span><span class="p">)</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><strong>别名导入</strong> 用于解决包重名, 或长包名</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kn">import</span> <span class="nx">st</span> <span class="s">&#34;strings&#34;</span>
+</span></span><span class="line"><span class="cl"><span class="nx">st</span><span class="p">.</span><span class="nf">Swap</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">3</span><span class="p">)</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><strong>匿名导入</strong> 它会计算包级变量的初始化表达式和执行导入包的<code>init</code>初始化函数</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kn">import</span> <span class="nx">_</span> <span class="s">&#34;strings&#34;</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="12-包名">1.2. 包名</h3>
+<p>包名一般采用单数的形式。标准库的bytes、errors和strings使用了复数形式，这是为了避免和预定义的类型冲突，同样还有go/types是为了避免和type关键字冲突。</p>
+<p>如果你计划分享或发布包，那么导入路径最好是全球唯一的。为了避免冲突，所有非标准库包的导入路径建议以<strong>所在组织的互联网域名</strong>为前缀；而且这样也有利于包的检索。</p>
+<h3 id="13--internal-内部包">1.3.  <code>internal</code> 内部包</h3>
+<p>一个internal包只能被和internal目录有同一个父目录的包所导入。</p>
+<p>例如，</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="nx">net</span><span class="o">/</span><span class="nx">http</span><span class="o">/</span><span class="nx">internal</span><span class="o">/</span><span class="nx">chunked</span>
+</span></span><span class="line"><span class="cl"><span class="c1">// 可以导入
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="nx">net</span><span class="o">/</span><span class="nx">http</span><span class="o">/</span><span class="nx">httputil</span>
+</span></span><span class="line"><span class="cl"><span class="nx">net</span><span class="o">/</span><span class="nx">http</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// 不能导入
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="nx">net</span><span class="o">/</span><span class="nx">url</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>net/http/internal/chunked内部包只能被net/http/httputil或net/http包导入，但是不能被net/url包导入。不过net/url包却可以导入net/http/httputil包。</p>
+<h3 id="14-go-list-查询包">1.4. <code>go list </code>查询包</h3>
+<p>列出工作区所有包</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">go list ...
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>特定子目录下所有包</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">go list gopl.io/ch3/...
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>某个主题相关包</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">go list ...xml...
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>包的元信息</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">go list -json <span class="nb">hash</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>命令行参数<code>-f</code>则允许用户使用text/template包的模板语言定义输出文本的格式。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">go list -f <span class="s2">&#34;{{join .Deps \&#34; \&#34;}}&#34;</span> strconv
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>查询哪些 go 源文件参与编译</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">go list -f<span class="o">={{</span>.GoFiles<span class="o">}}</span> fmt
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>查询哪些 Go 测试源文件参与编译</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">go list -f<span class="o">={{</span>.TestGoFiles<span class="o">}}</span> fmt
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="15-如何给已有的包添加方法-实现继承想要做的事情-">1.5. 如何给已有的包添加方法( 实现继承想要做的事情 )</h3>
+<blockquote>
+<p>定义别名</p>
+</blockquote>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// 定义别名
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">type</span> <span class="nx">alias</span> <span class="p">[]</span><span class="kt">int</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">a</span> <span class="nx">alias</span><span class="p">)</span> <span class="nf">IsEmpty</span><span class="p">(){</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// ...
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><blockquote>
+<p>使用组合  将已有结构组合到新的结构中</p>
+</blockquote>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">myFunc</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  	<span class="nx">myint</span> <span class="o">*</span><span class="p">[]</span><span class="kt">int</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// ...
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><blockquote>
+<p>导包方式</p>
+</blockquote>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kn">import</span> <span class="p">.</span> <span class="nx">XXX</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>那么就会让这个“XXX”包中公开的程序实体，被当前源码文件中的代码，视为当前代码包中的程序实体。</p>
+<h2 id="2-工具">2. 工具</h2>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">go <span class="nb">help</span>   <span class="c1"># 查看更多帮助</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="21-下载包">2.1. 下载包</h3>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">go get ...
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>Go语言工具箱的go命令同时计算并下载所依赖的每个包</p>
+<p>一旦<code>go get</code>命令下载了包，然后就是安装包或包对应的可执行的程序。</p>
+<p>如果指定<code>-u</code>命令行标志参数，<code>go get</code>命令将确保所有的包和依赖的包的版本都是最新的，然后重新编译和安装它们。如果不包含该标志参数的话，而且如果包已经在本地存在，那么代码将不会被自动更新。</p>
+<h3 id="22-构建包">2.2. 构建包</h3>
+<p><code>go build</code>命令编译命令行参数指定的每个包。如果包是一个库，则忽略输出结果；这可以用于检测包是可以正确编译的。如果包的名字是main，<code>go build</code>将调用链接器在当前目录创建一个可执行程序；以导入路径的最后一段作为可执行程序的名字。</p>
+<p>针对不同操作系统或CPU的交叉构建也是很简单的。只需要设置好目标对应的GOOS和GOARCH，然后运行构建命令即可。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="c1"># 编译成 linux 可执行</span>
+</span></span><span class="line"><span class="cl"><span class="nv">CGO_ENABLED</span><span class="o">=</span><span class="m">0</span>  <span class="nv">GOOS</span><span class="o">=</span>linux  <span class="nv">GOARCH</span><span class="o">=</span>amd64  go build main.go
+</span></span><span class="line"><span class="cl"><span class="c1"># 编译成 Windows 可执行</span>
+</span></span><span class="line"><span class="cl"><span class="nv">CGO_ENABLED</span><span class="o">=</span><span class="m">0</span> <span class="nv">GOOS</span><span class="o">=</span>windows  <span class="nv">GOARCH</span><span class="o">=</span>amd64  go  build  main.go
+</span></span><span class="line"><span class="cl"><span class="c1"># 编译成 Mac 可执行</span>
+</span></span><span class="line"><span class="cl"><span class="nv">CGO_ENABLED</span><span class="o">=</span><span class="m">0</span> <span class="nv">GOOS</span><span class="o">=</span>darwin  <span class="nv">GOARCH</span><span class="o">=</span>amd64  go build main.go
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><strong>CGO_ENABLED</strong> CGO 工具, 交叉编译不能使用</p>
+<p><strong>GOOS</strong> : 目标平台</p>
+<ul>
+<li>mac 对应 <strong>darwin</strong></li>
+<li>linux 对应 <strong>linux</strong></li>
+<li>windows 对应 <strong>windows</strong></li>
+</ul>
+<p><strong>GOARCH</strong> ：目标平台的体系架构</p>
+<ul>
+<li>386 也称 x86 对应  32位操作系统</li>
+<li>amd64 也称 x64 对应 64位操作系统</li>
+<li>arm</li>
+</ul>
+<h3 id="23-注释的技巧">2.3. 注释的技巧</h3>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// +build ignore
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kn">package</span> <span class="nx">temp</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>在 包声明前面加入此行, 表示不编译这个文件</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// +build linux darwin
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><p>构建过程控制</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">go doc go/build  <span class="c1"># 更多查看文档</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h2 id="3-文档">3. 文档</h2>
+<p>如果注释后紧跟着包声明语句，那注释对应整个包的文档。</p>
+<p>Go语言中的文档注释一般是完整的句子，第一行通常是摘要说明，以被注释者的名字开头。注释中函数的参数或其它的标识符并不需要额外的引号或其它标记注明。</p>
+<h3 id="31-命令">3.1. 命令</h3>
+<p><strong>在命令行查看</strong></p>
+<p><code>go doc</code>  后面可以跟包名/成员名/方法名</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">go doc <span class="nb">time</span>
+</span></span><span class="line"><span class="cl">go doc time.Since
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><strong>在网页查看</strong></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">go get golang.org/x/tools/cmd/godoc  <span class="c1"># 需要先安装</span>
+</span></span><span class="line"><span class="cl">godoc -http :8080
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><a class="link" href="https://godoc.org/"  target="_blank" rel="noopener"
+    >官方文档地址</a></p>
+
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/go/">Go</a>
+        
+            <a href="/tags/%E5%B7%A5%E5%85%B7/">工具</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">Related content</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/json-%E7%BB%86%E8%8A%82/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">JSON 细节</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/25.%E6%B3%9B%E5%9E%8B/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">25.泛型</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/22.%E6%B5%8B%E8%AF%95/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">22.测试</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/go-%E7%BC%96%E7%A0%81%E8%A7%84%E8%8C%83/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Go 编码规范</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/go-module/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Go Module</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script src="https://utteranc.es/client.js" 
+        repo="ixugo/ixugo.github.io"
+        issue-term="pathname"
+        
+        crossorigin="anonymous"
+        async
+        >
+</script>
+
+<style>
+    .utterances {
+        max-width: unset;
+    }
+</style>
+
+<script>
+    function setUtterancesTheme(theme) {
+        let utterances = document.querySelector('.utterances iframe');
+        if (utterances) {
+            utterances.contentWindow.postMessage(
+                {
+                    type: 'set-theme',
+                    theme: `github-${theme}`
+                },
+                'https://utteranc.es'
+            );
+        }
+    }
+
+    addEventListener('message', event => {
+        if (event.origin !== 'https://utteranc.es') return;
+        setUtterancesTheme(document.documentElement.dataset.scheme)
+    });
+
+    window.addEventListener('onColorSchemeChange', (e) => {
+        setUtterancesTheme(e.detail)
+    })
+</script>
+
+
+    
+
+    <footer class="site-footer">
+  <section class="copyright">
+    &copy;
+    
+    2018 -
+    
+    2023 ixugo
+  </section>
+  <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+  <section class="powerby">
+
+    
+    <span id="busuanzi_container_page_pv">本文阅读量
+      <span style="font-size: 14px" id="busuanzi_value_page_pv"></span>
+      次，</span>
+    <span id="busuanzi_container_site_pv">总访问量
+      <span style="font-size: 14px" id="busuanzi_value_site_pv"></span>
+      次 </span>，总访客数
+    <span style="font-size: 14px" id="busuanzi_value_site_uv"></span> 人
+    <br />
+
+
+    Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> .&nbsp;&nbsp;
+    Theme <a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener"
+      data-version="3.16.0">Stack</a> designed by <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a>
+  </section>
+
+
+
+
+  <script>
+    function count() {
+      let href = window.location.href;
+      let regexp = /^https?:\/\/blog.golang.space\/?(page\/[\d]+\/?)?$/;
+      if (regexp.test(href)) {
+        let e = document.getElementById("busuanzi_container_page_pv");
+        e.innerText = "";
+      }
+    }
+    window.onload = count;
+  </script>
+</footer>
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

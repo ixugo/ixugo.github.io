@@ -1,0 +1,1376 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='PostgreSQL [toc]
+1. 安装 1.1. linux 命令行安装 1 2 3 sudo apt-get install postgresql su - postgres psql linux 服务管理命令 service
+1 2 3 service postgresql status // 查看状态 service postgresql stop // 停止 service postgresql start // 开始 1.2. 使用 docker-compose 1 2 mkdir plv8 &amp;amp;&amp;amp; cd plv8 vim docker-compose.yml 1 2 3 4 5 6 7 8 9 10 11 postgres: restart: always image: ionx/postgres-plv8:12.2 environment: - POSTGRES_PASSWORD=123456789 - TZ=Asia/Shanghai volumes: - $PWD/data:/var/lib/postgresql/data - /etc/localtime:/etc/localtime ports: - &amp;#34;8001:5432&amp;#34; # 端口映射 postgresql.'>
+<title>PostgreSQL 基础</title>
+
+<link rel='canonical' href='https://blog.golang.space/p/postgresql-%E5%9F%BA%E7%A1%80/'>
+
+<link rel="stylesheet" href="/scss/style.min.8191399262444ab68b72a18c97392f5349be20a1615d77445be51e974c144cff.css"><meta property='og:title' content='PostgreSQL 基础'>
+<meta property='og:description' content='PostgreSQL [toc]
+1. 安装 1.1. linux 命令行安装 1 2 3 sudo apt-get install postgresql su - postgres psql linux 服务管理命令 service
+1 2 3 service postgresql status // 查看状态 service postgresql stop // 停止 service postgresql start // 开始 1.2. 使用 docker-compose 1 2 mkdir plv8 &amp;amp;&amp;amp; cd plv8 vim docker-compose.yml 1 2 3 4 5 6 7 8 9 10 11 postgres: restart: always image: ionx/postgres-plv8:12.2 environment: - POSTGRES_PASSWORD=123456789 - TZ=Asia/Shanghai volumes: - $PWD/data:/var/lib/postgresql/data - /etc/localtime:/etc/localtime ports: - &amp;#34;8001:5432&amp;#34; # 端口映射 postgresql.'>
+<meta property='og:url' content='https://blog.golang.space/p/postgresql-%E5%9F%BA%E7%A1%80/'>
+<meta property='og:site_name' content='ixugo'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='PostgreSQL' /><meta property='article:published_time' content='2020-02-23T12:00:00&#43;00:00'/><meta property='article:modified_time' content='2020-02-23T12:00:00&#43;00:00'/>
+<meta name="twitter:title" content="PostgreSQL 基础">
+<meta name="twitter:description" content="PostgreSQL [toc]
+1. 安装 1.1. linux 命令行安装 1 2 3 sudo apt-get install postgresql su - postgres psql linux 服务管理命令 service
+1 2 3 service postgresql status // 查看状态 service postgresql stop // 停止 service postgresql start // 开始 1.2. 使用 docker-compose 1 2 mkdir plv8 &amp;amp;&amp;amp; cd plv8 vim docker-compose.yml 1 2 3 4 5 6 7 8 9 10 11 postgres: restart: always image: ionx/postgres-plv8:12.2 environment: - POSTGRES_PASSWORD=123456789 - TZ=Asia/Shanghai volumes: - $PWD/data:/var/lib/postgresql/data - /etc/localtime:/etc/localtime ports: - &amp;#34;8001:5432&amp;#34; # 端口映射 postgresql.">
+    <link rel="shortcut icon" href="img/favicon.ico" />
+
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+	(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+	m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+	})(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+	ga('create', 'UA-192125643-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="Toggle Menu">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu0b04ba6d7249c9f90c92db974439eb8c_208246_300x0_resize_box_3.png" width="300"
+                            height="321" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🧐</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">ixugo</a></h1>
+            <h2 class="site-description">走出舒适区</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/ixugo'
+                        target="_blank"
+                        title="GitHub"
+                        rel="me"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>Home</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/about/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>About</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>Archives</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>Search</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>Dark Mode</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">Table of contents</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#1-安装">1. 安装</a>
+      <ol>
+        <li><a href="#11-linux-命令行安装">1.1. linux 命令行安装</a></li>
+        <li><a href="#12-使用-docker-compose">1.2. 使用 docker-compose</a></li>
+      </ol>
+    </li>
+    <li><a href="#2-sql-简单提一下">2. SQL 简单提一下</a>
+      <ol>
+        <li><a href="#21-ddl">2.1. DDL</a></li>
+        <li><a href="#22-dml">2.2. DML</a></li>
+        <li><a href="#23-dql">2.3. DQL</a></li>
+        <li><a href="#24-其它-sql-语句">2.4. 其它 SQL 语句</a></li>
+        <li><a href="#3-psql">3. PSQL</a></li>
+        <li><a href="#31-使用方法">3.1. 使用方法</a></li>
+        <li><a href="#32-常用命令">3.2. 常用命令</a></li>
+        <li><a href="#33-事务">3.3. 事务</a></li>
+      </ol>
+    </li>
+    <li><a href="#4-数据类型">4. 数据类型</a>
+      <ol>
+        <li><a href="#41-表格">4.1. 表格</a></li>
+        <li><a href="#42-类型转换">4.2. 类型转换</a></li>
+        <li><a href="#43-boolean-类型">4.3. boolean 类型</a></li>
+        <li><a href="#44-布尔类型操作符">4.4. 布尔类型操作符</a></li>
+        <li><a href="#45-字符串函数与操作符">4.5. 字符串函数与操作符</a></li>
+        <li><a href="#46-二进制类型">4.6. 二进制类型</a></li>
+        <li><a href="#47-时间类型">4.7. 时间类型</a></li>
+        <li><a href="#48-枚举类型">4.8. 枚举类型</a></li>
+        <li><a href="#49-json-类型">4.9. json 类型</a></li>
+        <li><a href="#491-jsonb-类型创建索引">4.9.1. jsonb 类型创建索引</a></li>
+      </ol>
+    </li>
+    <li><a href="#5-逻辑结构管理">5. 逻辑结构管理</a>
+      <ol>
+        <li><a href="#51-创建模式">5.1. 创建模式</a></li>
+        <li><a href="#常用函数">常用函数</a>
+          <ol>
+            <li><a href="#nullif">NULLIF</a></li>
+            <li><a href="#coalesce">COALESCE</a></li>
+            <li><a href="#case">CASE</a></li>
+          </ol>
+        </li>
+      </ol>
+    </li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+            <main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+    <header class="article-category">
+        
+            <a href="/categories/%E6%95%B0%E6%8D%AE%E5%BA%93/" >
+                数据库
+            </a>
+        
+    </header>
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/postgresql-%E5%9F%BA%E7%A1%80/">PostgreSQL 基础</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    
+    
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Feb 23, 2020</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    5 minute read
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+
+</header>
+
+    <section class="article-content">
+    
+    
+    <h1 id="postgresql">PostgreSQL</h1>
+<p>[toc]</p>
+<h2 id="1-安装">1. 安装</h2>
+<h3 id="11-linux-命令行安装">1.1. linux 命令行安装</h3>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">sudo apt-get install postgresql
+</span></span><span class="line"><span class="cl">su - postgres
+</span></span><span class="line"><span class="cl">psql
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>linux 服务管理命令 service</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">service postgresql status     // 查看状态
+</span></span><span class="line"><span class="cl">service postgresql stop       // 停止
+</span></span><span class="line"><span class="cl">service postgresql start      // 开始                                                               
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="12-使用-docker-compose">1.2. 使用 docker-compose</h3>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">mkdir plv8 <span class="o">&amp;&amp;</span> <span class="nb">cd</span> plv8
+</span></span><span class="line"><span class="cl">vim docker-compose.yml
+</span></span></code></pre></td></tr></table>
+</div>
+</div><div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-yaml" data-lang="yaml"><span class="line"><span class="cl"><span class="nt">postgres</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="nt">restart</span><span class="p">:</span><span class="w"> </span><span class="l">always</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l">ionx/postgres-plv8:12.2</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="nt">environment</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span>- <span class="l">POSTGRES_PASSWORD=123456789</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span>- <span class="l">TZ=Asia/Shanghai</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="nt">volumes</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span>- <span class="l">$PWD/data:/var/lib/postgresql/data</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span>- <span class="l">/etc/localtime:/etc/localtime</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="nt">ports</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span>- <span class="s2">&#34;8001:5432&#34;</span><span class="w">      </span><span class="c"># 端口映射</span><span class="w">
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><p><code>postgresql.conf</code> 配置文件</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="nv">listen_addresses</span> <span class="o">=</span> <span class="s1">&#39;*&#39;</span>   <span class="c1"># 监听 IP 地址, 若是 localhost 表示仅本地可以连接</span>
+</span></span><span class="line"><span class="cl"><span class="nv">port</span> <span class="o">=</span> <span class="m">5432</span>              <span class="c1"># 数据库端口</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="nv">logging_collector</span> <span class="o">=</span> on   <span class="c1"># 日志收集</span>
+</span></span><span class="line"><span class="cl"><span class="nv">log_directory</span> <span class="o">=</span> <span class="s1">&#39;log&#39;</span> 	 <span class="c1"># 日志目录</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="nv">shared_buffers</span> <span class="o">=</span> 128MB   <span class="c1"># 共享内存大小, 有足够内存时, 可以设置大一些</span>
+</span></span><span class="line"><span class="cl"><span class="nv">work_mem</span> <span class="o">=</span> 4M            <span class="c1"># 单 sql 执行时, 排序,hash join 使用的内存</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><blockquote>
+<p>日志方案 1 每天新生成一个文件</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="nv">log_filename</span> <span class="o">=</span> <span class="s1">&#39;postgresql-%Y-%m-%d_%H%M%S.log&#39;</span>
+</span></span><span class="line"><span class="cl"><span class="nv">log_truncate_on_rotation</span> <span class="o">=</span> on				
+</span></span><span class="line"><span class="cl"><span class="nv">log_rotation_age</span> <span class="o">=</span> 1d								<span class="c1"># 循环</span>
+</span></span><span class="line"><span class="cl"><span class="nv">log_rotation_size</span> <span class="o">=</span> 0								
+</span></span></code></pre></td></tr></table>
+</div>
+</div></blockquote>
+<blockquote>
+<p>日志方案 2 写满一定大小, 如 10m 则切换日志</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="nv">log_filename</span> <span class="o">=</span> <span class="s1">&#39;postgresql-%Y-%m-%d_%H%M%S.log&#39;</span>
+</span></span><span class="line"><span class="cl"><span class="nv">log_truncate_on_rotation</span> <span class="o">=</span> off				
+</span></span><span class="line"><span class="cl"><span class="nv">log_rotation_age</span> <span class="o">=</span> 0							
+</span></span><span class="line"><span class="cl"><span class="nv">log_rotation_size</span> <span class="o">=</span> 10M					
+</span></span></code></pre></td></tr></table>
+</div>
+</div></blockquote>
+<blockquote>
+<p>日志方案 3 保留 7 天日志, 循环覆盖</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="nv">log_filename</span> <span class="o">=</span> <span class="s1">&#39;postgresql-%a.log&#39;</span>
+</span></span><span class="line"><span class="cl"><span class="nv">log_truncate_on_rotation</span> <span class="o">=</span> on
+</span></span><span class="line"><span class="cl"><span class="nv">log_rotation_age</span> <span class="o">=</span> 1d							
+</span></span><span class="line"><span class="cl"><span class="nv">log_rotation_size</span> <span class="o">=</span> 0					
+</span></span></code></pre></td></tr></table>
+</div>
+</div></blockquote>
+<h2 id="2-sql-简单提一下">2. SQL 简单提一下</h2>
+<p>SQL 区分 DQL (查询), DML(插入/更新/删除数据) , DDL(创建/修改/删除表)</p>
+<h3 id="21-ddl">2.1. DDL</h3>
+<p>创建表</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-sql" data-lang="sql"><span class="line"><span class="cl"><span class="k">create</span><span class="w"> </span><span class="k">table</span><span class="w"> </span><span class="o">&lt;</span><span class="n">tab_name</span><span class="o">&gt;</span><span class="w"> </span><span class="p">(</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">	</span><span class="n">col_name</span><span class="w"> </span><span class="nb">integer</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="n">age</span><span class="w"> </span><span class="nb">integer</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="p">);</span><span class="w">
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><p>删除表</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-sql" data-lang="sql"><span class="line"><span class="cl"><span class="k">drop</span><span class="w"> </span><span class="k">table</span><span class="w"> </span><span class="o">&lt;</span><span class="n">tab_name</span><span class="o">&gt;</span><span class="w">
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="22-dml">2.2. DML</h3>
+<p>插入数据</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-sql" data-lang="sql"><span class="line"><span class="cl"><span class="k">Insert</span><span class="w"> </span><span class="k">INTO</span><span class="w"> </span><span class="o">&lt;</span><span class="n">tab_name</span><span class="o">&gt;</span><span class="w"> </span><span class="k">VALUES</span><span class="p">(</span><span class="mi">2</span><span class="p">);</span><span class="w">
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><p>指定列插入数据</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-sql" data-lang="sql"><span class="line"><span class="cl"><span class="k">Insert</span><span class="w"> </span><span class="k">INTO</span><span class="w"> </span><span class="o">&lt;</span><span class="n">tab_name</span><span class="o">&gt;</span><span class="p">(</span><span class="n">age</span><span class="p">)</span><span class="w"> </span><span class="k">VALUES</span><span class="p">(</span><span class="mi">17</span><span class="p">);</span><span class="w">
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><p>更新语句 , 不设置条件会更新表中所有数据</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-sql" data-lang="sql"><span class="line"><span class="cl"><span class="k">update</span><span class="w"> </span><span class="o">&lt;</span><span class="n">tab_name</span><span class="o">&gt;</span><span class="w"> </span><span class="k">SET</span><span class="w"> </span><span class="n">age</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">18</span><span class="p">;</span><span class="w">
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><p>更新多条且设置 where 条件</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-sql" data-lang="sql"><span class="line"><span class="cl"><span class="k">update</span><span class="w"> </span><span class="o">&lt;</span><span class="n">tab_name</span><span class="o">&gt;</span><span class="w"> </span><span class="k">SET</span><span class="w"> </span><span class="n">col_name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="n">age</span><span class="o">=</span><span class="mi">19</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">age</span><span class="o">=</span><span class="mi">18</span><span class="p">;</span><span class="w">
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><p><code>DELETE FROM</code> 删除 , 当没有 <code>where</code> 关键词时, 表示删除整个表,</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-sql" data-lang="sql"><span class="line"><span class="cl"><span class="k">DELETE</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="o">&lt;</span><span class="n">tab_name</span><span class="o">&gt;</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">age</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">19</span><span class="p">;</span><span class="w">
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="23-dql">2.3. DQL</h3>
+<p>排序 <code>order by </code></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-sql" data-lang="sql"><span class="line"><span class="cl"><span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="o">&lt;</span><span class="n">tab_name</span><span class="o">&gt;</span><span class="w"> </span><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">age</span><span class="w"> </span><span class="k">DESC</span><span class="p">,</span><span class="n">col_name</span><span class="p">;</span><span class="w">
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><p>分组查询 <code>group by</code> 需要使用聚合函数</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-sql" data-lang="sql"><span class="line"><span class="cl"><span class="k">SELECT</span><span class="w"> </span><span class="n">age</span><span class="p">,</span><span class="k">count</span><span class="p">(</span><span class="n">id</span><span class="p">)</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="o">&lt;</span><span class="n">tab_name</span><span class="o">&gt;</span><span class="w"> </span><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">age</span><span class="p">;</span><span class="w">
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="24-其它-sql-语句">2.4. 其它 SQL 语句</h3>
+<p><code>union</code> 两张表查询的数据整合到一起</p>
+<ul>
+<li><code>union</code> 重复的数据会合并为一条</li>
+<li><code>union all</code> 不合并重复数据</li>
+</ul>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-sql" data-lang="sql"><span class="line"><span class="cl"><span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="o">&lt;</span><span class="n">tab_name</span><span class="o">&gt;</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">age</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">18</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="k">UNION</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="o">&lt;</span><span class="n">tab_name</span><span class="o">&gt;</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">col_name</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mi">2</span><span class="w">
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><p>删除表</p>
+<ul>
+<li><code>truncate table</code> 丢弃旧表, 创建新表, 重建索引</li>
+<li><code>delete from </code> 一条条删除数据</li>
+</ul>
+<h3 id="3-psql">3. PSQL</h3>
+<h3 id="31-使用方法">3.1. 使用方法</h3>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="se">\l</span>   						<span class="c1"># 列出所有数据库</span>
+</span></span><span class="line"><span class="cl"><span class="se">\c</span> &lt;database&gt;		<span class="c1"># 连接数据库</span>
+</span></span><span class="line"><span class="cl"><span class="se">\d</span>  						<span class="c1"># 显示数据库中的表/序列/视图/索引</span>
+</span></span><span class="line"><span class="cl"><span class="se">\d</span>+             <span class="c1"># 展示更多信息</span>
+</span></span><span class="line"><span class="cl"><span class="se">\d</span> &lt;table&gt;      <span class="c1"># 显示表结构</span>
+</span></span><span class="line"><span class="cl"><span class="se">\q</span>   						<span class="c1"># 退出</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>数据库安装好后, 有三个数据库</p>
+<ul>
+<li><code>postgre</code>  默认数据库</li>
+<li><code>template0</code> 最简化模板数据库</li>
+<li><code>template1</code> 用户新建数据库时, 默认从 <code>template1</code> 克隆, 通常可以定制 <code>template1</code> 的内容 ,</li>
+</ul>
+<p>使用 PSQL 连接数据库</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">psql -h &lt;ip&gt; -p &lt;5432&gt; <span class="o">[</span>数据库名称<span class="o">]</span> <span class="o">[</span>用户名称<span class="o">]</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="32-常用命令">3.2. 常用命令</h3>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="se">\d</span>t <span class="c1"># 列出表</span>
+</span></span><span class="line"><span class="cl"><span class="se">\d</span>i <span class="c1"># 列出索引</span>
+</span></span><span class="line"><span class="cl"><span class="se">\d</span>s <span class="c1"># 列出序列</span>
+</span></span><span class="line"><span class="cl"><span class="se">\d</span>v <span class="c1"># 列出视图</span>
+</span></span><span class="line"><span class="cl"><span class="se">\d</span>f <span class="c1"># 列出函数</span>
+</span></span><span class="line"><span class="cl"><span class="se">\d</span>n <span class="c1"># 列出 schema</span>
+</span></span><span class="line"><span class="cl"><span class="se">\d</span>b <span class="c1"># 列出表空间</span>
+</span></span><span class="line"><span class="cl"><span class="se">\d</span>u <span class="c1"># 列出用户</span>
+</span></span><span class="line"><span class="cl"><span class="se">\z</span>  <span class="c1"># 列出表的权限分配</span>
+</span></span><span class="line"><span class="cl"><span class="se">\i</span> &lt;文件名&gt; <span class="c1"># 执行外部文件 SQL</span>
+</span></span><span class="line"><span class="cl"><span class="se">\?</span>  <span class="c1"># 命令提示</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="se">\t</span>iming on  <span class="c1"># 列出 sql 执行时间</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="33-事务">3.3. 事务</h3>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-sql" data-lang="sql"><span class="line"><span class="cl"><span class="k">begin</span><span class="p">;</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="c1">-- dml 
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="k">commit</span><span class="p">;</span><span class="w">  
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="c1">-- 或者
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="k">rollback</span><span class="p">;</span><span class="w">
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><h2 id="4-数据类型">4. 数据类型</h2>
+<h3 id="41-表格">4.1. 表格</h3>
+<div class="table-wrapper"><table>
+<thead>
+<tr>
+<th>类型</th>
+<th>说明</th>
+<th>其它数据库对比</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>布尔</td>
+<td><code>boolean</code></td>
+<td>与 mysql 类型相同, 一字节</td>
+</tr>
+<tr>
+<td>整型</td>
+<td><code>smallint</code> 2 字节 <!-- raw HTML omitted --><code>int</code> 4 字节 <!-- raw HTML omitted --><code>bigint</code> 8 字节</td>
+<td></td>
+</tr>
+<tr>
+<td>浮点</td>
+<td><code>real</code> 和 <code>double precision</code> <!-- raw HTML omitted --><code>money</code> 8 字节的货币类型 <!-- raw HTML omitted --><code>numeric(m,n)</code> 10 进制精确类型</td>
+<td></td>
+</tr>
+<tr>
+<td>字符类型</td>
+<td><code>varchar(n)</code> 变长字符 <!-- raw HTML omitted --><code>char(n)</code>  定长, 不足补空格 <!-- raw HTML omitted --><code>text</code> 长变文本,无限制</td>
+<td>Postgresql 的 varchar 最大可存储 1G <!-- raw HTML omitted -->mysql 的 varchar 最大可存储 64kb</td>
+</tr>
+<tr>
+<td>二进制</td>
+<td>bytea</td>
+<td>对应 mysql 的 blob 和 longblob</td>
+</tr>
+<tr>
+<td>二进制位串</td>
+<td><code>bit(n)</code>  <!-- raw HTML omitted --><code>bit varying(n)</code></td>
+<td>无</td>
+</tr>
+<tr>
+<td>日期</td>
+<td><code>date</code> 年月日 <!-- raw HTML omitted --><code>time</code> 时分秒 <!-- raw HTML omitted --><code>timestamp</code> 年月日时分秒 <!-- raw HTML omitted --></td>
+<td></td>
+</tr>
+<tr>
+<td>网络地址</td>
+<td><code>cidr</code> 7-19字节, 网络地址 <!-- raw HTML omitted --><code>inet</code> 7-19字节, 网络或主机地址<!-- raw HTML omitted --><code>macaddr</code> 6 字节, 以太网 mac 地址</td>
+<td>无</td>
+</tr>
+<tr>
+<td>数组类型</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>枚举类型</td>
+<td>略</td>
+<td></td>
+</tr>
+<tr>
+<td>几何类型</td>
+<td>略</td>
+<td></td>
+</tr>
+<tr>
+<td>复合类型</td>
+<td>类似结构体</td>
+<td></td>
+</tr>
+<tr>
+<td>xml</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>json</td>
+<td><code>json</code> 和 <code>jsonb</code></td>
+<td></td>
+</tr>
+<tr>
+<td>range</td>
+<td>范围类型</td>
+<td></td>
+</tr>
+<tr>
+<td>其它类型</td>
+<td>不好分类的类型, 如 UUID</td>
+<td></td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="42-类型转换">4.2. 类型转换</h3>
+<p>方法一 标准 SQL 转换函数 <code>CAST</code></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-sql" data-lang="sql"><span class="line"><span class="cl"><span class="k">select</span><span class="w"> </span><span class="k">cast</span><span class="p">(</span><span class="s1">&#39;5&#39;</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nb">int</span><span class="p">),</span><span class="k">cast</span><span class="p">(</span><span class="s1">&#39;2014-07-17&#39;</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nb">date</span><span class="p">);</span><span class="w">
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><p>方法二 psql 双冒号转换</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-sql" data-lang="sql"><span class="line"><span class="cl"><span class="k">select</span><span class="w"> </span><span class="s1">&#39;5&#39;</span><span class="p">::</span><span class="nb">int</span><span class="w">
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="43-boolean-类型">4.3. boolean 类型</h3>
+<p>使用 boolean 类型, 可以约束非空, 设置默认值, 避免 SQL查询时还需要判断空的情况</p>
+<h3 id="44-布尔类型操作符">4.4. 布尔类型操作符</h3>
+<p>AND</p>
+<ul>
+<li>a,b 都是 null 为 null</li>
+<li>a,b 都是 true, 为 true, 否则 false</li>
+</ul>
+<p>OR</p>
+<ul>
+<li>存在 true 则为 true ,</li>
+<li>若 a,b 都是 false ,存在 null 则为 null</li>
+</ul>
+<p>NOT</p>
+<ul>
+<li><code>not null = null</code></li>
+<li><code>not true = false</code></li>
+<li><code>not false = true</code></li>
+</ul>
+<p>IS</p>
+<p>布尔类型使用 <code>is</code> 比较</p>
+<h3 id="45-字符串函数与操作符">4.5. 字符串函数与操作符</h3>
+<p>拼接字符串</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-sql" data-lang="sql"><span class="line"><span class="cl"><span class="s1">&#39;Post&#39;</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="s1">&#39;greSQL&#39;</span><span class="w">     </span><span class="o">#</span><span class="w"> </span><span class="n">PostgreSQL</span><span class="w">
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><p>求字符串长度</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-sql" data-lang="sql"><span class="line"><span class="cl"><span class="k">char_length</span><span class="p">(</span><span class="s1">&#39;post&#39;</span><span class="p">)</span><span class="w">    </span><span class="o">#</span><span class="w"> </span><span class="mi">4</span><span class="w">
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="46-二进制类型">4.6. 二进制类型</h3>
+<p>适合存储图片/视频/文件类型</p>
+<h3 id="47-时间类型">4.7. 时间类型</h3>
+<p>SELECT LOCALTIMESTAMP(0) - interval &lsquo;15 day&rsquo;</p>
+<p><code>extract</code> 提取时间中的子域, 如年/月/日/时/分/秒</p>
+<p><img src="http://img.golang.space/1593879613247-image-20200705002012721.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20200705002012721"
+	
+	
+></p>
+<h3 id="48-枚举类型">4.8. 枚举类型</h3>
+<p>创建枚举, 插入时如果不是枚举中存在的字符串, 则报错</p>
+<p>该类型大小写敏感,  <code>Sun</code> != <code>sun</code></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-sql" data-lang="sql"><span class="line"><span class="cl"><span class="k">create</span><span class="w"> </span><span class="k">type</span><span class="w"> </span><span class="n">week</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">ENUM</span><span class="w"> </span><span class="p">(</span><span class="s1">&#39;Sun&#39;</span><span class="p">,</span><span class="s1">&#39;Mon&#39;</span><span class="p">,</span><span class="s1">&#39;Tues&#39;</span><span class="p">,</span><span class="s1">&#39;Wed&#39;</span><span class="p">,</span><span class="s1">&#39;Thur&#39;</span><span class="p">,</span><span class="s1">&#39;Fri&#39;</span><span class="p">,</span><span class="s1">&#39;Sat&#39;</span><span class="p">)</span><span class="w">
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><p>查询所有枚举类型</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="se">\d</span>T
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="49-json-类型">4.9. json 类型</h3>
+<p><code>json</code> 类型保留空格/格式/顺序</p>
+<p><code>jsonb</code> 类型存入时会转换二进制, 取用时不用再次转换, 更高效; 且不会保留空格/格式/顺序等</p>
+<p><strong>操作符</strong></p>
+<div class="table-wrapper"><table>
+<thead>
+<tr>
+<th>操作符</th>
+<th>描述</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>-&gt;</code></td>
+<td>下标取数组元素  [1,2,3]::json-&gt;1  <!-- raw HTML omitted -->key 取子对象  {&ldquo;a&rdquo;:12,&ldquo;b&rdquo;:13}::json-&gt;&lsquo;a&rsquo;</td>
+</tr>
+<tr>
+<td><code>-&gt;&gt;</code></td>
+<td>同上, 取出来的结果是 text 类型</td>
+</tr>
+<tr>
+<td><code>#&gt;</code></td>
+<td>取嵌套对象  {&ldquo;a&rdquo;:{&ldquo;b&rdquo;:{&ldquo;c&rdquo;:1}}} :: json #&gt; &lsquo;{a,b}&rsquo;</td>
+</tr>
+<tr>
+<td><code>#&gt;&gt;</code></td>
+<td>同上, 取出来的结果是 text 类型</td>
+</tr>
+</tbody>
+</table></div>
+<p>有一些操作符仅可用于 <code>jsonb</code></p>
+<div class="table-wrapper"><table>
+<thead>
+<tr>
+<th>操作符</th>
+<th>演示</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>=</code></td>
+<td>jsonb &lsquo;[1,2]&rsquo; = jsonb &lsquo;[1,2]&rsquo;</td>
+<td></td>
+</tr>
+<tr>
+<td><code>@&gt;</code></td>
+<td>jsonb &lsquo;[1,2]&rsquo; @&gt; jsonb &lsquo;[1]&rsquo;</td>
+<td>左边对象是否包含右边对象</td>
+</tr>
+<tr>
+<td><code>&lt;@</code></td>
+<td>&hellip;</td>
+<td></td>
+</tr>
+<tr>
+<td><code>?</code></td>
+<td>Jsonb &lsquo;{&ldquo;a&rdquo;:1,&ldquo;b&rdquo;:1}&rsquo; ? &lsquo;a&rsquo;</td>
+<td>a 是否存在于对象的 key 或字符串类型元素中</td>
+</tr>
+<tr>
+<td>`?</td>
+<td>`</td>
+<td>Jsonb &lsquo;{&ldquo;a&rdquo;:1,&ldquo;b&rdquo;:1}&rsquo; ?| array[&lsquo;a&rsquo;,&lsquo;b&rsquo;]</td>
+</tr>
+<tr>
+<td><code>?&amp;</code></td>
+<td>Jsonb &lsquo;{&ldquo;a&rdquo;:1,&ldquo;b&rdquo;:1}&rsquo; ?| array[&lsquo;a&rsquo;,&lsquo;b&rsquo;]</td>
+<td>数组中的内容是否都在 json 中</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="491-jsonb-类型创建索引">4.9.1. jsonb 类型创建索引</h3>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-sql" data-lang="sql"><span class="line"><span class="cl"><span class="k">create</span><span class="w"> </span><span class="k">index</span><span class="w"> </span><span class="n">idx_name</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="k">table_name</span><span class="w"> </span><span class="k">USING</span><span class="w"> </span><span class="n">gin</span><span class="w"> </span><span class="p">(</span><span class="n">index_col</span><span class="p">)</span><span class="w">
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><h2 id="5-逻辑结构管理">5. 逻辑结构管理</h2>
+<p>修改数据库最大连接数</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-sql" data-lang="sql"><span class="line"><span class="cl"><span class="k">alter</span><span class="w"> </span><span class="k">database</span><span class="w"> </span><span class="n">testdb01</span><span class="w"> </span><span class="k">connection</span><span class="w"> </span><span class="k">limit</span><span class="w"> </span><span class="mi">10</span><span class="p">;</span><span class="w">
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><p>修改表名</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-sql" data-lang="sql"><span class="line"><span class="cl"><span class="k">alter</span><span class="w"> </span><span class="k">table</span><span class="w"> </span><span class="n">posts</span><span class="w"> </span><span class="k">rename</span><span class="w"> </span><span class="k">to</span><span class="w"> </span><span class="n">postsNew</span><span class="w">
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><p>删除数据库</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-sql" data-lang="sql"><span class="line"><span class="cl"><span class="k">drop</span><span class="w"> </span><span class="n">databse</span><span class="w"> </span><span class="p">[</span><span class="k">if</span><span class="w"> </span><span class="k">exists</span><span class="p">]</span><span class="w"> </span><span class="n">name</span><span class="p">;</span><span class="w">
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="51-创建模式">5.1. 创建模式</h3>
+<p>schema 是数据库的概念, 可以理解为命名空间或目录;</p>
+<p>创建模式</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-sql" data-lang="sql"><span class="line"><span class="cl"><span class="k">create</span><span class="w"> </span><span class="k">schema</span><span class="w"> </span><span class="k">schema_name</span><span class="w"> </span><span class="p">[</span><span class="k">authorization</span><span class="w"> </span><span class="n">username</span><span class="p">];</span><span class="w">
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><p>删除模式</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-sql" data-lang="sql"><span class="line"><span class="cl"><span class="k">drop</span><span class="w"> </span><span class="k">schema</span><span class="w"> </span><span class="k">schema_name</span><span class="p">;</span><span class="w">
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><p>修改所有者</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-sql" data-lang="sql"><span class="line"><span class="cl"><span class="k">alter</span><span class="w"> </span><span class="k">schema</span><span class="w"> </span><span class="n">name</span><span class="w"> </span><span class="k">owner</span><span class="w"> </span><span class="k">to</span><span class="w"> </span><span class="n">new_owner</span><span class="p">;</span><span class="w">
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><p>修改模式名</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-sql" data-lang="sql"><span class="line"><span class="cl"><span class="k">alter</span><span class="w"> </span><span class="k">schema</span><span class="w"> </span><span class="n">name</span><span class="w"> </span><span class="k">rename</span><span class="w"> </span><span class="k">to</span><span class="w"> </span><span class="n">new_name</span><span class="p">;</span><span class="w">
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="常用函数">常用函数</h3>
+<h4 id="nullif">NULLIF</h4>
+<p>两个参数相等时，返回空值，否则返回 v1</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-sql" data-lang="sql"><span class="line"><span class="cl"><span class="k">NULLIF</span><span class="p">(</span><span class="n">v1</span><span class="p">,</span><span class="n">v2</span><span class="p">)</span><span class="w">
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><h4 id="coalesce">COALESCE</h4>
+<p>返回第一个非控参数的值，所有参数都为空时返回空</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-sql" data-lang="sql"><span class="line"><span class="cl"><span class="n">COALESCE</span><span class="p">(</span><span class="n">v1</span><span class="p">,[,...])</span><span class="w">
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><h4 id="case">CASE</h4>
+<p>条件表达式</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-sql" data-lang="sql"><span class="line"><span class="cl"><span class="k">CASE</span><span class="w"> 
+</span></span></span><span class="line"><span class="cl"><span class="w">	</span><span class="k">WHEN</span><span class="w"> </span><span class="o">&lt;</span><span class="err">条件</span><span class="o">&gt;</span><span class="w"> </span><span class="k">THEN</span><span class="w"> </span><span class="o">&lt;</span><span class="err">结果</span><span class="o">&gt;</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">	</span><span class="p">[</span><span class="k">WHEN</span><span class="w"> </span><span class="p">...]</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="k">ELSE</span><span class="w"> </span><span class="o">&lt;</span><span class="err">结果</span><span class="o">&gt;</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="k">END</span><span class="w">
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div>
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/postgresql/">PostgreSQL</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">Related content</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="has-image">
+    <a href="/p/%E5%9F%BA%E4%BA%8E-docker-compose-%E6%A8%A1%E6%8B%9F-postgresql-12.2-%E4%B8%BB%E4%BB%8E/">
+        
+        
+            <div class="article-image">
+                
+                    <img src="http://img.golang.space/img-1669079318266.png" loading="lazy" data-key="" data-hash="http://img.golang.space/img-1669079318266.png"/>
+                
+            </div>
+        
+
+        <div class="article-details">
+            <h2 class="article-title">基于 docker-compose 模拟 PostgreSQL 12.2 主从</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/%E8%A1%A8%E5%88%86%E5%8C%BA/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">表分区</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/%E5%BA%8F%E5%88%97%E8%87%AA%E5%A2%9E%E6%AD%A5%E9%95%BF/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">序列自增步长</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/redis-%E5%9F%BA%E7%A1%80/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Redis 基础</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script src="https://utteranc.es/client.js" 
+        repo="ixugo/ixugo.github.io"
+        issue-term="pathname"
+        
+        crossorigin="anonymous"
+        async
+        >
+</script>
+
+<style>
+    .utterances {
+        max-width: unset;
+    }
+</style>
+
+<script>
+    function setUtterancesTheme(theme) {
+        let utterances = document.querySelector('.utterances iframe');
+        if (utterances) {
+            utterances.contentWindow.postMessage(
+                {
+                    type: 'set-theme',
+                    theme: `github-${theme}`
+                },
+                'https://utteranc.es'
+            );
+        }
+    }
+
+    addEventListener('message', event => {
+        if (event.origin !== 'https://utteranc.es') return;
+        setUtterancesTheme(document.documentElement.dataset.scheme)
+    });
+
+    window.addEventListener('onColorSchemeChange', (e) => {
+        setUtterancesTheme(e.detail)
+    })
+</script>
+
+
+    
+
+    <footer class="site-footer">
+  <section class="copyright">
+    &copy;
+    
+    2018 -
+    
+    2023 ixugo
+  </section>
+  <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+  <section class="powerby">
+
+    
+    <span id="busuanzi_container_page_pv">本文阅读量
+      <span style="font-size: 14px" id="busuanzi_value_page_pv"></span>
+      次，</span>
+    <span id="busuanzi_container_site_pv">总访问量
+      <span style="font-size: 14px" id="busuanzi_value_site_pv"></span>
+      次 </span>，总访客数
+    <span style="font-size: 14px" id="busuanzi_value_site_uv"></span> 人
+    <br />
+
+
+    Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> .&nbsp;&nbsp;
+    Theme <a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener"
+      data-version="3.16.0">Stack</a> designed by <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a>
+  </section>
+
+
+
+
+  <script>
+    function count() {
+      let href = window.location.href;
+      let regexp = /^https?:\/\/blog.golang.space\/?(page\/[\d]+\/?)?$/;
+      if (regexp.test(href)) {
+        let e = document.getElementById("busuanzi_container_page_pv");
+        e.innerText = "";
+      }
+    }
+    window.onload = count;
+  </script>
+</footer>
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

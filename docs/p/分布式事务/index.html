@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='分布式事务 在一个系统内部，我们可以使用数据库事务来保证数据一致性。
+那如果一笔交易，涉及到跨多个系统、多个数据库的时候，用单一的数据库事务就没办法解决了。
+如何来解决这种跨系统、跨数据库的数据一致性问题呢？答案就是咱们要讨论的主题，分布式事务。
+分布式事务也是事务，也需要遵从 ACID 四个特性，但实际情况是，在分布式系统中，因为必须兼顾性能和高可用，所以是不可能完全满足 ACID 的。我们常用的几种分布式事务的实现方法，都是“残血版”的事务，而且相比数据库事务，更加的“残血”。
+分布式事务的解决方案有很多，比如：2PC、3PC、TCC、Saga 和本地消息表等等。这些方法，它的强项和弱项都不一样，适用的场景也不一样，所以最好这些分布式事务你都能够掌握，这样才能在面临实际问题的时候选择合适的方法。这里面，2PC 和本地消息表这两种分布式事务的解决方案，比较贴近于我们日常开发的业务系统。
+事务消息 在快餐店点餐并付钱后，并不会直接给你餐点，往往是给你一张小票或序号，然后让你拿着凭证到出货区排队取。
+为什么要将付钱和取货两个动作分开呢? 一个很重要的原因是为了使他们接待能力增强。只要凭证能可靠保存，依靠凭证(消息)能完成最终一致性。
+分布式事务方法 强一致性 高并发 可用性 应用场景 2PC 优 差 差 订单系统完成，促销系统销毁优惠券 本地消息表 优 良 良 订单系统完成，购物车系统清空物品 事务收件箱 ( Transactional outbox ) 轮询发布 ( Polling publisher ) ( Transaction log tailing ) 两阶段提交 ( 2PC ) mysql的事务就是通过**「日志系统」**来完成两阶段提交的。由一个全局的事务管理器协调各个子系统的局部事务管理器完成两阶段提交。
+在我们购物下单时，如果使用了优惠券，订单系统和优惠券系统都要更新自己的数据，才能完成“在订单中使用优惠券”这个操作。
+订单系统内两个操作的一致性问题可以直接使用数据库事务来解决。促销系统需要操作就比较简单，把刚刚使用的那张优惠券的状态更新成“已使用”就可以了。我们需要这两个系统的数据更新操作保持一致，要么都更新成功，要么都更新失败。
+接下来我们来看 2PC 是怎么解决这个问题的。2PC 引入了一个事务协调者的角色，来协调订单系统和促销系统，协调者对客户端提供一个完整的“使用优惠券下单”的服务，在这个服务的内部，协调者再分别调用订单和促销的相应服务。
+二阶段指的是准备阶段和提交阶段。在准备阶段，协调者分别给订单系统和促销系统发送“准备”命令，订单和促销系统收到准备命令之后，开始执行准备操作。准备阶段都需要做哪些事儿呢？你可以理解为，除了提交数据库事务以外的所有工作，都要在准备阶段完成。比如说订单系统在准备阶段需要完成：
+在订单库开启一个数据库事务； 在“订单优惠券表”写入这条订单的优惠券记录； 在“订单表”中写入订单数据。 注意，到这里我们没有提交订单数据库的事务，最后给事务协调者返回“准备成功”。类似的，促销服务在准备阶段，需要在促销库开启一个数据库事务，更新优惠券状态，但是暂时不要提交这个数据库事务，给协调者返回“准备成功”。协调者在收到两个系统“准备成功”的响应之后，开始进入第二阶段。
+等两个系统都准备好了之后，进入提交阶段。提交阶段就比较简单了，协调者再给这两个系统发送“提交”命令，每个系统提交自己的数据库事务，然后给协调者返回“提交成功”响应，协调者收到所有响应之后，给客户端返回成功响应，整个分布式事务就结束了。
+这是正常情况，接下来才是重点：异常情况下怎么办？我们还是分两个阶段来说明。在准备阶段，如果任何一步出现错误或者是超时，协调者就会给两个系统发送“回滚事务”请求。每个系统在收到请求之后，回滚自己的数据库事务，分布式事务执行失败，两个系统的数据库事务都回滚了，相关的所有数据回滚到分布式事务执行之前的状态，就像这个分布式事务没有执行一样。以下是异常情况的时序图：
+在实现 2PC 的时候，没必要单独启动一个事务协调服务，这个协调服务的工作最好和订单服务或者优惠券服务放在同一个进程里面，这样做有两个好处：
+参与分布式事务的进程更少，故障点也就更少，稳定性更好； 减少了一些远程调用，性能也更好一些。 2PC 是一种强一致的设计，它可以保证原子性和隔离性。只要 2PC 事务完成，订单库和促销库中的数据一定是一致的状态。'>
+<title>分布式事务</title>
+
+<link rel='canonical' href='https://blog.golang.space/p/%E5%88%86%E5%B8%83%E5%BC%8F%E4%BA%8B%E5%8A%A1/'>
+
+<link rel="stylesheet" href="/scss/style.min.8191399262444ab68b72a18c97392f5349be20a1615d77445be51e974c144cff.css"><meta property='og:title' content='分布式事务'>
+<meta property='og:description' content='分布式事务 在一个系统内部，我们可以使用数据库事务来保证数据一致性。
+那如果一笔交易，涉及到跨多个系统、多个数据库的时候，用单一的数据库事务就没办法解决了。
+如何来解决这种跨系统、跨数据库的数据一致性问题呢？答案就是咱们要讨论的主题，分布式事务。
+分布式事务也是事务，也需要遵从 ACID 四个特性，但实际情况是，在分布式系统中，因为必须兼顾性能和高可用，所以是不可能完全满足 ACID 的。我们常用的几种分布式事务的实现方法，都是“残血版”的事务，而且相比数据库事务，更加的“残血”。
+分布式事务的解决方案有很多，比如：2PC、3PC、TCC、Saga 和本地消息表等等。这些方法，它的强项和弱项都不一样，适用的场景也不一样，所以最好这些分布式事务你都能够掌握，这样才能在面临实际问题的时候选择合适的方法。这里面，2PC 和本地消息表这两种分布式事务的解决方案，比较贴近于我们日常开发的业务系统。
+事务消息 在快餐店点餐并付钱后，并不会直接给你餐点，往往是给你一张小票或序号，然后让你拿着凭证到出货区排队取。
+为什么要将付钱和取货两个动作分开呢? 一个很重要的原因是为了使他们接待能力增强。只要凭证能可靠保存，依靠凭证(消息)能完成最终一致性。
+分布式事务方法 强一致性 高并发 可用性 应用场景 2PC 优 差 差 订单系统完成，促销系统销毁优惠券 本地消息表 优 良 良 订单系统完成，购物车系统清空物品 事务收件箱 ( Transactional outbox ) 轮询发布 ( Polling publisher ) ( Transaction log tailing ) 两阶段提交 ( 2PC ) mysql的事务就是通过**「日志系统」**来完成两阶段提交的。由一个全局的事务管理器协调各个子系统的局部事务管理器完成两阶段提交。
+在我们购物下单时，如果使用了优惠券，订单系统和优惠券系统都要更新自己的数据，才能完成“在订单中使用优惠券”这个操作。
+订单系统内两个操作的一致性问题可以直接使用数据库事务来解决。促销系统需要操作就比较简单，把刚刚使用的那张优惠券的状态更新成“已使用”就可以了。我们需要这两个系统的数据更新操作保持一致，要么都更新成功，要么都更新失败。
+接下来我们来看 2PC 是怎么解决这个问题的。2PC 引入了一个事务协调者的角色，来协调订单系统和促销系统，协调者对客户端提供一个完整的“使用优惠券下单”的服务，在这个服务的内部，协调者再分别调用订单和促销的相应服务。
+二阶段指的是准备阶段和提交阶段。在准备阶段，协调者分别给订单系统和促销系统发送“准备”命令，订单和促销系统收到准备命令之后，开始执行准备操作。准备阶段都需要做哪些事儿呢？你可以理解为，除了提交数据库事务以外的所有工作，都要在准备阶段完成。比如说订单系统在准备阶段需要完成：
+在订单库开启一个数据库事务； 在“订单优惠券表”写入这条订单的优惠券记录； 在“订单表”中写入订单数据。 注意，到这里我们没有提交订单数据库的事务，最后给事务协调者返回“准备成功”。类似的，促销服务在准备阶段，需要在促销库开启一个数据库事务，更新优惠券状态，但是暂时不要提交这个数据库事务，给协调者返回“准备成功”。协调者在收到两个系统“准备成功”的响应之后，开始进入第二阶段。
+等两个系统都准备好了之后，进入提交阶段。提交阶段就比较简单了，协调者再给这两个系统发送“提交”命令，每个系统提交自己的数据库事务，然后给协调者返回“提交成功”响应，协调者收到所有响应之后，给客户端返回成功响应，整个分布式事务就结束了。
+这是正常情况，接下来才是重点：异常情况下怎么办？我们还是分两个阶段来说明。在准备阶段，如果任何一步出现错误或者是超时，协调者就会给两个系统发送“回滚事务”请求。每个系统在收到请求之后，回滚自己的数据库事务，分布式事务执行失败，两个系统的数据库事务都回滚了，相关的所有数据回滚到分布式事务执行之前的状态，就像这个分布式事务没有执行一样。以下是异常情况的时序图：
+在实现 2PC 的时候，没必要单独启动一个事务协调服务，这个协调服务的工作最好和订单服务或者优惠券服务放在同一个进程里面，这样做有两个好处：
+参与分布式事务的进程更少，故障点也就更少，稳定性更好； 减少了一些远程调用，性能也更好一些。 2PC 是一种强一致的设计，它可以保证原子性和隔离性。只要 2PC 事务完成，订单库和促销库中的数据一定是一致的状态。'>
+<meta property='og:url' content='https://blog.golang.space/p/%E5%88%86%E5%B8%83%E5%BC%8F%E4%BA%8B%E5%8A%A1/'>
+<meta property='og:site_name' content='ixugo'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:published_time' content='2022-01-22T00:00:00&#43;00:00'/><meta property='article:modified_time' content='2022-01-22T00:00:00&#43;00:00'/>
+<meta name="twitter:title" content="分布式事务">
+<meta name="twitter:description" content="分布式事务 在一个系统内部，我们可以使用数据库事务来保证数据一致性。
+那如果一笔交易，涉及到跨多个系统、多个数据库的时候，用单一的数据库事务就没办法解决了。
+如何来解决这种跨系统、跨数据库的数据一致性问题呢？答案就是咱们要讨论的主题，分布式事务。
+分布式事务也是事务，也需要遵从 ACID 四个特性，但实际情况是，在分布式系统中，因为必须兼顾性能和高可用，所以是不可能完全满足 ACID 的。我们常用的几种分布式事务的实现方法，都是“残血版”的事务，而且相比数据库事务，更加的“残血”。
+分布式事务的解决方案有很多，比如：2PC、3PC、TCC、Saga 和本地消息表等等。这些方法，它的强项和弱项都不一样，适用的场景也不一样，所以最好这些分布式事务你都能够掌握，这样才能在面临实际问题的时候选择合适的方法。这里面，2PC 和本地消息表这两种分布式事务的解决方案，比较贴近于我们日常开发的业务系统。
+事务消息 在快餐店点餐并付钱后，并不会直接给你餐点，往往是给你一张小票或序号，然后让你拿着凭证到出货区排队取。
+为什么要将付钱和取货两个动作分开呢? 一个很重要的原因是为了使他们接待能力增强。只要凭证能可靠保存，依靠凭证(消息)能完成最终一致性。
+分布式事务方法 强一致性 高并发 可用性 应用场景 2PC 优 差 差 订单系统完成，促销系统销毁优惠券 本地消息表 优 良 良 订单系统完成，购物车系统清空物品 事务收件箱 ( Transactional outbox ) 轮询发布 ( Polling publisher ) ( Transaction log tailing ) 两阶段提交 ( 2PC ) mysql的事务就是通过**「日志系统」**来完成两阶段提交的。由一个全局的事务管理器协调各个子系统的局部事务管理器完成两阶段提交。
+在我们购物下单时，如果使用了优惠券，订单系统和优惠券系统都要更新自己的数据，才能完成“在订单中使用优惠券”这个操作。
+订单系统内两个操作的一致性问题可以直接使用数据库事务来解决。促销系统需要操作就比较简单，把刚刚使用的那张优惠券的状态更新成“已使用”就可以了。我们需要这两个系统的数据更新操作保持一致，要么都更新成功，要么都更新失败。
+接下来我们来看 2PC 是怎么解决这个问题的。2PC 引入了一个事务协调者的角色，来协调订单系统和促销系统，协调者对客户端提供一个完整的“使用优惠券下单”的服务，在这个服务的内部，协调者再分别调用订单和促销的相应服务。
+二阶段指的是准备阶段和提交阶段。在准备阶段，协调者分别给订单系统和促销系统发送“准备”命令，订单和促销系统收到准备命令之后，开始执行准备操作。准备阶段都需要做哪些事儿呢？你可以理解为，除了提交数据库事务以外的所有工作，都要在准备阶段完成。比如说订单系统在准备阶段需要完成：
+在订单库开启一个数据库事务； 在“订单优惠券表”写入这条订单的优惠券记录； 在“订单表”中写入订单数据。 注意，到这里我们没有提交订单数据库的事务，最后给事务协调者返回“准备成功”。类似的，促销服务在准备阶段，需要在促销库开启一个数据库事务，更新优惠券状态，但是暂时不要提交这个数据库事务，给协调者返回“准备成功”。协调者在收到两个系统“准备成功”的响应之后，开始进入第二阶段。
+等两个系统都准备好了之后，进入提交阶段。提交阶段就比较简单了，协调者再给这两个系统发送“提交”命令，每个系统提交自己的数据库事务，然后给协调者返回“提交成功”响应，协调者收到所有响应之后，给客户端返回成功响应，整个分布式事务就结束了。
+这是正常情况，接下来才是重点：异常情况下怎么办？我们还是分两个阶段来说明。在准备阶段，如果任何一步出现错误或者是超时，协调者就会给两个系统发送“回滚事务”请求。每个系统在收到请求之后，回滚自己的数据库事务，分布式事务执行失败，两个系统的数据库事务都回滚了，相关的所有数据回滚到分布式事务执行之前的状态，就像这个分布式事务没有执行一样。以下是异常情况的时序图：
+在实现 2PC 的时候，没必要单独启动一个事务协调服务，这个协调服务的工作最好和订单服务或者优惠券服务放在同一个进程里面，这样做有两个好处：
+参与分布式事务的进程更少，故障点也就更少，稳定性更好； 减少了一些远程调用，性能也更好一些。 2PC 是一种强一致的设计，它可以保证原子性和隔离性。只要 2PC 事务完成，订单库和促销库中的数据一定是一致的状态。">
+    <link rel="shortcut icon" href="img/favicon.ico" />
+
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+	(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+	m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+	})(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+	ga('create', 'UA-192125643-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="Toggle Menu">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu0b04ba6d7249c9f90c92db974439eb8c_208246_300x0_resize_box_3.png" width="300"
+                            height="321" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🧐</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">ixugo</a></h1>
+            <h2 class="site-description">走出舒适区</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/ixugo'
+                        target="_blank"
+                        title="GitHub"
+                        rel="me"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>Home</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/about/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>About</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>Archives</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>Search</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>Dark Mode</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">Table of contents</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#事务消息">事务消息</a></li>
+    <li><a href="#事务收件箱--transactional-outbox-">事务收件箱 ( Transactional outbox )</a></li>
+    <li><a href="#轮询发布--polling-publisher-">轮询发布 ( Polling publisher )</a></li>
+    <li><a href="#-transaction-log-tailing-">( Transaction log tailing )</a></li>
+    <li><a href="#两阶段提交--2pc-">两阶段提交 ( 2PC )</a>
+      <ol>
+        <li><a href="#本地消息表">本地消息表</a></li>
+      </ol>
+    </li>
+    <li><a href="#三阶段提交--3pc-">三阶段提交 ( 3PC )</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+            <main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+    <header class="article-category">
+        
+            <a href="/categories/%E5%90%8E%E7%AB%AF/" >
+                后端
+            </a>
+        
+    </header>
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/%E5%88%86%E5%B8%83%E5%BC%8F%E4%BA%8B%E5%8A%A1/">分布式事务</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    
+    
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Jan 22, 2022</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    1 minute read
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+
+</header>
+
+    <section class="article-content">
+    
+    
+    <h1 id="分布式事务">分布式事务</h1>
+<p>在一个系统内部，我们可以使用数据库事务来保证数据一致性。</p>
+<p>那如果一笔交易，涉及到跨多个系统、多个数据库的时候，用单一的数据库事务就没办法解决了。</p>
+<p>如何来解决这种跨系统、跨数据库的数据一致性问题呢？答案就是咱们要讨论的主题，分布式事务。</p>
+<p>分布式事务也是事务，也需要遵从 ACID 四个特性，但实际情况是，在分布式系统中，因为必须兼顾性能和高可用，所以是不可能完全满足 ACID 的。我们常用的几种分布式事务的实现方法，都是“残血版”的事务，而且相比数据库事务，更加的“残血”。</p>
+<p>分布式事务的解决方案有很多，比如：2PC、3PC、TCC、Saga 和本地消息表等等。这些方法，它的强项和弱项都不一样，适用的场景也不一样，所以最好这些分布式事务你都能够掌握，这样才能在面临实际问题的时候选择合适的方法。这里面，2PC 和本地消息表这两种分布式事务的解决方案，比较贴近于我们日常开发的业务系统。</p>
+<h2 id="事务消息">事务消息</h2>
+<p>在快餐店点餐并付钱后，并不会直接给你餐点，往往是给你一张小票或序号，然后让你拿着凭证到出货区排队取。</p>
+<p>为什么要将付钱和取货两个动作分开呢? 一个很重要的原因是为了使他们接待能力增强。只要凭证能可靠保存，依靠凭证(消息)能完成最终一致性。</p>
+<div class="table-wrapper"><table>
+<thead>
+<tr>
+<th>分布式事务方法</th>
+<th>强一致性</th>
+<th>高并发</th>
+<th>可用性</th>
+<th>应用场景</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2PC</td>
+<td>优</td>
+<td>差</td>
+<td>差</td>
+<td>订单系统完成，促销系统销毁优惠券</td>
+</tr>
+<tr>
+<td>本地消息表</td>
+<td>优</td>
+<td>良</td>
+<td>良</td>
+<td>订单系统完成，购物车系统清空物品</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="事务收件箱--transactional-outbox-">事务收件箱 ( Transactional outbox )</h2>
+<h2 id="轮询发布--polling-publisher-">轮询发布 ( Polling publisher )</h2>
+<h2 id="-transaction-log-tailing-">( Transaction log tailing )</h2>
+<h2 id="两阶段提交--2pc-">两阶段提交 ( 2PC )</h2>
+<p>mysql的事务就是通过**「日志系统」**来完成两阶段提交的。<strong>由一个全局的事务管理器协调各个子系统的局部事务管理器完成两阶段提交</strong>。</p>
+<p>在我们购物下单时，如果使用了优惠券，订单系统和优惠券系统都要更新自己的数据，才能完成“在订单中使用优惠券”这个操作。</p>
+<p>订单系统内两个操作的一致性问题可以直接使用数据库事务来解决。促销系统需要操作就比较简单，把刚刚使用的那张优惠券的状态更新成“已使用”就可以了。我们需要这两个系统的数据更新操作保持一致，要么都更新成功，要么都更新失败。</p>
+<p>接下来我们来看 2PC 是怎么解决这个问题的。2PC 引入了一个事务协调者的角色，来协调订单系统和促销系统，协调者对客户端提供一个完整的“使用优惠券下单”的服务，在这个服务的内部，协调者再分别调用订单和促销的相应服务。</p>
+<p>二阶段指的是准备阶段和提交阶段。在准备阶段，协调者分别给订单系统和促销系统发送“准备”命令，订单和促销系统收到准备命令之后，开始执行准备操作。准备阶段都需要做哪些事儿呢？你可以理解为，除了提交数据库事务以外的所有工作，都要在准备阶段完成。比如说订单系统在准备阶段需要完成：</p>
+<ol>
+<li>在订单库开启一个数据库事务；</li>
+<li>在“订单优惠券表”写入这条订单的优惠券记录；</li>
+<li>在“订单表”中写入订单数据。</li>
+</ol>
+<p>注意，到这里我们没有提交订单数据库的事务，最后给事务协调者返回“准备成功”。类似的，促销服务在准备阶段，需要在促销库开启一个数据库事务，更新优惠券状态，但是暂时不要提交这个数据库事务，给协调者返回“准备成功”。协调者在收到两个系统“准备成功”的响应之后，开始进入第二阶段。</p>
+<p>等两个系统都准备好了之后，进入提交阶段。提交阶段就比较简单了，协调者再给这两个系统发送“提交”命令，每个系统提交自己的数据库事务，然后给协调者返回“提交成功”响应，协调者收到所有响应之后，给客户端返回成功响应，整个分布式事务就结束了。</p>
+<p><img src="http://img.golang.space/shot-1651755392102.jpg"
+	
+	
+	
+	loading="lazy"
+	
+		alt="img"
+	
+	
+></p>
+<p>这是正常情况，接下来才是重点：异常情况下怎么办？我们还是分两个阶段来说明。在准备阶段，如果任何一步出现错误或者是超时，协调者就会给两个系统发送“回滚事务”请求。每个系统在收到请求之后，回滚自己的数据库事务，分布式事务执行失败，两个系统的数据库事务都回滚了，相关的所有数据回滚到分布式事务执行之前的状态，就像这个分布式事务没有执行一样。以下是异常情况的时序图：</p>
+<p><img src="http://img.golang.space/shot-1651755434095.jpg"
+	
+	
+	
+	loading="lazy"
+	
+		alt="img"
+	
+	
+></p>
+<p>在实现 2PC 的时候，没必要单独启动一个事务协调服务，这个协调服务的工作最好和订单服务或者优惠券服务放在同一个进程里面，这样做有两个好处：</p>
+<ul>
+<li>参与分布式事务的进程更少，故障点也就更少，稳定性更好；</li>
+<li>减少了一些远程调用，性能也更好一些。</li>
+</ul>
+<p>2PC 是一种强一致的设计，它可以保证原子性和隔离性。只要 2PC 事务完成，订单库和促销库中的数据一定是一致的状态。</p>
+<p>所以 2PC 比较适合那些对数据一致性要求比较高的场景，比如我们这个订单优惠券的场景，如果一致性保证不好，有可能会被黑产利用，一张优惠券反复使用，那样我们的损失就大了。</p>
+<p>2PC 也有很明显的缺陷，整个事务的执行过程需要阻塞服务端的线程和数据库的会话，所以，2PC 在并发场景下的性能不会很高。</p>
+<p>可能出现的问题:</p>
+<ul>
+<li><strong>单点故障</strong>，一旦事务管理器出现故障，整个系统不可用</li>
+<li><strong>数据不一致</strong>，阶段二如果事务管理器只发送</li>
+<li><strong>响应时间较长</strong>，消息链路串行，要等待响应结果，不适合高并发场景</li>
+<li><strong>不确定性</strong>，当事务管理器发送 commit 之后，并且此时只有一个参与者收到了 commit，那么当该参与者与事务管理器同时宕机之后，重新选举的事务管理器无法确定该条消息是否提交成功。</li>
+</ul>
+<h3 id="本地消息表">本地消息表</h3>
+<p>2PC 它的适用场景其实是很窄的，更多的情况下，只要保证数据最终一致就可以了。比如说，在购物流程中，用户在购物车界面选好商品后，点击“去结算”按钮进入订单页面创建一个新订单。这个过程我们的系统其实做了两件事儿。</p>
+<ul>
+<li>第一，订单系统需要创建一个新订单，订单关联的商品就是购物车中选择的那些商品。</li>
+<li>第二，创建订单成功后，购物车系统需要把订单中的这些商品从购物车里删掉。</li>
+</ul>
+<p>这也是一个分布式事务问题，创建订单和清空购物车这两个数据更新操作需要保证，要么都成功，要么都失败。但是，清空购物车这个操作，它对一致性要求就没有扣减优惠券那么高，订单创建成功后，晚几秒钟再清空购物车，完全是可以接受的。只要保证经过一个小的延迟时间后，最终订单数据和购物车数据保持一致就可以了。</p>
+<p>本地消息表的实现思路是这样的，订单服务在收到下单请求后，正常使用订单库的事务去更新订单的数据，并且，在执行这个数据库事务过程中，在本地记录一条消息。这个消息就是一个日志，内容就是“清空购物车”这个操作。因为这个日志是记录在本地的，这里面没有分布式的问题，那这就是一个普通的单机事务，那我们就可以让订单库的事务，来保证记录本地消息和订单库的一致性。完成这一步之后，就可以给客户端返回成功响应了。</p>
+<p>然后，我们再用一个异步的服务，去读取刚刚记录的清空购物车的本地消息，调用购物车系统的服务清空购物车。购物车清空之后，把本地消息的状态更新成已完成就可以了。异步清空购物车这个过程中，如果操作失败了，可以通过重试来解决。最终，可以保证订单系统和购物车系统它们的数据是一致的。</p>
+<p>消息队列 RocketMQ 提供一种事务消息的功能，其实就是本地消息表思想的一个实现。使用事务消息可以达到和本地消息表一样的最终一致性，相比我们自己来实现本地消息表，使用起来更加简单，你也可以考虑使用。</p>
+<p>如果看事务的 ACID 四个特性，本地消息表这种方法，它只能满足 D（持久性），A（原子性）C（一致性）、I（隔离性）都比较差，但是，它的优点非常突出。</p>
+<p>首先，实现简单，在单机事务的基础上稍加改造就可以实现分布式事务，另外，本地消息表的性能非常好，和单机事务的性能几乎没有差别。在这个基础上，还提供了大部分情况下都能接受的“数据最终一致性”的保证，所以，本地消息表是更加实用的分布式事务实现方法。</p>
+<p>当然，即使能接受数据最终一致，本地消息表也不是什么场景都可以适用的。它有一个前提条件就是，异步执行的那部分操作，不能有依赖的资源。比如说，我们下单的时候，除了要清空购物车以外，还需要锁定库存。</p>
+<h2 id="三阶段提交--3pc-">三阶段提交 ( 3PC )</h2>
+<p>相对于2PC来说增加了CanCommit阶段和超时机制。如果段时间内没有收到协调者的commit请求，那么就会自动进行commit，解决了2PC单点故障的问题。</p>
+<p>但是性能问题和不一致问题仍然没有根本解决。下面我们还是一起看下三阶段流程的是什么样的？</p>
+<ol>
+<li>第一阶段，协调者询问事务参与者，你是否有能力完成此次事务。
+<ol>
+<li>都返回 yes，进入第二阶段</li>
+<li>有一个返回 no 或 等待响应超时，则中断事务，并向参与者发送 abort 请求</li>
+</ol>
+</li>
+<li>第二阶段，协调者会向所有的参与者发送PreCommit请求，参与者收到后开始执行事务操作，并将Undo和Redo信息记录到事务日志中。参与者执行完事务操作后（此时属于未提交事务的状态），就会向协调者反馈“Ack”表示我已经准备好提交了，并等待协调者的下一步指令。</li>
+<li>第三阶段，在阶段二中如果所有的参与者节点都可以进行PreCommit提交，那么协调者就会从“预提交状态”转变为“提交状态”。然后向所有的参与者节点发送&quot;doCommit&quot;请求，参与者节点在收到提交请求后就会各自执行事务提交操作，并向协调者节点反馈“Ack”消息，协调者收到所有参与者的Ack消息后完成事务。相反，如果有一个参与者节点未完成PreCommit的反馈或者反馈超时，那么协调者都会向所有的参与者节点发送abort请求，从而中断事务。</li>
+</ol>
+
+</section>
+
+
+    <footer class="article-footer">
+    
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">Related content</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/%E4%BF%9D%E8%AF%81%E6%8E%A5%E5%8F%A3%E6%95%B0%E6%8D%AE%E5%AE%89%E5%85%A8%E7%9A%84%E6%96%B9%E6%A1%88/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">保证接口数据安全的方案</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script src="https://utteranc.es/client.js" 
+        repo="ixugo/ixugo.github.io"
+        issue-term="pathname"
+        
+        crossorigin="anonymous"
+        async
+        >
+</script>
+
+<style>
+    .utterances {
+        max-width: unset;
+    }
+</style>
+
+<script>
+    function setUtterancesTheme(theme) {
+        let utterances = document.querySelector('.utterances iframe');
+        if (utterances) {
+            utterances.contentWindow.postMessage(
+                {
+                    type: 'set-theme',
+                    theme: `github-${theme}`
+                },
+                'https://utteranc.es'
+            );
+        }
+    }
+
+    addEventListener('message', event => {
+        if (event.origin !== 'https://utteranc.es') return;
+        setUtterancesTheme(document.documentElement.dataset.scheme)
+    });
+
+    window.addEventListener('onColorSchemeChange', (e) => {
+        setUtterancesTheme(e.detail)
+    })
+</script>
+
+
+    
+
+    <footer class="site-footer">
+  <section class="copyright">
+    &copy;
+    
+    2018 -
+    
+    2023 ixugo
+  </section>
+  <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+  <section class="powerby">
+
+    
+    <span id="busuanzi_container_page_pv">本文阅读量
+      <span style="font-size: 14px" id="busuanzi_value_page_pv"></span>
+      次，</span>
+    <span id="busuanzi_container_site_pv">总访问量
+      <span style="font-size: 14px" id="busuanzi_value_site_pv"></span>
+      次 </span>，总访客数
+    <span style="font-size: 14px" id="busuanzi_value_site_uv"></span> 人
+    <br />
+
+
+    Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> .&nbsp;&nbsp;
+    Theme <a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener"
+      data-version="3.16.0">Stack</a> designed by <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a>
+  </section>
+
+
+
+
+  <script>
+    function count() {
+      let href = window.location.href;
+      let regexp = /^https?:\/\/blog.golang.space\/?(page\/[\d]+\/?)?$/;
+      if (regexp.test(href)) {
+        let e = document.getElementById("busuanzi_container_page_pv");
+        e.innerText = "";
+      }
+    }
+    window.onload = count;
+  </script>
+</footer>
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='保证接口数据安全的方案 数据加密，防止明文传输 不需要解密，只需要验证是否相同的
+比如登录时的密码，可以在前端编码成 MD5 传输。MD5具有不可逆的性质，非常适合用来存储这些。
+为了防止数据库泄露暴露 MD5 密码，或者希望更安全，可以对 MD5 加盐。
+比如 MD5( password &#43; salt )，salt 可以是每个用户唯一的，防止如果某个用户的密码被穷举破解出来了，不能使用现有的成果来类推其它用户的密码。
+需要解密，使用原来的参数
+使用 AES 对称加密算法，这个需要服务端和客户端都存储秘钥，如果不用暴露客户端，这种方案很合适。
+使用 RSA 非对称加密，会生成私钥和公钥。
+数据加签验签 加签
+它可以保证数据在传输过程中不被篡改。
+使用 MD5/ShA-256 对原始请求报文生成摘要，使用私钥对摘要加密，就得到了报文对应的数字签名。
+将 报文原文和签名 一起发到接收方。
+验签
+接收方对原始数据以相同方法处理，得到摘要，使用对方提供的公钥对数字签名解密，判断两个摘要是否相同。就可以得知报文有没有被篡改过。
+token 授权认证 非登录接口如何识别用户的身份?
+可以在用户名密码登录接口中返回唯一 token。请求其它需要权限的接口必须带上此 token，服务端解析 token 验证身份，并检查 token 是否 过期。
+此方式也可用于唯一设备登录，每个用户最后一次登录生成的 token 记录到 redis 缓存中，每次登陆都会覆盖掉旧的。接口请求时，服务端验证其 token 是否与服务端的一致，如果不一致，就提示用户重新登录。
+另外关于身份验证错误的状态码参考网址
+token 不存在或解析失败，token 过期等返回 401 错误
+token 验证通过，但对资源没有访问的权限，返回 403 错误
+时间戳 timestamp 超时 有些攻击者，不关心真实的数据，而是抓包后进行恶意请求，如 DOS 攻击。'>
+<title>保证接口数据安全的方案</title>
+
+<link rel='canonical' href='https://blog.golang.space/p/%E4%BF%9D%E8%AF%81%E6%8E%A5%E5%8F%A3%E6%95%B0%E6%8D%AE%E5%AE%89%E5%85%A8%E7%9A%84%E6%96%B9%E6%A1%88/'>
+
+<link rel="stylesheet" href="/scss/style.min.8191399262444ab68b72a18c97392f5349be20a1615d77445be51e974c144cff.css"><meta property='og:title' content='保证接口数据安全的方案'>
+<meta property='og:description' content='保证接口数据安全的方案 数据加密，防止明文传输 不需要解密，只需要验证是否相同的
+比如登录时的密码，可以在前端编码成 MD5 传输。MD5具有不可逆的性质，非常适合用来存储这些。
+为了防止数据库泄露暴露 MD5 密码，或者希望更安全，可以对 MD5 加盐。
+比如 MD5( password &#43; salt )，salt 可以是每个用户唯一的，防止如果某个用户的密码被穷举破解出来了，不能使用现有的成果来类推其它用户的密码。
+需要解密，使用原来的参数
+使用 AES 对称加密算法，这个需要服务端和客户端都存储秘钥，如果不用暴露客户端，这种方案很合适。
+使用 RSA 非对称加密，会生成私钥和公钥。
+数据加签验签 加签
+它可以保证数据在传输过程中不被篡改。
+使用 MD5/ShA-256 对原始请求报文生成摘要，使用私钥对摘要加密，就得到了报文对应的数字签名。
+将 报文原文和签名 一起发到接收方。
+验签
+接收方对原始数据以相同方法处理，得到摘要，使用对方提供的公钥对数字签名解密，判断两个摘要是否相同。就可以得知报文有没有被篡改过。
+token 授权认证 非登录接口如何识别用户的身份?
+可以在用户名密码登录接口中返回唯一 token。请求其它需要权限的接口必须带上此 token，服务端解析 token 验证身份，并检查 token 是否 过期。
+此方式也可用于唯一设备登录，每个用户最后一次登录生成的 token 记录到 redis 缓存中，每次登陆都会覆盖掉旧的。接口请求时，服务端验证其 token 是否与服务端的一致，如果不一致，就提示用户重新登录。
+另外关于身份验证错误的状态码参考网址
+token 不存在或解析失败，token 过期等返回 401 错误
+token 验证通过，但对资源没有访问的权限，返回 403 错误
+时间戳 timestamp 超时 有些攻击者，不关心真实的数据，而是抓包后进行恶意请求，如 DOS 攻击。'>
+<meta property='og:url' content='https://blog.golang.space/p/%E4%BF%9D%E8%AF%81%E6%8E%A5%E5%8F%A3%E6%95%B0%E6%8D%AE%E5%AE%89%E5%85%A8%E7%9A%84%E6%96%B9%E6%A1%88/'>
+<meta property='og:site_name' content='ixugo'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:published_time' content='2021-10-22T00:00:00&#43;00:00'/><meta property='article:modified_time' content='2021-10-22T00:00:00&#43;00:00'/>
+<meta name="twitter:title" content="保证接口数据安全的方案">
+<meta name="twitter:description" content="保证接口数据安全的方案 数据加密，防止明文传输 不需要解密，只需要验证是否相同的
+比如登录时的密码，可以在前端编码成 MD5 传输。MD5具有不可逆的性质，非常适合用来存储这些。
+为了防止数据库泄露暴露 MD5 密码，或者希望更安全，可以对 MD5 加盐。
+比如 MD5( password &#43; salt )，salt 可以是每个用户唯一的，防止如果某个用户的密码被穷举破解出来了，不能使用现有的成果来类推其它用户的密码。
+需要解密，使用原来的参数
+使用 AES 对称加密算法，这个需要服务端和客户端都存储秘钥，如果不用暴露客户端，这种方案很合适。
+使用 RSA 非对称加密，会生成私钥和公钥。
+数据加签验签 加签
+它可以保证数据在传输过程中不被篡改。
+使用 MD5/ShA-256 对原始请求报文生成摘要，使用私钥对摘要加密，就得到了报文对应的数字签名。
+将 报文原文和签名 一起发到接收方。
+验签
+接收方对原始数据以相同方法处理，得到摘要，使用对方提供的公钥对数字签名解密，判断两个摘要是否相同。就可以得知报文有没有被篡改过。
+token 授权认证 非登录接口如何识别用户的身份?
+可以在用户名密码登录接口中返回唯一 token。请求其它需要权限的接口必须带上此 token，服务端解析 token 验证身份，并检查 token 是否 过期。
+此方式也可用于唯一设备登录，每个用户最后一次登录生成的 token 记录到 redis 缓存中，每次登陆都会覆盖掉旧的。接口请求时，服务端验证其 token 是否与服务端的一致，如果不一致，就提示用户重新登录。
+另外关于身份验证错误的状态码参考网址
+token 不存在或解析失败，token 过期等返回 401 错误
+token 验证通过，但对资源没有访问的权限，返回 403 错误
+时间戳 timestamp 超时 有些攻击者，不关心真实的数据，而是抓包后进行恶意请求，如 DOS 攻击。">
+    <link rel="shortcut icon" href="img/favicon.ico" />
+
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+	(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+	m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+	})(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+	ga('create', 'UA-192125643-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="Toggle Menu">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu0b04ba6d7249c9f90c92db974439eb8c_208246_300x0_resize_box_3.png" width="300"
+                            height="321" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🧐</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">ixugo</a></h1>
+            <h2 class="site-description">走出舒适区</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/ixugo'
+                        target="_blank"
+                        title="GitHub"
+                        rel="me"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>Home</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/about/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>About</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>Archives</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>Search</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>Dark Mode</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">Table of contents</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#数据加密防止明文传输">数据加密，防止明文传输</a></li>
+    <li><a href="#数据加签验签">数据加签验签</a></li>
+    <li><a href="#token-授权认证">token 授权认证</a></li>
+    <li><a href="#时间戳-timestamp-超时">时间戳 timestamp 超时</a></li>
+    <li><a href="#timestampnonce-防止重放攻击">timestamp+nonce 防止重放攻击</a></li>
+    <li><a href="#限流">限流</a></li>
+    <li><a href="#黑名单">黑名单</a></li>
+    <li><a href="#白名单">白名单</a></li>
+    <li><a href="#参数合法性效验">参数合法性效验</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+            <main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+    <header class="article-category">
+        
+            <a href="/categories/%E5%90%8E%E7%AB%AF/" >
+                后端
+            </a>
+        
+    </header>
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/%E4%BF%9D%E8%AF%81%E6%8E%A5%E5%8F%A3%E6%95%B0%E6%8D%AE%E5%AE%89%E5%85%A8%E7%9A%84%E6%96%B9%E6%A1%88/">保证接口数据安全的方案</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    
+    
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Oct 22, 2021</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    1 minute read
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+
+</header>
+
+    <section class="article-content">
+    
+    
+    <h1 id="保证接口数据安全的方案">保证接口数据安全的方案</h1>
+<h2 id="数据加密防止明文传输">数据加密，防止明文传输</h2>
+<p><strong>不需要解密，只需要验证是否相同的</strong></p>
+<p>比如登录时的密码，可以在前端编码成 MD5 传输。MD5具有不可逆的性质，非常适合用来存储这些。</p>
+<p>为了防止数据库泄露暴露 MD5 密码，或者希望更安全，可以对 MD5 加盐。</p>
+<p>比如   MD5( password + salt )，salt 可以是每个用户唯一的，防止如果某个用户的密码被穷举破解出来了，不能使用现有的成果来类推其它用户的密码。</p>
+<p><strong>需要解密，使用原来的参数</strong></p>
+<p>使用 AES 对称加密算法，这个需要服务端和客户端都存储秘钥，如果不用暴露客户端，这种方案很合适。</p>
+<p>使用 RSA 非对称加密，会生成私钥和公钥。</p>
+<h2 id="数据加签验签">数据加签验签</h2>
+<p><strong>加签</strong></p>
+<p>它可以保证数据在传输过程中不被篡改。</p>
+<p>使用 MD5/ShA-256 对原始请求报文生成摘要，使用私钥对摘要加密，就得到了报文对应的数字签名。</p>
+<p>将 报文原文和签名 一起发到接收方。</p>
+<p><strong>验签</strong></p>
+<p>接收方对原始数据以相同方法处理，得到摘要，使用对方提供的公钥对数字签名解密，判断两个摘要是否相同。就可以得知报文有没有被篡改过。</p>
+<h2 id="token-授权认证">token 授权认证</h2>
+<p>非登录接口如何识别用户的身份?</p>
+<p>可以在用户名密码登录接口中返回唯一 token。请求其它需要权限的接口必须带上此 token，服务端解析 token 验证身份，并检查 token 是否 过期。</p>
+<p>此方式也可用于唯一设备登录，每个用户最后一次登录生成的 token 记录到 redis 缓存中，每次登陆都会覆盖掉旧的。接口请求时，服务端验证其 token 是否与服务端的一致，如果不一致，就提示用户重新登录。</p>
+<p>另外关于身份验证错误的状态码<a class="link" href="https://developer.mozilla.org/zh-CN/docs/Web/HTTP/Status"  target="_blank" rel="noopener"
+    >参考网址</a></p>
+<p>token 不存在或解析失败，token 过期等返回 401 错误</p>
+<p>token 验证通过，但对资源没有访问的权限，返回 403 错误</p>
+<h2 id="时间戳-timestamp-超时">时间戳 timestamp 超时</h2>
+<p>有些攻击者，不关心真实的数据，而是抓包后进行恶意请求，如 DOS 攻击。</p>
+<p>可以引入时间戳 ，来保证接口安全，客户端每次请求都带上当前时间，求服务端时间与请求时间的时间差，大于一定时间如 2 分钟，则认为请求无效。</p>
+<p>只加时间，很容易破解，无非每次请求时更新一下时间，可以在时间戳的基础上，与「数据加签验签」结合。</p>
+<h2 id="timestampnonce-防止重放攻击">timestamp+nonce 防止重放攻击</h2>
+<p>nonce 指唯一的随机字符串，在客户端维护一个随机字符串 set，每次请求使用 timestamp+nonce，nonce 不能重复。</p>
+<p>服务端也维护一个相同的 set，如果发现重复的 nonce 就是重复请求。 因为有 timestamp 仅接收 2分钟内的请求，所以服务端和客户端可以都只维护 2分钟内的 nonce ，以节省内存。</p>
+<h2 id="限流">限流</h2>
+<p>可以从以下方面考虑</p>
+<ul>
+<li>每分钟可以接收多少次请求</li>
+<li>服务端最大能同时处理多少请求</li>
+<li>每个 IP， 1 分钟内最多请求次数</li>
+</ul>
+<h2 id="黑名单">黑名单</h2>
+<p>对于黑名单的 IP，返回错误码</p>
+<p>建议黑名单加上时间限制，对于明知是恶意的攻击，多长时间都可以</p>
+<p>对于不确定，模棱两可，或只是小小的警告惩罚，可以设定有限的时间。</p>
+<h2 id="白名单">白名单</h2>
+<p>仅允许白名单内的 IP 访问</p>
+<h2 id="参数合法性效验">参数合法性效验</h2>
+<p>如手机号和身份证检测长度等是否合法。</p>
+<p>枚举参数是否合法。</p>
+
+</section>
+
+
+    <footer class="article-footer">
+    
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">Related content</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/%E5%88%86%E5%B8%83%E5%BC%8F%E4%BA%8B%E5%8A%A1/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">分布式事务</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script src="https://utteranc.es/client.js" 
+        repo="ixugo/ixugo.github.io"
+        issue-term="pathname"
+        
+        crossorigin="anonymous"
+        async
+        >
+</script>
+
+<style>
+    .utterances {
+        max-width: unset;
+    }
+</style>
+
+<script>
+    function setUtterancesTheme(theme) {
+        let utterances = document.querySelector('.utterances iframe');
+        if (utterances) {
+            utterances.contentWindow.postMessage(
+                {
+                    type: 'set-theme',
+                    theme: `github-${theme}`
+                },
+                'https://utteranc.es'
+            );
+        }
+    }
+
+    addEventListener('message', event => {
+        if (event.origin !== 'https://utteranc.es') return;
+        setUtterancesTheme(document.documentElement.dataset.scheme)
+    });
+
+    window.addEventListener('onColorSchemeChange', (e) => {
+        setUtterancesTheme(e.detail)
+    })
+</script>
+
+
+    
+
+    <footer class="site-footer">
+  <section class="copyright">
+    &copy;
+    
+    2018 -
+    
+    2023 ixugo
+  </section>
+  <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+  <section class="powerby">
+
+    
+    <span id="busuanzi_container_page_pv">本文阅读量
+      <span style="font-size: 14px" id="busuanzi_value_page_pv"></span>
+      次，</span>
+    <span id="busuanzi_container_site_pv">总访问量
+      <span style="font-size: 14px" id="busuanzi_value_site_pv"></span>
+      次 </span>，总访客数
+    <span style="font-size: 14px" id="busuanzi_value_site_uv"></span> 人
+    <br />
+
+
+    Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> .&nbsp;&nbsp;
+    Theme <a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener"
+      data-version="3.16.0">Stack</a> designed by <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a>
+  </section>
+
+
+
+
+  <script>
+    function count() {
+      let href = window.location.href;
+      let regexp = /^https?:\/\/blog.golang.space\/?(page\/[\d]+\/?)?$/;
+      if (regexp.test(href)) {
+        let e = document.getElementById("busuanzi_container_page_pv");
+        e.innerText = "";
+      }
+    }
+    window.onload = count;
+  </script>
+</footer>
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='FFmpeg 基础知识 ffmpeg 处理流程 从一种编码转换到另一种编码。
+基本信息查询命令 命令 说明 命令 说明 -version 版本 -formats 显示可用的格式 -demuxers 显示可用的 demuxers -protocols 显示可用的协议 -muxers 显示可用的 muxers -filters 显示可用的过滤器 -devices 显示可用的设备 -pix_fmts 显示可用的像素格式 -decoders 显示可用的解码器 -layouts 显示 channel 名称 -encoders 显示所有编码器 -colors 显示识别的颜色名称 -bsfs 显示比特率 filter D 表示解码器 E 表示编码器 录制命令 使用 ffmpeg 录制屏幕
+1 ffmpeg -f avfoundation -r 30 -i 2 out.yuv -f: 指定使用 avfoundation 采集数据，mac 下专用于音视频处理 -i: 指定从哪儿采集输入，是一个文件索引号 -r: 指定帧率 使用 ffplay 播放视频'>
+<title>FFmpeg 基础知识</title>
+
+<link rel='canonical' href='https://blog.golang.space/p/ffmpeg-%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86/'>
+
+<link rel="stylesheet" href="/scss/style.min.8191399262444ab68b72a18c97392f5349be20a1615d77445be51e974c144cff.css"><meta property='og:title' content='FFmpeg 基础知识'>
+<meta property='og:description' content='FFmpeg 基础知识 ffmpeg 处理流程 从一种编码转换到另一种编码。
+基本信息查询命令 命令 说明 命令 说明 -version 版本 -formats 显示可用的格式 -demuxers 显示可用的 demuxers -protocols 显示可用的协议 -muxers 显示可用的 muxers -filters 显示可用的过滤器 -devices 显示可用的设备 -pix_fmts 显示可用的像素格式 -decoders 显示可用的解码器 -layouts 显示 channel 名称 -encoders 显示所有编码器 -colors 显示识别的颜色名称 -bsfs 显示比特率 filter D 表示解码器 E 表示编码器 录制命令 使用 ffmpeg 录制屏幕
+1 ffmpeg -f avfoundation -r 30 -i 2 out.yuv -f: 指定使用 avfoundation 采集数据，mac 下专用于音视频处理 -i: 指定从哪儿采集输入，是一个文件索引号 -r: 指定帧率 使用 ffplay 播放视频'>
+<meta property='og:url' content='https://blog.golang.space/p/ffmpeg-%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86/'>
+<meta property='og:site_name' content='ixugo'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='FFmpeg' /><meta property='article:published_time' content='2022-11-25T00:00:00&#43;00:00'/><meta property='article:modified_time' content='2022-11-25T00:00:00&#43;00:00'/>
+<meta name="twitter:title" content="FFmpeg 基础知识">
+<meta name="twitter:description" content="FFmpeg 基础知识 ffmpeg 处理流程 从一种编码转换到另一种编码。
+基本信息查询命令 命令 说明 命令 说明 -version 版本 -formats 显示可用的格式 -demuxers 显示可用的 demuxers -protocols 显示可用的协议 -muxers 显示可用的 muxers -filters 显示可用的过滤器 -devices 显示可用的设备 -pix_fmts 显示可用的像素格式 -decoders 显示可用的解码器 -layouts 显示 channel 名称 -encoders 显示所有编码器 -colors 显示识别的颜色名称 -bsfs 显示比特率 filter D 表示解码器 E 表示编码器 录制命令 使用 ffmpeg 录制屏幕
+1 ffmpeg -f avfoundation -r 30 -i 2 out.yuv -f: 指定使用 avfoundation 采集数据，mac 下专用于音视频处理 -i: 指定从哪儿采集输入，是一个文件索引号 -r: 指定帧率 使用 ffplay 播放视频">
+    <link rel="shortcut icon" href="img/favicon.ico" />
+
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+	(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+	m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+	})(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+	ga('create', 'UA-192125643-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="Toggle Menu">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu0b04ba6d7249c9f90c92db974439eb8c_208246_300x0_resize_box_3.png" width="300"
+                            height="321" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🧐</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">ixugo</a></h1>
+            <h2 class="site-description">走出舒适区</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/ixugo'
+                        target="_blank"
+                        title="GitHub"
+                        rel="me"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>Home</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/about/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>About</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>Archives</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>Search</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>Dark Mode</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">Table of contents</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#ffmpeg-处理流程">ffmpeg 处理流程</a></li>
+    <li><a href="#基本信息查询命令">基本信息查询命令</a></li>
+    <li><a href="#录制命令">录制命令</a></li>
+    <li><a href="#分解复用命令">分解/复用命令</a></li>
+    <li><a href="#处理原始数据命令">处理原始数据命令</a></li>
+    <li><a href="#裁剪与合并命令">裁剪与合并命令</a></li>
+    <li><a href="#图片视频互转命令">图片/视频互转命令</a></li>
+    <li><a href="#直播推拉流">直播推/拉流</a></li>
+    <li><a href="#滤镜命令">滤镜命令</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+            <main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+    <header class="article-category">
+        
+            <a href="/categories/%E9%9F%B3%E8%A7%86%E9%A2%91/" >
+                音视频
+            </a>
+        
+    </header>
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/ffmpeg-%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86/">FFmpeg 基础知识</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    
+    
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Nov 25, 2022</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    2 minute read
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+
+</header>
+
+    <section class="article-content">
+    
+    
+    <h1 id="ffmpeg-基础知识">FFmpeg 基础知识</h1>
+<h2 id="ffmpeg-处理流程">ffmpeg 处理流程</h2>
+<p>从一种编码转换到另一种编码。</p>
+<p><img src="http://img.golang.space/img-1668348511785.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20221113220831698"
+	
+	
+></p>
+<p><img src="http://img.golang.space/img-1668348733039.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20221113221212952"
+	
+	
+></p>
+<h2 id="基本信息查询命令">基本信息查询命令</h2>
+<div class="table-wrapper"><table>
+<thead>
+<tr>
+<th>命令</th>
+<th>说明</th>
+<th>命令</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>-version</td>
+<td>版本</td>
+<td>-formats</td>
+<td>显示可用的格式</td>
+</tr>
+<tr>
+<td>-demuxers</td>
+<td>显示可用的 demuxers</td>
+<td>-protocols</td>
+<td>显示可用的协议</td>
+</tr>
+<tr>
+<td>-muxers</td>
+<td>显示可用的 muxers</td>
+<td>-filters</td>
+<td>显示可用的过滤器</td>
+</tr>
+<tr>
+<td>-devices</td>
+<td>显示可用的设备</td>
+<td>-pix_fmts</td>
+<td>显示可用的像素格式</td>
+</tr>
+<tr>
+<td>-decoders</td>
+<td>显示可用的解码器</td>
+<td>-layouts</td>
+<td>显示 channel 名称</td>
+</tr>
+<tr>
+<td>-encoders</td>
+<td>显示所有编码器</td>
+<td>-colors</td>
+<td>显示识别的颜色名称</td>
+</tr>
+<tr>
+<td>-bsfs</td>
+<td>显示比特率 filter</td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table></div>
+<p><img src="http://img.golang.space/img-1669279990311.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20221124165310226"
+	
+	
+></p>
+<ul>
+<li><code>D</code> 表示解码器</li>
+<li><code>E</code> 表示编码器</li>
+</ul>
+<h2 id="录制命令">录制命令</h2>
+<p><strong>使用 ffmpeg 录制屏幕</strong></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">ffmpeg -f avfoundation -r <span class="m">30</span> -i <span class="m">2</span> out.yuv
+</span></span></code></pre></td></tr></table>
+</div>
+</div><ul>
+<li><code>-f</code>: 指定使用 avfoundation 采集数据，mac 下专用于音视频处理</li>
+<li><code>-i</code>: 指定从哪儿采集输入，是一个文件索引号</li>
+<li><code>-r</code>: 指定帧率</li>
+</ul>
+<p><strong>使用 ffplay 播放视频</strong></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">ffplay -video_size 2560x1440 -pixel_format uyvy422 out.yuv
+</span></span></code></pre></td></tr></table>
+</div>
+</div><ul>
+<li><code>-video_size</code>: yuv 中不包含视频大小，需要指定尺寸，在上面录制时就已给定。</li>
+<li><code>-pixel_format</code>: 播放帧格式与录制的格式必须相同，才能真确播放</li>
+</ul>
+<p><strong>上面提到 -i 指定采集输入，如何查看索引号呢?</strong></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">ffmpeg -f avfoundation -list_devices <span class="nb">true</span> -i <span class="s2">&#34;&#34;</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><strong>使用 ffmpeg 录制音频</strong></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">ffmpeg -f avfoundation -i :2 out.wav
+</span></span><span class="line"><span class="cl"><span class="c1"># 播放音频</span>
+</span></span><span class="line"><span class="cl">ffplay out.wav
+</span></span></code></pre></td></tr></table>
+</div>
+</div><ul>
+<li>注意这次序号前面加了<code>:</code>，冒号前面表示视频设备，冒号后面表示音频设备。</li>
+</ul>
+<h2 id="分解复用命令">分解/复用命令</h2>
+<p><img src="http://img.golang.space/img-1669282429474.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20221124173349335"
+	
+	
+></p>
+<p><strong>将 mp4 转成 flv</strong></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">ffmpeg -i out.mp4 -vcodec copy -acodec copy out.flv
+</span></span></code></pre></td></tr></table>
+</div>
+</div><ul>
+<li><code>-vcodec</code>: 视频编码处理方式，copy 表示使用原始格式q</li>
+<li><code>-acodec</code>: 音频编码处理方式</li>
+</ul>
+<p><strong>抽取视频</strong></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">ffmpeg -i video.MP4 -an -vcodec copy out.h264
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><strong>抽取音频</strong></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">ffmpeg -i video.MP4 -vn -acodec copy out.aac
+</span></span></code></pre></td></tr></table>
+</div>
+</div><ul>
+<li><code>-an</code>: audio null，表示过滤掉音频</li>
+<li><code>-vn</code>: video null，表示过滤掉视频</li>
+</ul>
+<h2 id="处理原始数据命令">处理原始数据命令</h2>
+<p><strong>提前 YUV 数据</strong></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">ffmpeg -i video.MP4 -an -c:v rawvideo -pixel_format yuv420p out.yuv
+</span></span></code></pre></td></tr></table>
+</div>
+</div><ul>
+<li><code>-c</code>: 指定编解码器</li>
+<li><code>-c:v</code>: 限定只处理视频画面，例如 <code>-c:v libx264</code>表示转换为 h264，<code>-c:v rawvideo</code>表是提取 YUV 数据，也可以<code>-c:v h264</code> 直接操作。</li>
+<li><code>-c:a</code>: 限定只处理音频声音，例如 <code>-c:a libmp3lame</code>，表示转换 mp3，也可以<code>-c:a mp3</code>直接操作。</li>
+<li><code>-c:s</code>: 限定只处理字幕</li>
+</ul>
+<p><strong>提取 PCM 数据</strong></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">ffmpeg -i video.MP4 -vn -ar <span class="m">44100</span> -ac2 -f s16le out.pcm
+</span></span></code></pre></td></tr></table>
+</div>
+</div><ul>
+<li><code>-ar</code>: audio rate，指定音频采样率</li>
+<li><code>-ac</code>: audio channel，指定声道，2 表示双声道</li>
+<li><code>-f</code>: 指定格式，<code>s</code>有符号，<code>16</code>表示每个数值是 16 位</li>
+</ul>
+<p><strong>播放 PCM 数据</strong></p>
+<p>跟提取时一样，也要指定相关参数</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">ffplay -ar <span class="m">44100</span> -ac <span class="m">2</span> -f s16le out.pcm
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h2 id="裁剪与合并命令">裁剪与合并命令</h2>
+<p><strong>视频裁剪</strong></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">ffmpeg -i video.MP4 -c copy -ss 00:00:00 -t <span class="m">10</span> out.ts
+</span></span></code></pre></td></tr></table>
+</div>
+</div><ul>
+<li><code>-ss</code>: 开始裁剪时间，指定时分秒</li>
+<li><code>-t</code>: 裁剪市场，单位秒</li>
+</ul>
+<p><strong>视频合并</strong></p>
+<p>在合并之前，需要创建包含所有切片的文件</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="c1"># input.txt</span>
+</span></span><span class="line"><span class="cl">file <span class="s1">&#39;1.ts&#39;</span>
+</span></span><span class="line"><span class="cl">file <span class="s1">&#39;2.ts&#39;</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">ffmpeg -f concat -i input.txt out.mp4
+</span></span></code></pre></td></tr></table>
+</div>
+</div><ul>
+<li><code>-f concat</code>: 指定合并</li>
+</ul>
+<h2 id="图片视频互转命令">图片/视频互转命令</h2>
+<p><strong>视频转图片</strong></p>
+<p>配合视频裁剪有奇效。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">ffmpeg -i video.MP4 -r <span class="m">1</span> -f image2 image-%3d.jpeg
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">ffmpeg -i video.MP4 -ss 00:00:00 -t <span class="m">5</span> -r <span class="m">1</span> -f image2 image-%2d.jpeg
+</span></span></code></pre></td></tr></table>
+</div>
+</div><ul>
+<li><code>-r</code>: 指定转换图片的帧率，<code>1</code> 表示每秒转出一张图片</li>
+<li><code>-f image2</code>: 指定 jpeg 编码器</li>
+<li><code>%3d.jpeg</code>: 这是一个动态增长的文件名，最大 3 位数，不足补 0。</li>
+</ul>
+<p><strong>图片转视频</strong></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">ffmpeg -i image-%2d.jpeg out.mp4
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h2 id="直播推拉流">直播推/拉流</h2>
+<p><strong>直播推流</strong></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">ffmpeg -re -i video.mp4 -c copy -f flv <span class="s2">&#34;rtmp://server/live/streamName&#34;</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><ul>
+<li><code>-re</code>: 减慢帧率速度，对于直播流来说，让帧率与声音保持同步</li>
+<li><code>-c copy</code>: 不做音视频编码</li>
+</ul>
+<p><strong>直播拉流</strong></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">ffmpeg -i <span class="s2">&#34;rtmp://server/live/streamName&#34;</span> -c copy dump.flv
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h2 id="滤镜命令">滤镜命令</h2>
+<p>倍速，画中画，修改长宽等。</p>
+<p><img src="http://img.golang.space/img-1669290762148.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20221124195241972"
+	
+	
+></p>
+<p><strong>调整宽高</strong></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">ffmpeg -i video.MP4 -vf <span class="nv">crop</span><span class="o">=</span>in_w-200:in_h-200 -c:v libx264 -c:a copy out.mp4
+</span></span></code></pre></td></tr></table>
+</div>
+</div><ul>
+<li><code>-vf</code>: 指定滤镜</li>
+<li><code>crop=in_w-200:in_h-200</code>: 修改宽高</li>
+<li><code>-c:v</code>: 视频编码</li>
+</ul>
+
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/ffmpeg/">FFmpeg</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">Related content</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/%E9%9F%B3%E8%A7%86%E9%A2%91%E5%9F%BA%E7%A1%80/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">音视频基础</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script src="https://utteranc.es/client.js" 
+        repo="ixugo/ixugo.github.io"
+        issue-term="pathname"
+        
+        crossorigin="anonymous"
+        async
+        >
+</script>
+
+<style>
+    .utterances {
+        max-width: unset;
+    }
+</style>
+
+<script>
+    function setUtterancesTheme(theme) {
+        let utterances = document.querySelector('.utterances iframe');
+        if (utterances) {
+            utterances.contentWindow.postMessage(
+                {
+                    type: 'set-theme',
+                    theme: `github-${theme}`
+                },
+                'https://utteranc.es'
+            );
+        }
+    }
+
+    addEventListener('message', event => {
+        if (event.origin !== 'https://utteranc.es') return;
+        setUtterancesTheme(document.documentElement.dataset.scheme)
+    });
+
+    window.addEventListener('onColorSchemeChange', (e) => {
+        setUtterancesTheme(e.detail)
+    })
+</script>
+
+
+    
+
+    <footer class="site-footer">
+  <section class="copyright">
+    &copy;
+    
+    2018 -
+    
+    2023 ixugo
+  </section>
+  <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+  <section class="powerby">
+
+    
+    <span id="busuanzi_container_page_pv">本文阅读量
+      <span style="font-size: 14px" id="busuanzi_value_page_pv"></span>
+      次，</span>
+    <span id="busuanzi_container_site_pv">总访问量
+      <span style="font-size: 14px" id="busuanzi_value_site_pv"></span>
+      次 </span>，总访客数
+    <span style="font-size: 14px" id="busuanzi_value_site_uv"></span> 人
+    <br />
+
+
+    Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> .&nbsp;&nbsp;
+    Theme <a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener"
+      data-version="3.16.0">Stack</a> designed by <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a>
+  </section>
+
+
+
+
+  <script>
+    function count() {
+      let href = window.location.href;
+      let regexp = /^https?:\/\/blog.golang.space\/?(page\/[\d]+\/?)?$/;
+      if (regexp.test(href)) {
+        let e = document.getElementById("busuanzi_container_page_pv");
+        e.innerText = "";
+      }
+    }
+    window.onload = count;
+  </script>
+</footer>
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

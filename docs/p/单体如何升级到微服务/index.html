@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='单体服务的演进过程 最初业务刚开始
+上面没有容灾的方案，服务端挂了，就直接挂了。
+当业务有点发展以后，使用 nginx 做负载均衡，横向扩展服务，数据库升级一下。
+在 DNS 上加负载均衡，使用 K8S 管理服务，使用 redis 增加缓存。
+这个架构足以支持大部分初创项目。
+优点 开发简单 测试简单 部署简单 缺点 难以理解和扩展 小改动也得全量更新 小问题容易触发大故障 能够支持的业务规模有限 微服务 单体能够承载的业务规模有限，当规模扩大的时候，就需要升级到微服务。
+每个微服务都单独连接一个数据库。
+优点 边界清晰的业务拆分 易开发，易理解，易维护 技术栈可相对独立 持续集成，持续部署更容易 按需对服务进行治理 稳定性更容易保障 缺点 增量了系统复杂度 数据拆分复杂度 难调试，难测试 跨服务修改麻烦 难部署 什么信号表明该考虑单体转微服务了 单体系统过度复杂 当前架构不能满意业务发展需要 研发效率低下，提交代码冲突 持续集成，持续交付比较困难，不太敢更新，小版本要等大版本，要死一起死 团队人员较多 如何启动? 开着飞机换引擎
+在转型的过程中，很难零故障的完全转换。
+需要公司或部门领导的支持，要有一个敢于扛责任的领导，在改造期间，要管理好预期收益，实际在转换期间是很难看到成果的。
+建立服务迁移核心团队，需要经验，执行力强，自驱力强的队员。从一个小的服务开始，遇到问题不能跳过，一定要解决，完成这个服务形成最佳实践后，可以推广到整个团队。
+微服务改造策略 由外向内，由边缘到核心 数据拆分，迁移和验证，可回滚 (要保证当微服务挂掉后，可以回滚到旧的服务) fork 请求，proxy 验证 定期复盘过程，总结可复制套路 汇报成果，让领导看到收益 微服务数据库拆分 数据不能乱，规则先确定 定义数据边界，避免数据冗余 数据库互相隔离，避免故障传递 接口聚类收敛 按功能聚类接口 避免微服务过微 避免调用链路过深 fork 请求 将老的服务上面的请求 fork 到新的服务上，比较结果是否一致。'>
+<title>单体如何升级到微服务</title>
+
+<link rel='canonical' href='https://blog.golang.space/p/%E5%8D%95%E4%BD%93%E5%A6%82%E4%BD%95%E5%8D%87%E7%BA%A7%E5%88%B0%E5%BE%AE%E6%9C%8D%E5%8A%A1/'>
+
+<link rel="stylesheet" href="/scss/style.min.8191399262444ab68b72a18c97392f5349be20a1615d77445be51e974c144cff.css"><meta property='og:title' content='单体如何升级到微服务'>
+<meta property='og:description' content='单体服务的演进过程 最初业务刚开始
+上面没有容灾的方案，服务端挂了，就直接挂了。
+当业务有点发展以后，使用 nginx 做负载均衡，横向扩展服务，数据库升级一下。
+在 DNS 上加负载均衡，使用 K8S 管理服务，使用 redis 增加缓存。
+这个架构足以支持大部分初创项目。
+优点 开发简单 测试简单 部署简单 缺点 难以理解和扩展 小改动也得全量更新 小问题容易触发大故障 能够支持的业务规模有限 微服务 单体能够承载的业务规模有限，当规模扩大的时候，就需要升级到微服务。
+每个微服务都单独连接一个数据库。
+优点 边界清晰的业务拆分 易开发，易理解，易维护 技术栈可相对独立 持续集成，持续部署更容易 按需对服务进行治理 稳定性更容易保障 缺点 增量了系统复杂度 数据拆分复杂度 难调试，难测试 跨服务修改麻烦 难部署 什么信号表明该考虑单体转微服务了 单体系统过度复杂 当前架构不能满意业务发展需要 研发效率低下，提交代码冲突 持续集成，持续交付比较困难，不太敢更新，小版本要等大版本，要死一起死 团队人员较多 如何启动? 开着飞机换引擎
+在转型的过程中，很难零故障的完全转换。
+需要公司或部门领导的支持，要有一个敢于扛责任的领导，在改造期间，要管理好预期收益，实际在转换期间是很难看到成果的。
+建立服务迁移核心团队，需要经验，执行力强，自驱力强的队员。从一个小的服务开始，遇到问题不能跳过，一定要解决，完成这个服务形成最佳实践后，可以推广到整个团队。
+微服务改造策略 由外向内，由边缘到核心 数据拆分，迁移和验证，可回滚 (要保证当微服务挂掉后，可以回滚到旧的服务) fork 请求，proxy 验证 定期复盘过程，总结可复制套路 汇报成果，让领导看到收益 微服务数据库拆分 数据不能乱，规则先确定 定义数据边界，避免数据冗余 数据库互相隔离，避免故障传递 接口聚类收敛 按功能聚类接口 避免微服务过微 避免调用链路过深 fork 请求 将老的服务上面的请求 fork 到新的服务上，比较结果是否一致。'>
+<meta property='og:url' content='https://blog.golang.space/p/%E5%8D%95%E4%BD%93%E5%A6%82%E4%BD%95%E5%8D%87%E7%BA%A7%E5%88%B0%E5%BE%AE%E6%9C%8D%E5%8A%A1/'>
+<meta property='og:site_name' content='ixugo'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='微服务' /><meta property='article:published_time' content='2022-03-27T00:00:00&#43;00:00'/><meta property='article:modified_time' content='2022-03-27T00:00:00&#43;00:00'/><meta property='og:image' content='http://img.golang.space/shot-1649475285445.png' />
+<meta name="twitter:title" content="单体如何升级到微服务">
+<meta name="twitter:description" content="单体服务的演进过程 最初业务刚开始
+上面没有容灾的方案，服务端挂了，就直接挂了。
+当业务有点发展以后，使用 nginx 做负载均衡，横向扩展服务，数据库升级一下。
+在 DNS 上加负载均衡，使用 K8S 管理服务，使用 redis 增加缓存。
+这个架构足以支持大部分初创项目。
+优点 开发简单 测试简单 部署简单 缺点 难以理解和扩展 小改动也得全量更新 小问题容易触发大故障 能够支持的业务规模有限 微服务 单体能够承载的业务规模有限，当规模扩大的时候，就需要升级到微服务。
+每个微服务都单独连接一个数据库。
+优点 边界清晰的业务拆分 易开发，易理解，易维护 技术栈可相对独立 持续集成，持续部署更容易 按需对服务进行治理 稳定性更容易保障 缺点 增量了系统复杂度 数据拆分复杂度 难调试，难测试 跨服务修改麻烦 难部署 什么信号表明该考虑单体转微服务了 单体系统过度复杂 当前架构不能满意业务发展需要 研发效率低下，提交代码冲突 持续集成，持续交付比较困难，不太敢更新，小版本要等大版本，要死一起死 团队人员较多 如何启动? 开着飞机换引擎
+在转型的过程中，很难零故障的完全转换。
+需要公司或部门领导的支持，要有一个敢于扛责任的领导，在改造期间，要管理好预期收益，实际在转换期间是很难看到成果的。
+建立服务迁移核心团队，需要经验，执行力强，自驱力强的队员。从一个小的服务开始，遇到问题不能跳过，一定要解决，完成这个服务形成最佳实践后，可以推广到整个团队。
+微服务改造策略 由外向内，由边缘到核心 数据拆分，迁移和验证，可回滚 (要保证当微服务挂掉后，可以回滚到旧的服务) fork 请求，proxy 验证 定期复盘过程，总结可复制套路 汇报成果，让领导看到收益 微服务数据库拆分 数据不能乱，规则先确定 定义数据边界，避免数据冗余 数据库互相隔离，避免故障传递 接口聚类收敛 按功能聚类接口 避免微服务过微 避免调用链路过深 fork 请求 将老的服务上面的请求 fork 到新的服务上，比较结果是否一致。"><meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:image" content='http://img.golang.space/shot-1649475285445.png' />
+    <link rel="shortcut icon" href="img/favicon.ico" />
+
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+	(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+	m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+	})(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+	ga('create', 'UA-192125643-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="Toggle Menu">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu0b04ba6d7249c9f90c92db974439eb8c_208246_300x0_resize_box_3.png" width="300"
+                            height="321" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🧐</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">ixugo</a></h1>
+            <h2 class="site-description">走出舒适区</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/ixugo'
+                        target="_blank"
+                        title="GitHub"
+                        rel="me"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>Home</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/about/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>About</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>Archives</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>Search</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>Dark Mode</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">Table of contents</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#单体服务的演进过程">单体服务的演进过程</a>
+      <ol>
+        <li><a href="#优点">优点</a></li>
+        <li><a href="#缺点">缺点</a></li>
+      </ol>
+    </li>
+    <li><a href="#微服务">微服务</a>
+      <ol>
+        <li><a href="#优点-1">优点</a></li>
+        <li><a href="#缺点-1">缺点</a></li>
+      </ol>
+    </li>
+    <li><a href="#什么信号表明该考虑单体转微服务了">什么信号表明该考虑单体转微服务了</a></li>
+    <li><a href="#如何启动">如何启动?</a></li>
+    <li><a href="#微服务改造策略">微服务改造策略</a>
+      <ol>
+        <li><a href="#微服务数据库拆分">微服务数据库拆分</a></li>
+        <li><a href="#接口聚类收敛">接口聚类收敛</a></li>
+        <li><a href="#fork-请求">fork 请求</a></li>
+      </ol>
+    </li>
+    <li><a href="#单体到微服务改造案例">单体到微服务改造案例</a></li>
+    <li><a href="#参考">参考</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+            <main class="main full-width">
+    <article class="has-image main-article">
+    <header class="article-header">
+        <div class="article-image">
+            <a href="/p/%E5%8D%95%E4%BD%93%E5%A6%82%E4%BD%95%E5%8D%87%E7%BA%A7%E5%88%B0%E5%BE%AE%E6%9C%8D%E5%8A%A1/">
+                
+                    <img src="http://img.golang.space/shot-1649475285445.png" loading="lazy" alt="Featured image of post 单体如何升级到微服务" />
+                
+            </a>
+        </div>
+    
+
+    <div class="article-details">
+    
+    <header class="article-category">
+        
+            <a href="/categories/%E6%9E%B6%E6%9E%84/" >
+                架构
+            </a>
+        
+    </header>
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/%E5%8D%95%E4%BD%93%E5%A6%82%E4%BD%95%E5%8D%87%E7%BA%A7%E5%88%B0%E5%BE%AE%E6%9C%8D%E5%8A%A1/">单体如何升级到微服务</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    
+    
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Mar 27, 2022</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    1 minute read
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+
+</header>
+
+    <section class="article-content">
+    
+    
+    <h2 id="单体服务的演进过程">单体服务的演进过程</h2>
+<p>最初业务刚开始</p>
+<p><img src="http://img.golang.space/shot-1649475285445.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20220409113445241"
+	
+	
+></p>
+<p>上面没有容灾的方案，服务端挂了，就直接挂了。</p>
+<p>当业务有点发展以后，使用 nginx 做负载均衡，横向扩展服务，数据库升级一下。</p>
+<p><img src="http://img.golang.space/shot-1649475467512.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20220409113747387"
+	
+	
+></p>
+<p>在 DNS 上加负载均衡，使用 K8S 管理服务，使用 redis 增加缓存。</p>
+<p>这个架构足以支持大部分初创项目。</p>
+<p><img src="http://img.golang.space/shot-1649475524393.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20220409113844250"
+	
+	
+></p>
+<h3 id="优点">优点</h3>
+<ul>
+<li>开发简单</li>
+<li>测试简单</li>
+<li>部署简单</li>
+</ul>
+<h3 id="缺点">缺点</h3>
+<ul>
+<li>难以理解和扩展</li>
+<li>小改动也得全量更新</li>
+<li>小问题容易触发大故障</li>
+<li>能够支持的业务规模有限</li>
+</ul>
+<h2 id="微服务">微服务</h2>
+<p>单体能够承载的业务规模有限，当规模扩大的时候，就需要升级到微服务。</p>
+<p>每个微服务都单独连接一个数据库。</p>
+<p><img src="http://img.golang.space/shot-1649476295397.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20220409115135266"
+	
+	
+></p>
+<h3 id="优点-1">优点</h3>
+<ul>
+<li>边界清晰的业务拆分</li>
+<li>易开发，易理解，易维护</li>
+<li>技术栈可相对独立</li>
+<li>持续集成，持续部署更容易</li>
+<li>按需对服务进行治理</li>
+<li>稳定性更容易保障</li>
+</ul>
+<h3 id="缺点-1">缺点</h3>
+<ul>
+<li>增量了系统复杂度</li>
+<li>数据拆分复杂度</li>
+<li>难调试，难测试</li>
+<li>跨服务修改麻烦</li>
+<li>难部署</li>
+</ul>
+<h2 id="什么信号表明该考虑单体转微服务了">什么信号表明该考虑单体转微服务了</h2>
+<ul>
+<li>单体系统过度复杂</li>
+<li>当前架构不能满意业务发展需要</li>
+<li>研发效率低下，提交代码冲突</li>
+<li>持续集成，持续交付比较困难，不太敢更新，小版本要等大版本，要死一起死</li>
+<li>团队人员较多</li>
+</ul>
+<h2 id="如何启动">如何启动?</h2>
+<blockquote>
+<p>开着飞机换引擎</p>
+</blockquote>
+<p>在转型的过程中，很难零故障的完全转换。</p>
+<p>需要公司或部门领导的支持，要有一个敢于扛责任的领导，在改造期间，要管理好预期收益，实际在转换期间是很难看到成果的。</p>
+<p>建立服务迁移核心团队，需要经验，执行力强，自驱力强的队员。从一个小的服务开始，遇到问题不能跳过，一定要解决，完成这个服务形成最佳实践后，可以推广到整个团队。</p>
+<h2 id="微服务改造策略">微服务改造策略</h2>
+<ul>
+<li>由外向内，由边缘到核心</li>
+<li>数据拆分，迁移和验证，可回滚 (要保证当微服务挂掉后，可以回滚到旧的服务)</li>
+<li>fork 请求，proxy 验证</li>
+<li>定期复盘过程，总结可复制套路</li>
+<li>汇报成果，让领导看到收益</li>
+</ul>
+<h3 id="微服务数据库拆分">微服务数据库拆分</h3>
+<ul>
+<li>数据不能乱，规则先确定</li>
+<li>定义数据边界，避免数据冗余</li>
+<li>数据库互相隔离，避免故障传递</li>
+</ul>
+<h3 id="接口聚类收敛">接口聚类收敛</h3>
+<ul>
+<li>按功能聚类接口</li>
+<li>避免微服务过微</li>
+<li>避免调用链路过深</li>
+</ul>
+<h3 id="fork-请求">fork 请求</h3>
+<p>将老的服务上面的请求 fork 到新的服务上，比较结果是否一致。</p>
+<ul>
+<li>循序渐进可回滚</li>
+<li>fork 请求，验证正确性</li>
+<li>灰度逐步迁移</li>
+<li>监控有无漏网请求</li>
+<li>保证回滚可能性</li>
+</ul>
+<p><img src="http://img.golang.space/shot-1649485848221.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20220409143048080"
+	
+	
+></p>
+<h2 id="单体到微服务改造案例">单体到微服务改造案例</h2>
+<p>单体应用，有通知和打卡两个模块，一个 DB 读存数据</p>
+<p><img src="http://img.golang.space/shot-1649486201622.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20220409143641524"
+	
+	
+></p>
+<p>第一步，才代码上拆分，服务部署的方式没有改变。只是将 打卡 模块的代码抽出来。</p>
+<p><img src="http://img.golang.space/shot-1649486302004.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20220409143821879"
+	
+	
+></p>
+<p>第二步，数据库的拆分。依然还是一个单体，但连接两个数据库。</p>
+<p>增加一个 DB 用来存储打开相关内容。</p>
+<p><img src="http://img.golang.space/shot-1649486358200.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20220409143918046"
+	
+	
+></p>
+<p>第三步，将打卡服务单独部署。承载 fork 的请求，然后比较新旧服务返回的结果是否一致。</p>
+<p>注意同一个 DB 读取没有什么影响，但是写入需要做隔离。</p>
+<p><img src="http://img.golang.space/shot-1649486461300.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20220409144101165"
+	
+	
+></p>
+<p>第四步，通过一段时间的测试，确保服务测试通过后，就可以上线。</p>
+<p>加一个 api_getway，将请求全部发到新服务上。这里要保留旧的服务，如果出现问题，随时回滚。</p>
+<p><img src="http://img.golang.space/shot-1649486746188.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20220409144546049"
+	
+	
+></p>
+<p>第五步，老的服务确实没有流量了，新服务完全稳定了，将老的服务删除。</p>
+<p><img src="http://img.golang.space/shot-1649486929760.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20220409144849611"
+	
+	
+></p>
+<p><img src="http://img.golang.space/shot-1649487031758.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20220409145031606"
+	
+	
+></p>
+<h2 id="参考">参考</h2>
+<p><a class="link" href="https://www.bilibili.com/video/BV1sZ4y1B7iH?spm_id_from=333.788.top_right_bar_window_view_later.content.click"  target="_blank" rel="noopener"
+    >七牛云架构师实践课</a></p>
+
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/%E5%BE%AE%E6%9C%8D%E5%8A%A1/">微服务</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+     
+    
+        
+    <script src="https://utteranc.es/client.js" 
+        repo="ixugo/ixugo.github.io"
+        issue-term="pathname"
+        
+        crossorigin="anonymous"
+        async
+        >
+</script>
+
+<style>
+    .utterances {
+        max-width: unset;
+    }
+</style>
+
+<script>
+    function setUtterancesTheme(theme) {
+        let utterances = document.querySelector('.utterances iframe');
+        if (utterances) {
+            utterances.contentWindow.postMessage(
+                {
+                    type: 'set-theme',
+                    theme: `github-${theme}`
+                },
+                'https://utteranc.es'
+            );
+        }
+    }
+
+    addEventListener('message', event => {
+        if (event.origin !== 'https://utteranc.es') return;
+        setUtterancesTheme(document.documentElement.dataset.scheme)
+    });
+
+    window.addEventListener('onColorSchemeChange', (e) => {
+        setUtterancesTheme(e.detail)
+    })
+</script>
+
+
+    
+
+    <footer class="site-footer">
+  <section class="copyright">
+    &copy;
+    
+    2018 -
+    
+    2023 ixugo
+  </section>
+  <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+  <section class="powerby">
+
+    
+    <span id="busuanzi_container_page_pv">本文阅读量
+      <span style="font-size: 14px" id="busuanzi_value_page_pv"></span>
+      次，</span>
+    <span id="busuanzi_container_site_pv">总访问量
+      <span style="font-size: 14px" id="busuanzi_value_site_pv"></span>
+      次 </span>，总访客数
+    <span style="font-size: 14px" id="busuanzi_value_site_uv"></span> 人
+    <br />
+
+
+    Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> .&nbsp;&nbsp;
+    Theme <a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener"
+      data-version="3.16.0">Stack</a> designed by <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a>
+  </section>
+
+
+
+
+  <script>
+    function count() {
+      let href = window.location.href;
+      let regexp = /^https?:\/\/blog.golang.space\/?(page\/[\d]+\/?)?$/;
+      if (regexp.test(href)) {
+        let e = document.getElementById("busuanzi_container_page_pv");
+        e.innerText = "";
+      }
+    }
+    window.onload = count;
+  </script>
+</footer>
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

@@ -1,0 +1,961 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='Go memory model 在程序处理期间从多个 Go 协程访问共享内存时。
+如果不阅读内存模型，可能对程序作出错误的假设，这会导致你的代码出问题。
+不要在共享内存中通信，要在通信中共享内存。
+Go 语言并发操作 Goroutines
+1 go hello() // 开启一个协程去执行，不用等待返回 Channels
+1 2 3 ch := make(chan int, 1) ch &amp;lt;- 10 // 发送值到通道 _ &amp;lt;- ch	// 接收值 例如
+**创建一个 goroutine **
+1 2 3 4 5 6 7 8 9 var a string func f(){ print(a) } func hello(){ a = &amp;#34;hello，world&amp;#34; go f() } 使用 channel
+1 2 3 4 5 6 7 8 9 10 11 12 var c = make(chan int,1) var a string func f(){ a = &amp;#34;hello , world&amp;#34; c &amp;lt;- 0 // 或者 close(c) } func main(){ go f() &amp;lt;- c // 阻塞等待 print(a) } 使用 channel 限制函数同时执行数量'>
+<title>Go 内存模型</title>
+
+<link rel='canonical' href='https://blog.golang.space/p/go-%E5%86%85%E5%AD%98%E6%A8%A1%E5%9E%8B/'>
+
+<link rel="stylesheet" href="/scss/style.min.8191399262444ab68b72a18c97392f5349be20a1615d77445be51e974c144cff.css"><meta property='og:title' content='Go 内存模型'>
+<meta property='og:description' content='Go memory model 在程序处理期间从多个 Go 协程访问共享内存时。
+如果不阅读内存模型，可能对程序作出错误的假设，这会导致你的代码出问题。
+不要在共享内存中通信，要在通信中共享内存。
+Go 语言并发操作 Goroutines
+1 go hello() // 开启一个协程去执行，不用等待返回 Channels
+1 2 3 ch := make(chan int, 1) ch &amp;lt;- 10 // 发送值到通道 _ &amp;lt;- ch	// 接收值 例如
+**创建一个 goroutine **
+1 2 3 4 5 6 7 8 9 var a string func f(){ print(a) } func hello(){ a = &amp;#34;hello，world&amp;#34; go f() } 使用 channel
+1 2 3 4 5 6 7 8 9 10 11 12 var c = make(chan int,1) var a string func f(){ a = &amp;#34;hello , world&amp;#34; c &amp;lt;- 0 // 或者 close(c) } func main(){ go f() &amp;lt;- c // 阻塞等待 print(a) } 使用 channel 限制函数同时执行数量'>
+<meta property='og:url' content='https://blog.golang.space/p/go-%E5%86%85%E5%AD%98%E6%A8%A1%E5%9E%8B/'>
+<meta property='og:site_name' content='ixugo'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='Go进阶' /><meta property='article:published_time' content='2021-05-03T00:00:00&#43;00:00'/><meta property='article:modified_time' content='2021-05-03T00:00:00&#43;00:00'/>
+<meta name="twitter:title" content="Go 内存模型">
+<meta name="twitter:description" content="Go memory model 在程序处理期间从多个 Go 协程访问共享内存时。
+如果不阅读内存模型，可能对程序作出错误的假设，这会导致你的代码出问题。
+不要在共享内存中通信，要在通信中共享内存。
+Go 语言并发操作 Goroutines
+1 go hello() // 开启一个协程去执行，不用等待返回 Channels
+1 2 3 ch := make(chan int, 1) ch &amp;lt;- 10 // 发送值到通道 _ &amp;lt;- ch	// 接收值 例如
+**创建一个 goroutine **
+1 2 3 4 5 6 7 8 9 var a string func f(){ print(a) } func hello(){ a = &amp;#34;hello，world&amp;#34; go f() } 使用 channel
+1 2 3 4 5 6 7 8 9 10 11 12 var c = make(chan int,1) var a string func f(){ a = &amp;#34;hello , world&amp;#34; c &amp;lt;- 0 // 或者 close(c) } func main(){ go f() &amp;lt;- c // 阻塞等待 print(a) } 使用 channel 限制函数同时执行数量">
+    <link rel="shortcut icon" href="img/favicon.ico" />
+
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+	(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+	m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+	})(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+	ga('create', 'UA-192125643-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="Toggle Menu">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu0b04ba6d7249c9f90c92db974439eb8c_208246_300x0_resize_box_3.png" width="300"
+                            height="321" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🧐</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">ixugo</a></h1>
+            <h2 class="site-description">走出舒适区</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/ixugo'
+                        target="_blank"
+                        title="GitHub"
+                        rel="me"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>Home</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/about/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>About</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>Archives</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>Search</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>Dark Mode</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">Table of contents</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#heading"></a>
+      <ol>
+        <li><a href="#cpu-缓存">CPU 缓存</a></li>
+        <li><a href="#数组">数组</a></li>
+        <li><a href="#切片">切片</a>
+          <ol>
+            <li><a href="#nil-sliceempty-slice-与-nil">nil slice，empty slice 与 nil</a></li>
+            <li><a href="#零分配的空白结构体">零分配的空白结构体</a></li>
+            <li><a href="#扩容">扩容</a></li>
+            <li><a href="#切片的高效操作">切片的高效操作</a></li>
+            <li><a href="#函数式编程">函数式编程</a></li>
+            <li><a href="#字符串和切片">字符串和切片</a></li>
+            <li><a href="#for-range">for range</a></li>
+          </ol>
+        </li>
+        <li><a href="#heading-1"></a></li>
+      </ol>
+    </li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+            <main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+    <header class="article-category">
+        
+            <a href="/categories/golang/" >
+                Golang
+            </a>
+        
+    </header>
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/go-%E5%86%85%E5%AD%98%E6%A8%A1%E5%9E%8B/">Go 内存模型</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    
+    
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">May 03, 2021</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    1 minute read
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+
+</header>
+
+    <section class="article-content">
+    
+    
+    <h2 id="heading"></h2>
+<blockquote>
+<p>思考一下，为什么 Go 语言只提供了 array，slice 和 map 给我们用，为什么没有提供 栈，队列，堆等?</p>
+</blockquote>
+<blockquote>
+<p>怎样高效的处理数据 ? 怎样写出清晰易懂的代码? 怎样才能把代码所引发的开销给强调出来?</p>
+</blockquote>
+<h3 id="cpu-缓存">CPU 缓存</h3>
+<p>CPU 一般有三级缓存和主内存。l1 &gt; l2 &gt; l3 &gt; 主内存，访问速度是越来越慢的，内存空间是越来越大。</p>
+<p>一个缓存行的长度，访问缓存行中的其他元素，基本是免费的。昂贵的是访问一个新的缓存，只有我们访问更少的缓存行时，我们的程序会更高效。</p>
+<p>当下的高速缓存行是 32 或 64 字节宽，具体取决于硬件。硬件喜欢沿着缓存线线性遍历数据和指令。</p>
+<p><a class="link" href="https://www.youtube.com/watch?v=jEG4Qyo_4Bc&amp;t=266s"  target="_blank" rel="noopener"
+    >切片：直达缓存友好的性能</a></p>
+<h3 id="数组">数组</h3>
+<p>应该培养一种特质，知道自己正在做什么，搞清楚为什么这样做，这样做的道理和效果，这样可以做出更好的设计决策。</p>
+<p>Go 语言中数组的各个元素地址是连续的，更符合 CPU 预测，使用数组的程序会更快。</p>
+<p>CPU 有三级缓存，为了更快，当你读取数据的时候，它会预测你接下来要读什么，提前放入缓存中。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// 指针语义遍历
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">arr</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">total</span> <span class="o">+=</span> <span class="nx">arr</span><span class="p">[</span><span class="nx">i</span><span class="p">]</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// 值语义遍历
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="k">for</span> <span class="nx">_</span><span class="p">,</span><span class="nx">v</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">arr</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">total</span> <span class="o">+=</span> <span class="nx">v</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="切片">切片</h3>
+<p>这将是你的首选数据结构。除非你真能确定自己遇到特殊情况，需要用到链表等结构，否则还是应该优先考虑使用切片。而且要尽可能使用由值构成的切片，而不是由指针构成的切片。</p>
+<p>使用 <code>make</code> 创建，这是 Go 语言内置函数，让我们可以创建出 3 种引用类型。</p>
+<p>目前我们用到的类型分钟为两种:</p>
+<ul>
+<li>内置类型</li>
+<li>结构体类型(用户自定义)</li>
+<li>引用类型 ( slice / map / channel / 函数 / 接口 )。这是带有指针的数据结构，如果将该类型变量设置零值，相当于 <code>nil</code>，好比指针设置为 <code>nil</code>。字符串实际很接近于引用类型，但是零值是空串，而不是 <code>nil</code>，所以不能归类到引用类型。</li>
+</ul>
+<p>slice 跟 字符串的结构有点像，但是 slice 比 字符串多一个 <code>cap</code> 字段，表示切片容量。</p>
+<blockquote>
+<p>长度和容量有什么区别呢?</p>
+</blockquote>
+<p>长度表示从当前位置开始，可能访问多少个元素。</p>
+<p>容量表示将来有可能增加到多少个元素，为考虑以后的扩充而设计。</p>
+<p>如果访问超过切片长度的内容，会发生 runtime error。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">slice</span> <span class="kd">struct</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">array</span> <span class="nx">unsafe</span><span class="p">.</span><span class="nx">Pointer</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">len</span> <span class="kt">int</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">cap</span> <span class="kt">int</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>这个结构作为函数参数传递时，非常高效。 数组会将每一个元素拷贝，而切片只会拷贝这样一个结构，占用 24 字节。切片本来就应该采用值语义操作，本来就应该留在使用它的那个栈里。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">inspectSlice</span><span class="p">(</span><span class="nx">slice</span> <span class="p">[]</span><span class="kt">string</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">fmt</span><span class="p">.</span><span class="nf">Printf</span><span class="p">(</span><span class="s">&#34;length[%d] capacity[%d]\n&#34;</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="nx">slice</span><span class="p">),</span><span class="nb">cap</span><span class="p">(</span><span class="nx">slice</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>切片结构中 array 是数组指针，意味着通过修改切片会产生副作用。</p>
+<h4 id="nil-sliceempty-slice-与-nil">nil slice，empty slice 与 nil</h4>
+<p>Go 语言可以通过 nil 与 empty 来表达式不同的意思
+你可以返回零值切片来表示错误
+empty 切片可以表示顺利，但是没有数据</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">TestNilSlice</span><span class="p">(</span><span class="nx">t</span> <span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 声明未赋值的零值切片  slice == nil
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="kd">var</span> <span class="nx">nilSlice</span> <span class="p">[]</span><span class="kt">string</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">require</span><span class="p">.</span><span class="nf">Nil</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span> <span class="nx">nilSlice</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// 声明赋值的空切片  slice != nil
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">emptySlice</span> <span class="o">:=</span> <span class="p">[]</span><span class="kt">string</span><span class="p">{}</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">require</span><span class="p">.</span><span class="nf">NotNil</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span> <span class="nx">emptySlice</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="nx">require</span><span class="p">.</span><span class="nf">Nil</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span> <span class="nf">nilSliceF</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">require</span><span class="p">.</span><span class="nf">NotNil</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span> <span class="nf">emptySliceF</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">nilSliceF</span><span class="p">()</span> <span class="p">[]</span><span class="kt">string</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">emptySliceF</span><span class="p">()</span> <span class="p">[]</span><span class="kt">string</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="nb">make</span><span class="p">([]</span><span class="kt">string</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h4 id="零分配的空白结构体">零分配的空白结构体</h4>
+<p>可以根据这样的结构体，创建上百万个值，但不会引发任何分配。</p>
+<p>因为在运行时环境里面，有一个 8 字节的固定值，它就像一个全局变量一样，可以让这种空白的结构体引用。所以无论有多少个空白结构体，它们都可以指向这同一个地址。</p>
+<p>比如 nil slice 里面的指针，就是指向这个空白结构体。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">var</span> <span class="nx">emptyStruct</span> <span class="kd">struct</span><span class="p">{}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h4 id="扩容">扩容</h4>
+<p><strong>如果提前知道需要多少容量，在创建时指定，这能减少需要扩容时的内存分配。这是非常高效的!!</strong> 即想要写出高效的代码，避免使用 <code>append</code>函数，直接操作对应位置的元素。</p>
+<p>但有可能我们并不知道到底需要操作多少数据，可能是 0 或更多，没办法提前把数组分配出来，即便分配了也可能浪费。为了尽量降低程序消耗的资源量，我们可能要稍微损耗一点性能，这样做，跟真正有可能影响性能的地方相比，这种损耗算不了什么。这时，只好从 nil slice 开始。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">var</span> <span class="nx">data</span> <span class="p">[]</span><span class="kt">string</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>通过 append 扩容，将新数据添加到切片的尾部。注意其调用方式，这个函数的 API 用的是值语义，这是很好的设计。这样的 API 可以叫做通过 值语义 进行修改的 API。它通过对我们传入的切片值复制，在副本上做修改，并返回。这很重要，将修改效果隔离起来，无副作用。这是一种优雅，安全而又清晰的做法。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="nx">data</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">data</span><span class="p">,</span> <span class="s">&#34;value&#34;</span><span class="p">)</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><blockquote>
+<p>append 会导致内存泄漏吗?</p>
+</blockquote>
+<p>如果资源不释放，在内存里滚雪球慢慢增大，这就是内存泄漏了。可以通过 <code>Go trace</code> 工具检查，检查 GC 后内存是否并没有减少，而是增大。</p>
+<p>典型的内存泄漏:</p>
+<ul>
+<li>是否每个 goroutine 无法自行终止，持有的引用无法释放。</li>
+<li>map 只添加数据，因未清理而一直膨胀。</li>
+<li>某些 API 用完后需要主动 close，但却忘记调用。</li>
+<li>append 的返回值未赋给充当参数的变量，原有支持结构的引用数量未清零。</li>
+</ul>
+<p>当切片的 len 和 cap 相同时，此时调用 append 会创建一个容量翻倍的支撑数组，然后将原数组和参数复制过去，让切片的指针指向新的数组。</p>
+<blockquote>
+<p>扩容规则是什么?</p>
+</blockquote>
+<p><a class="link" href="https://github.com/golang/go/blob/master/src/runtime/slice.go"  target="_blank" rel="noopener"
+    >查看源码</a> ，注意要区分 1.18 版本 和 小于其的版本</p>
+<p><code>1.18</code> 开始</p>
+<ul>
+<li>所需容量大于容量翻倍，预估容量等于所需容量</li>
+<li>否则
+<ul>
+<li><code>&lt; 256</code> 时，2倍扩容</li>
+<li>从 2 倍扩容到 1.25 倍平滑过度扩容，公式: <code> newcap += (newcap + 3*256) / 4</code></li>
+</ul>
+</li>
+<li>最后，匹配内存规格，公式为 8 * (2*x)，x 为递增变量。</li>
+</ul>
+<p><code>&lt;= 1.17</code> 以前是，仅作为了解。</p>
+<ul>
+<li>所需容量大于容量翻倍，预估容量等于所需容量</li>
+<li>否则
+<ul>
+<li><code>&lt; 1024</code> 时，双倍扩容</li>
+<li><code>&gt;= 1024</code> 时，1.25 倍扩容</li>
+</ul>
+</li>
+<li>最后，匹配内存规格。</li>
+</ul>
+<h4 id="切片的高效操作">切片的高效操作</h4>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="nx">slice1</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">([]</span><span class="kt">string</span><span class="p">,</span><span class="mi">5</span><span class="p">,</span><span class="mi">8</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="nx">slice2</span> <span class="o">:=</span> <span class="nx">slice1</span><span class="p">[</span><span class="mi">2</span><span class="p">:</span><span class="mi">2</span><span class="o">+</span><span class="mi">2</span><span class="p">]</span> <span class="c1">// 从 2 开始，取两个值
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><p>上面的写法，可以高效的创建出新的切片值，而且新值和原值可以高效的共享同一个支撑数组。这意味着需要分配在堆上面的至多只有原来的那个支撑数组。</p>
+<p>注意，通过 append 对 slice2 添加元素，会影响到 slice1。因为上面提到的是同一个支撑数组。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="nx">slice2</span> <span class="o">:=</span> <span class="nx">slice1</span><span class="p">[</span><span class="mi">2</span><span class="p">:</span><span class="mi">4</span><span class="p">:</span><span class="mi">4</span><span class="p">]</span> <span class="c1">// 从 2 开始，取两个值。容量为 2。 
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><p>在创建新切片值时，可以指定容量与长度相等，此时使用 append 会创建一个新的数组，并将旧数组值复制过去，这样就消除了上面的副作用。三下标制作切片的方法，让你既可以在尾部追加元素，同时又不会影响使用原来那个支持数组的其它切片。这样当然很棒，但有时候，可能需要自己复制，当然还是应该尽量少用复制操作。</p>
+<p>Go 语言提供了内置函数<code>copy</code> ，它能够将源切片中的元素复制到目标切片。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="nx">slice3</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">([]</span><span class="kt">string</span><span class="p">,</span><span class="nb">len</span><span class="p">(</span><span class="nx">slice1</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl"><span class="nb">copy</span><span class="p">(</span><span class="nx">slice3</span><span class="p">,</span><span class="nx">slice1</span><span class="p">)</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h4 id="函数式编程">函数式编程</h4>
+<p>如果不注意防范副作用，那么可能会产生想当危险的结果。通过指针操纵切片时，修改的是切片的支持数组所在的内存，这当然会让程序写起来困难一些。假如使用函数式编程，就不用担心这种问题了。</p>
+<p>函数式编程，所有内容都通过值语义来操纵，每一段代码每一个函数，操纵的都是它自己的那份数据。可是这样，就不能根据需要把程序速度优化到最快，这提现了 Go 语言的一项优势，它让我们自己决定，是操纵数值还是指针。</p>
+<p>必须注意，采用指针语义操作，必须当心这种做法在修改数据时，是否会引发什么问题。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// Bad
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="nx">likes</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">([]</span><span class="kt">int</span><span class="p">,</span><span class="mi">3</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="nx">u1</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="nx">likes</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+</span></span><span class="line"><span class="cl"><span class="c1">// 控制 u1 指针来修改数据
+</span></span></span><span class="line"><span class="cl"><span class="c1">// 如果 likes 发生 append 扩容，u1 修改是旧数据，且因为旧数组被引用，而无法释放。
+</span></span></span><span class="line"><span class="cl"><span class="c1">// 必须反复检查调用 append 函数的地方，避免支撑数组发生替换，进而给程序带来副作用
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><h4 id="字符串和切片">字符串和切片</h4>
+<p>字符串归根结底还是由一系列字节组成，最底层是字节，中间一层叫做代码点，每个代码点都可以当做一个 32 位(4 字节)值，在代码点上方是字符层。代码点有可能1 个字节就能表示，也可能需要 4 个字节才能表示。</p>
+<ul>
+<li>汉字需要 3 个字节</li>
+<li>英文字母需要 1 个字节。</li>
+</ul>
+<p>字符串可以用 <code>for range</code> 来遍历，遍历的是代码点，<code>string(v)</code> 可以将代码点转为字符。值遍历 v 是 rune 类型，这个类型并不是真正的类型，而是 int32 的别名，实际上，byte 类型是 uint8 的别名。</p>
+<p>对字符串切片操作，要小心不同字符的长度。可以转为<code>[]rune</code> 切片来处理。</p>
+<h4 id="for-range">for range</h4>
+<p>for range 是值语义，也就是遍历拷贝的副本。在遍历中操作切片不影响遍历。这样的写法一个切片发生变化，不会影响到使用另一个切片所涉及的程序。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// 值语义，不影响
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="k">for</span> <span class="nx">_</span><span class="p">,</span><span class="nx">v</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">slice1</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">slice1</span> <span class="p">=</span> <span class="nx">slice1</span><span class="p">[:</span><span class="mi">2</span><span class="p">]</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>是指针语义时，它访问的就是原来的切片，如下面的代码，可能会发生数组下标溢出。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">slice1</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">slice1</span> <span class="p">=</span> <span class="nx">slice1</span><span class="p">[:</span><span class="mi">2</span><span class="p">]</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="heading-1"></h3>
+
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/go%E8%BF%9B%E9%98%B6/">Go进阶</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">Related content</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/%E5%88%86%E6%9E%90%E4%B8%8E%E8%BF%BD%E8%B8%AA/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">分析与追踪</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/%E5%BA%94%E8%AF%A5%E6%9C%89%E7%9A%84-go-%E8%AF%AD%E8%A8%80%E6%80%9D%E7%BB%B4/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">应该有的 Go 语言思维</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/%E8%BD%BB%E9%87%8F%E7%BA%A7%E5%8E%8B%E6%B5%8B%E5%B7%A5%E5%85%B7/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">轻量级压测工具</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/channels-%E6%A8%A1%E5%BC%8F/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Channels 模式</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/%E6%A0%88%E5%B8%A7%E4%B8%8E%E9%80%83%E9%80%B8/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">栈帧与逃逸</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script src="https://utteranc.es/client.js" 
+        repo="ixugo/ixugo.github.io"
+        issue-term="pathname"
+        
+        crossorigin="anonymous"
+        async
+        >
+</script>
+
+<style>
+    .utterances {
+        max-width: unset;
+    }
+</style>
+
+<script>
+    function setUtterancesTheme(theme) {
+        let utterances = document.querySelector('.utterances iframe');
+        if (utterances) {
+            utterances.contentWindow.postMessage(
+                {
+                    type: 'set-theme',
+                    theme: `github-${theme}`
+                },
+                'https://utteranc.es'
+            );
+        }
+    }
+
+    addEventListener('message', event => {
+        if (event.origin !== 'https://utteranc.es') return;
+        setUtterancesTheme(document.documentElement.dataset.scheme)
+    });
+
+    window.addEventListener('onColorSchemeChange', (e) => {
+        setUtterancesTheme(e.detail)
+    })
+</script>
+
+
+    
+
+    <footer class="site-footer">
+  <section class="copyright">
+    &copy;
+    
+    2018 -
+    
+    2023 ixugo
+  </section>
+  <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+  <section class="powerby">
+
+    
+    <span id="busuanzi_container_page_pv">本文阅读量
+      <span style="font-size: 14px" id="busuanzi_value_page_pv"></span>
+      次，</span>
+    <span id="busuanzi_container_site_pv">总访问量
+      <span style="font-size: 14px" id="busuanzi_value_site_pv"></span>
+      次 </span>，总访客数
+    <span style="font-size: 14px" id="busuanzi_value_site_uv"></span> 人
+    <br />
+
+
+    Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> .&nbsp;&nbsp;
+    Theme <a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener"
+      data-version="3.16.0">Stack</a> designed by <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a>
+  </section>
+
+
+
+
+  <script>
+    function count() {
+      let href = window.location.href;
+      let regexp = /^https?:\/\/blog.golang.space\/?(page\/[\d]+\/?)?$/;
+      if (regexp.test(href)) {
+        let e = document.getElementById("busuanzi_container_page_pv");
+        e.innerText = "";
+      }
+    }
+    window.onload = count;
+  </script>
+</footer>
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

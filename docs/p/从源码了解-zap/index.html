@@ -1,0 +1,2123 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='⚡ZAP 简介 zap 是什么? ⚡ZAP 是uber 开源的提供快速，结构化，高性能的日志记录包。
+zap 高性能体现在哪里? 在介绍zap包的优化部分之前，让我们看下zap日志库的工作流程图
+大多数日志库提供的方式是基于反射的序列化和字符串格式化，这种方式代价高昂，而 Zap 采取不同的方法。
+避免 interface{} 使用强类型设计
+封装强类型，无反射
+使用零分配内存的 JSON 编码器，尽可能避免序列化开销，它比其他结构化日志包快 4 - 10 倍。
+1 2 3 4 5 logger.Info(&amp;#34;failed to fetch URL&amp;#34;, zap.String(&amp;#34;url&amp;#34;, &amp;#34;https://baidu.com&amp;#34;), zap.Int(&amp;#34;attempt&amp;#34;, 3), zap.Duration(&amp;#34;backoff&amp;#34;, time.Second), ) 使用 sync.Pool 以避免记录消息时的内存分配 详情在下文 zapcore 模块介绍。
+Example 安装 1 go get -u go.uber.org/zap Zap 提供了两种类型的 logger
+SugaredLogger Logger 在性能良好但不是关键的情况下，使用 SugaredLogger，它比其他结构化的日志包快 4-10 倍，并且支持结构化和 printf 风格的APIs。
+例一 调用 NewProduction 创建logger对象 1 2 3 4 5 6 7 8 func TestSugar(t *testing.'>
+<title>从源码了解 zap</title>
+
+<link rel='canonical' href='https://blog.golang.space/p/%E4%BB%8E%E6%BA%90%E7%A0%81%E4%BA%86%E8%A7%A3-zap/'>
+
+<link rel="stylesheet" href="/scss/style.min.8191399262444ab68b72a18c97392f5349be20a1615d77445be51e974c144cff.css"><meta property='og:title' content='从源码了解 zap'>
+<meta property='og:description' content='⚡ZAP 简介 zap 是什么? ⚡ZAP 是uber 开源的提供快速，结构化，高性能的日志记录包。
+zap 高性能体现在哪里? 在介绍zap包的优化部分之前，让我们看下zap日志库的工作流程图
+大多数日志库提供的方式是基于反射的序列化和字符串格式化，这种方式代价高昂，而 Zap 采取不同的方法。
+避免 interface{} 使用强类型设计
+封装强类型，无反射
+使用零分配内存的 JSON 编码器，尽可能避免序列化开销，它比其他结构化日志包快 4 - 10 倍。
+1 2 3 4 5 logger.Info(&amp;#34;failed to fetch URL&amp;#34;, zap.String(&amp;#34;url&amp;#34;, &amp;#34;https://baidu.com&amp;#34;), zap.Int(&amp;#34;attempt&amp;#34;, 3), zap.Duration(&amp;#34;backoff&amp;#34;, time.Second), ) 使用 sync.Pool 以避免记录消息时的内存分配 详情在下文 zapcore 模块介绍。
+Example 安装 1 go get -u go.uber.org/zap Zap 提供了两种类型的 logger
+SugaredLogger Logger 在性能良好但不是关键的情况下，使用 SugaredLogger，它比其他结构化的日志包快 4-10 倍，并且支持结构化和 printf 风格的APIs。
+例一 调用 NewProduction 创建logger对象 1 2 3 4 5 6 7 8 func TestSugar(t *testing.'>
+<meta property='og:url' content='https://blog.golang.space/p/%E4%BB%8E%E6%BA%90%E7%A0%81%E4%BA%86%E8%A7%A3-zap/'>
+<meta property='og:site_name' content='ixugo'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='日志' /><meta property='article:published_time' content='2021-01-22T15:00:00&#43;00:00'/><meta property='article:modified_time' content='2021-01-22T15:00:00&#43;00:00'/>
+<meta name="twitter:title" content="从源码了解 zap">
+<meta name="twitter:description" content="⚡ZAP 简介 zap 是什么? ⚡ZAP 是uber 开源的提供快速，结构化，高性能的日志记录包。
+zap 高性能体现在哪里? 在介绍zap包的优化部分之前，让我们看下zap日志库的工作流程图
+大多数日志库提供的方式是基于反射的序列化和字符串格式化，这种方式代价高昂，而 Zap 采取不同的方法。
+避免 interface{} 使用强类型设计
+封装强类型，无反射
+使用零分配内存的 JSON 编码器，尽可能避免序列化开销，它比其他结构化日志包快 4 - 10 倍。
+1 2 3 4 5 logger.Info(&amp;#34;failed to fetch URL&amp;#34;, zap.String(&amp;#34;url&amp;#34;, &amp;#34;https://baidu.com&amp;#34;), zap.Int(&amp;#34;attempt&amp;#34;, 3), zap.Duration(&amp;#34;backoff&amp;#34;, time.Second), ) 使用 sync.Pool 以避免记录消息时的内存分配 详情在下文 zapcore 模块介绍。
+Example 安装 1 go get -u go.uber.org/zap Zap 提供了两种类型的 logger
+SugaredLogger Logger 在性能良好但不是关键的情况下，使用 SugaredLogger，它比其他结构化的日志包快 4-10 倍，并且支持结构化和 printf 风格的APIs。
+例一 调用 NewProduction 创建logger对象 1 2 3 4 5 6 7 8 func TestSugar(t *testing.">
+    <link rel="shortcut icon" href="img/favicon.ico" />
+
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+	(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+	m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+	})(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+	ga('create', 'UA-192125643-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="Toggle Menu">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu0b04ba6d7249c9f90c92db974439eb8c_208246_300x0_resize_box_3.png" width="300"
+                            height="321" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🧐</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">ixugo</a></h1>
+            <h2 class="site-description">走出舒适区</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/ixugo'
+                        target="_blank"
+                        title="GitHub"
+                        rel="me"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>Home</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/about/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>About</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>Archives</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>Search</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>Dark Mode</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">Table of contents</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#zaphttpsgithubcomuber-gozap"><a href="https://github.com/uber-go/zap">⚡ZAP</a></a></li>
+    <li><a href="#简介">简介</a>
+      <ol>
+        <li><a href="#zap-是什么">zap 是什么?</a></li>
+        <li><a href="#zap-高性能体现在哪里">zap 高性能体现在哪里?</a></li>
+      </ol>
+    </li>
+    <li><a href="#example">Example</a>
+      <ol>
+        <li><a href="#安装">安装</a></li>
+        <li><a href="#a-idexample_1例一-a调用-newproduction-创建logger对象"><!-- raw HTML omitted -->例一 <!-- raw HTML omitted -->调用 NewProduction 创建logger对象</a></li>
+        <li><a href="#a-nameexample_2例二a-调用-newdevelopment-创建logger对象"><!-- raw HTML omitted -->例二<!-- raw HTML omitted --> 调用 NewDevelopment 创建logger对象</a></li>
+        <li><a href="#例三-logger-与-sugaredlogger-相互转换">例三 <code>Logger</code> 与 <code>SugaredLogger</code> 相互转换</a></li>
+        <li><a href="#a-nameexample_4例四a-自定义格式"><!-- raw HTML omitted -->例四<!-- raw HTML omitted --> 自定义格式</a></li>
+      </ol>
+    </li>
+    <li><a href="#源码分析">源码分析</a>
+      <ol>
+        <li>
+          <ol>
+            <li><a href="#logger">Logger</a></li>
+            <li><a href="#sugaredlogger">SugaredLogger</a></li>
+            <li><a href="#zapcore">zapcore</a></li>
+          </ol>
+        </li>
+      </ol>
+    </li>
+    <li><a href="#doc">Doc</a></li>
+    <li><a href="#qa">QA</a>
+      <ol>
+        <li><a href="#设计问题">设计问题</a>
+          <ol>
+            <li><a href="#为什么要在logger性能上花费这么多精力呢">为什么要在Logger性能上花费这么多精力呢？</a></li>
+            <li><a href="#为什么没有logger和sugaredlogger接口">为什么没有<code>Logger</code>和<code>SugaredLogger</code>接口？</a></li>
+            <li><a href="#为什么我的一些日志会丢失">为什么我的一些日志会丢失？</a></li>
+            <li><a href="#为什么要使用示例应用程序日志">为什么要使用示例应用程序日志？</a></li>
+            <li><a href="#为什么结构化的日志-api-除了接受字段之外还可以接收消息">为什么结构化的日志 API 除了接受字段之外还可以接收消息？</a></li>
+            <li><a href="#为什么要包括全局-loggers">为什么要包括全局 loggers？</a></li>
+            <li><a href="#为什么包括专用的panic和fatal日志级别">为什么包括专用的Panic和Fatal日志级别？</a></li>
+            <li><a href="#什么是dpanic">什么是<code>DPanic</code>?</a></li>
+          </ol>
+        </li>
+        <li><a href="#安装问题">安装问题</a>
+          <ol>
+            <li><a href="#错误expects-import-gouberorgzap是什么意思">错误<code>expects import &quot;go.uber.org/zap&quot;</code>是什么意思？</a></li>
+          </ol>
+        </li>
+        <li><a href="#用法问题">用法问题</a>
+          <ol>
+            <li><a href="#zap是否支持日志切割">Zap是否支持日志切割？</a></li>
+            <li><a href="#插件">插件</a></li>
+          </ol>
+        </li>
+        <li><a href="#性能比较">性能比较</a></li>
+        <li><a href="#相似的库">相似的库</a></li>
+      </ol>
+    </li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+            <main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/%E4%BB%8E%E6%BA%90%E7%A0%81%E4%BA%86%E8%A7%A3-zap/">从源码了解 zap</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    
+    
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Jan 22, 2021</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    11 minute read
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+
+</header>
+
+    <section class="article-content">
+    
+    
+    <h2 id="zaphttpsgithubcomuber-gozap"><a class="link" href="https://github.com/uber-go/zap"  target="_blank" rel="noopener"
+    >⚡ZAP</a></h2>
+<h2 id="简介">简介</h2>
+<h3 id="zap-是什么">zap 是什么?</h3>
+<p><a class="link" href="https://github.com/uber-go/zap"  target="_blank" rel="noopener"
+    >⚡ZAP</a> 是uber 开源的提供快速，结构化，高性能的日志记录包。</p>
+<h3 id="zap-高性能体现在哪里">zap 高性能体现在哪里?</h3>
+<p>在介绍zap包的优化部分之前，让我们看下zap日志库的工作流程图</p>
+<p><img src="https://cdn-images-1.medium.com/max/644/1*4mn192sJdR0rU8RQ3aQo4w.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="img"
+	
+	
+></p>
+<p>大多数日志库提供的方式是基于反射的序列化和字符串格式化，这种方式代价高昂，而 Zap 采取不同的方法。</p>
+<ul>
+<li>
+<p>避免 interface{} 使用强类型设计</p>
+</li>
+<li>
+<p>封装强类型，无反射</p>
+</li>
+<li>
+<p>使用零分配内存的 JSON 编码器，尽可能避免序列化开销，它比其他结构化日志包快 4 - 10 倍。</p>
+</li>
+</ul>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="nx">logger</span><span class="p">.</span><span class="nf">Info</span><span class="p">(</span><span class="s">&#34;failed to fetch URL&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">zap</span><span class="p">.</span><span class="nf">String</span><span class="p">(</span><span class="s">&#34;url&#34;</span><span class="p">,</span> <span class="s">&#34;https://baidu.com&#34;</span><span class="p">),</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">zap</span><span class="p">.</span><span class="nf">Int</span><span class="p">(</span><span class="s">&#34;attempt&#34;</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">zap</span><span class="p">.</span><span class="nf">Duration</span><span class="p">(</span><span class="s">&#34;backoff&#34;</span><span class="p">,</span> <span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">),</span>
+</span></span><span class="line"><span class="cl"><span class="p">)</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><ul>
+<li>使用 sync.Pool 以避免记录消息时的内存分配</li>
+</ul>
+<p>详情在下文 zapcore 模块介绍。</p>
+<h2 id="example">Example</h2>
+<h3 id="安装">安装</h3>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">go get -u go.uber.org/zap
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>Zap 提供了两种类型的 logger</p>
+<ul>
+<li>SugaredLogger</li>
+<li>Logger</li>
+</ul>
+<p>在<strong>性能良好但不是关键</strong>的情况下，使用 <strong>SugaredLogger</strong>，它比其他结构化的日志包快 4-10 倍，并且支持结构化和 <code>printf</code> 风格的APIs。</p>
+<h3 id="a-idexample_1例一-a调用-newproduction-创建logger对象"><!-- raw HTML omitted -->例一 <!-- raw HTML omitted -->调用 NewProduction 创建logger对象</h3>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">TestSugar</span><span class="p">(</span><span class="nx">t</span> <span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">logger</span><span class="p">,</span> <span class="nx">_</span> <span class="o">:=</span> <span class="nx">zap</span><span class="p">.</span><span class="nf">NewProduction</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 默认 logger 不缓冲。
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="c1">// 但由于底层 api 允许缓冲，所以在进程退出之前调用 Sync 是一个好习惯。
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="k">defer</span> <span class="nx">logger</span><span class="p">.</span><span class="nf">Sync</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">sugar</span> <span class="o">:=</span> <span class="nx">logger</span><span class="p">.</span><span class="nf">Sugar</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">sugar</span><span class="p">.</span><span class="nf">Infof</span><span class="p">(</span><span class="s">&#34;Failed to fetch URL: %s&#34;</span><span class="p">,</span> <span class="s">&#34;https://baidu.com&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>对<strong>性能和类型安全要求严格</strong>的情况下，可以使用 <strong>Logger</strong> ，它甚至比前者<strong>SugaredLogger</strong>更快，内存分配次数也更少，但它仅支持强类型的结构化日志记录。</p>
+<h3 id="a-nameexample_2例二a-调用-newdevelopment-创建logger对象"><!-- raw HTML omitted -->例二<!-- raw HTML omitted --> 调用 NewDevelopment 创建logger对象</h3>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">TestLogger</span><span class="p">(</span><span class="nx">t</span> <span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">logger</span><span class="p">,</span> <span class="nx">_</span> <span class="o">:=</span> <span class="nx">zap</span><span class="p">.</span><span class="nf">NewDevelopment</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">	<span class="k">defer</span> <span class="nx">logger</span><span class="p">.</span><span class="nf">Sync</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">logger</span><span class="p">.</span><span class="nf">Info</span><span class="p">(</span><span class="s">&#34;failed to fetch URL&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">		<span class="c1">// 强类型字段
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="nx">zap</span><span class="p">.</span><span class="nf">String</span><span class="p">(</span><span class="s">&#34;url&#34;</span><span class="p">,</span> <span class="s">&#34;https://baidu.com&#34;</span><span class="p">),</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">zap</span><span class="p">.</span><span class="nf">Int</span><span class="p">(</span><span class="s">&#34;attempt&#34;</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">zap</span><span class="p">.</span><span class="nf">Duration</span><span class="p">(</span><span class="s">&#34;backoff&#34;</span><span class="p">,</span> <span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">),</span>
+</span></span><span class="line"><span class="cl">	<span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>不需要为整个应用程序决定选择使用 <code>Logger</code> 还是 <code>SugaredLogger</code> ，两者之间都可以轻松转换。</p>
+<h3 id="例三-logger-与-sugaredlogger-相互转换">例三 <code>Logger</code> 与 <code>SugaredLogger</code> 相互转换</h3>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// 创建 logger
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="nx">logger</span> <span class="o">:=</span> <span class="nx">zap</span><span class="p">.</span><span class="nf">NewExample</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="k">defer</span> <span class="nx">logger</span><span class="p">.</span><span class="nf">Sync</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// 转换 SugaredLogger
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="nx">sugar</span> <span class="o">:=</span> <span class="nx">logger</span><span class="p">.</span><span class="nf">Sugar</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="c1">// 转换 logger
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="nx">plain</span> <span class="o">:=</span> <span class="nx">sugar</span><span class="p">.</span><span class="nf">Desugar</span><span class="p">()</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="a-nameexample_4例四a-自定义格式"><!-- raw HTML omitted -->例四<!-- raw HTML omitted --> 自定义格式</h3>
+<p>自定义一个日志消息格式，带着问题看下列代码。</p>
+<ol>
+<li>debug 级别的日志打印到控制台了吗?</li>
+<li>最后的 error 会打印到控制台吗 ?</li>
+</ol>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kn">package</span> <span class="nx">main</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kn">import</span> <span class="p">(</span>
+</span></span><span class="line"><span class="cl">	<span class="s">&#34;os&#34;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="s">&#34;go.uber.org/zap&#34;</span>
+</span></span><span class="line"><span class="cl">	<span class="s">&#34;go.uber.org/zap/zapcore&#34;</span>
+</span></span><span class="line"><span class="cl"><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">NewCustomEncoderConfig</span><span class="p">()</span> <span class="nx">zapcore</span><span class="p">.</span><span class="nx">EncoderConfig</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="nx">zapcore</span><span class="p">.</span><span class="nx">EncoderConfig</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">TimeKey</span><span class="p">:</span>        <span class="s">&#34;ts&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">LevelKey</span><span class="p">:</span>       <span class="s">&#34;level&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">NameKey</span><span class="p">:</span>        <span class="s">&#34;logger&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">CallerKey</span><span class="p">:</span>      <span class="s">&#34;caller&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">FunctionKey</span><span class="p">:</span>    <span class="nx">zapcore</span><span class="p">.</span><span class="nx">OmitKey</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">MessageKey</span><span class="p">:</span>     <span class="s">&#34;msg&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">StacktraceKey</span><span class="p">:</span>  <span class="s">&#34;stacktrace&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">LineEnding</span><span class="p">:</span>     <span class="nx">zapcore</span><span class="p">.</span><span class="nx">DefaultLineEnding</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">EncodeLevel</span><span class="p">:</span>    <span class="nx">zapcore</span><span class="p">.</span><span class="nx">CapitalColorLevelEncoder</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">EncodeTime</span><span class="p">:</span>     <span class="nx">zapcore</span><span class="p">.</span><span class="nf">TimeEncoderOfLayout</span><span class="p">(</span><span class="s">&#34;2006-01-02 15:04:05&#34;</span><span class="p">),</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">EncodeDuration</span><span class="p">:</span> <span class="nx">zapcore</span><span class="p">.</span><span class="nx">SecondsDurationEncoder</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">EncodeCaller</span><span class="p">:</span>   <span class="nx">zapcore</span><span class="p">.</span><span class="nx">ShortCallerEncoder</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">main</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">atom</span> <span class="o">:=</span> <span class="nx">zap</span><span class="p">.</span><span class="nf">NewAtomicLevelAt</span><span class="p">(</span><span class="nx">zap</span><span class="p">.</span><span class="nx">DebugLevel</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">core</span> <span class="o">:=</span> <span class="nx">zapcore</span><span class="p">.</span><span class="nf">NewCore</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">zapcore</span><span class="p">.</span><span class="nf">NewConsoleEncoder</span><span class="p">(</span><span class="nf">NewCustomEncoderConfig</span><span class="p">()),</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">zapcore</span><span class="p">.</span><span class="nf">NewMultiWriteSyncer</span><span class="p">(</span><span class="nx">zapcore</span><span class="p">.</span><span class="nf">AddSync</span><span class="p">(</span><span class="nx">os</span><span class="p">.</span><span class="nx">Stdout</span><span class="p">)),</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">atom</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">logger</span> <span class="o">:=</span> <span class="nx">zap</span><span class="p">.</span><span class="nf">New</span><span class="p">(</span><span class="nx">core</span><span class="p">,</span> <span class="nx">zap</span><span class="p">.</span><span class="nf">AddCaller</span><span class="p">(),</span> <span class="nx">zap</span><span class="p">.</span><span class="nf">Development</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">	<span class="k">defer</span> <span class="nx">logger</span><span class="p">.</span><span class="nf">Sync</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// 配置 zap 包的全局变量
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">zap</span><span class="p">.</span><span class="nf">ReplaceGlobals</span><span class="p">(</span><span class="nx">logger</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// 运行时安全地更改 logger 日记级别
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">atom</span><span class="p">.</span><span class="nf">SetLevel</span><span class="p">(</span><span class="nx">zap</span><span class="p">.</span><span class="nx">InfoLevel</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">sugar</span> <span class="o">:=</span> <span class="nx">logger</span><span class="p">.</span><span class="nf">Sugar</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 问题 1: debug 级别的日志打印到控制台了吗?
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">sugar</span><span class="p">.</span><span class="nf">Debug</span><span class="p">(</span><span class="s">&#34;debug&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">sugar</span><span class="p">.</span><span class="nf">Info</span><span class="p">(</span><span class="s">&#34;info&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">sugar</span><span class="p">.</span><span class="nf">Warn</span><span class="p">(</span><span class="s">&#34;warn&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">sugar</span><span class="p">.</span><span class="nf">DPanic</span><span class="p">(</span><span class="s">&#34;dPanic&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 问题 2: 最后的 error 会打印到控制台吗?
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">sugar</span><span class="p">.</span><span class="nf">Error</span><span class="p">(</span><span class="s">&#34;error&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>结果见下图</p>
+<p><img src="http://img.golang.space/shot-1621945016655.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20210525201656456"
+	
+	
+></p>
+<p><strong>问题 1:</strong></p>
+<p>没有打印。AtomicLevel 是原子性可更改的动态日志级别，通过调用 <code>atom.SetLevel</code> 更改日志级别为 <code>infoLevel</code> 。</p>
+<p><strong>问题 2:</strong></p>
+<p>没有打印。<code>zap.Development()</code> 启用了开发模式，在开发模式下 <code>DPanic</code> 函数会引发 panic，所以最后的 <code>error</code> 不会打印到控制台。</p>
+<h2 id="源码分析">源码分析</h2>
+<p>此次源码分析基于 <code>Zap 1.16</code></p>
+<p><img src="http://img.golang.space/shot-1620404974607.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="zap概览"
+	
+	
+></p>
+<p>上图仅表示 zap 可调用两种 logger，没有表达 <code>Logger</code> 与 <code>SugaredLogger</code> 的关系，<strong>继续往下看</strong>，你会更理解。</p>
+<h4 id="logger">Logger</h4>
+<p>logger 提供快速，分级，结构化的日志记录。所有的方法都是安全的，内存分配很重要，因此它的 API 有意偏向于性能和类型安全。</p>
+<p><code>zap@v1.16.0 - logger.go</code></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">Logger</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// 实现编码和输出的接口
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">core</span> <span class="nx">zapcore</span><span class="p">.</span><span class="nx">Core</span>  
+</span></span><span class="line"><span class="cl">  <span class="c1">// 记录器开发模式，DPanic 等级将记录 panic
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">development</span> <span class="kt">bool</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// 开启记录调用者的行号和函数名
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">addCaller</span>   <span class="kt">bool</span>		
+</span></span><span class="line"><span class="cl">  <span class="c1">// 致命日志采取的操作，默认写入日志后 os.Exit()
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">onFatal</span>     <span class="nx">zapcore</span><span class="p">.</span><span class="nx">CheckWriteAction</span> 
+</span></span><span class="line"><span class="cl">	<span class="nx">name</span>        <span class="kt">string</span>	
+</span></span><span class="line"><span class="cl">  <span class="c1">// 设置记录器生成的错误目的地
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">errorOutput</span> <span class="nx">zapcore</span><span class="p">.</span><span class="nx">WriteSyncer</span>  
+</span></span><span class="line"><span class="cl">  <span class="c1">// 记录 &gt;= 该日志等级的堆栈追踪
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">addStack</span> <span class="nx">zapcore</span><span class="p">.</span><span class="nx">LevelEnabler</span> 
+</span></span><span class="line"><span class="cl">  <span class="c1">// 避免记录器认为封装函数为调用方
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">callerSkip</span> <span class="kt">int</span>	
+</span></span><span class="line"><span class="cl">  <span class="c1">// 默认为系统时间 
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">clock</span> <span class="nx">Clock</span>		
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>在 <strong>Example</strong> 中分别使用了 <code>NewProduction</code> 和 <code>NewDevelopment</code> ，接下来以这两个函数开始分析。下图表示 A 函数调用了 B 函数，其中箭头表示<strong>函数调用关系</strong>。图中函数都会分析到。</p>
+<p><img src="http://img.golang.space/shot-1620608635804.png"
+	
+	
+	
+	loading="lazy"
+	
+	
+></p>
+<p><strong>NewProduction</strong></p>
+<p>从下面代码中可以看出，此函数是对 <code>NewProductionConfig().Build(...)</code> 封装的快捷方式。</p>
+<p><code>zap@v1.16.0 - logger.go</code></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">NewProduction</span><span class="p">(</span><span class="nx">options</span> <span class="o">...</span><span class="nx">Option</span><span class="p">)</span> <span class="p">(</span><span class="o">*</span><span class="nx">Logger</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="nf">NewProductionConfig</span><span class="p">().</span><span class="nf">Build</span><span class="p">(</span><span class="nx">options</span><span class="o">...</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><strong>NewProductionConfig</strong></p>
+<p>在 InfoLevel 及更高级别上启用了日志记录。它使用 JSON 编码器，写入 stderr，启用采样。</p>
+<p><code>zap@v1.16.0 - config.go</code></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">NewProductionConfig</span><span class="p">()</span> <span class="nx">Config</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="nx">Config</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// info 日志级别
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="nx">Level</span><span class="p">:</span>       <span class="nf">NewAtomicLevelAt</span><span class="p">(</span><span class="nx">InfoLevel</span><span class="p">),</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 非开发模式
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="nx">Development</span><span class="p">:</span> <span class="kc">false</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 采样设置
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="nx">Sampling</span><span class="p">:</span> <span class="o">&amp;</span><span class="nx">SamplingConfig</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="nx">Initial</span><span class="p">:</span>    <span class="mi">100</span><span class="p">,</span> <span class="c1">// 相同日志级别下相同内容每秒日志输出数量
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>			<span class="nx">Thereafter</span><span class="p">:</span> <span class="mi">100</span><span class="p">,</span> <span class="c1">// 超过该数量，才会再次输出
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="p">},</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// JSON 编码器
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="nx">Encoding</span><span class="p">:</span>         <span class="s">&#34;json&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 后面介绍
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="nx">EncoderConfig</span><span class="p">:</span>    <span class="nf">NewProductionEncoderConfig</span><span class="p">(),</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 输出到 stderr
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="nx">OutputPaths</span><span class="p">:</span>      <span class="p">[]</span><span class="kt">string</span><span class="p">{</span><span class="s">&#34;stderr&#34;</span><span class="p">},</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">ErrorOutputPaths</span><span class="p">:</span> <span class="p">[]</span><span class="kt">string</span><span class="p">{</span><span class="s">&#34;stderr&#34;</span><span class="p">},</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><strong>Config</strong> 结构体</p>
+<p>通过 Config 可以设置通用的配置项。</p>
+<p><code>zap@v1.16.0 - config.go</code></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">Config</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 日志级别
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">Level</span> <span class="nx">AtomicLevel</span> <span class="s">`json:&#34;level&#34; yaml:&#34;level&#34;`</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 开发模式
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">Development</span> <span class="kt">bool</span> <span class="s">`json:&#34;development&#34; yaml:&#34;development&#34;`</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 停止使用调用方的函数和行号
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">DisableCaller</span> <span class="kt">bool</span> <span class="s">`json:&#34;disableCaller&#34; yaml:&#34;disableCaller&#34;`</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 完全停止使用堆栈跟踪，默认为  `&gt;=WarnLevel` 使用堆栈跟踪
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">DisableStacktrace</span> <span class="kt">bool</span> <span class="s">`json:&#34;disableStacktrace&#34; yaml:&#34;disableStacktrace&#34;`</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 采样设置策略
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">Sampling</span> <span class="o">*</span><span class="nx">SamplingConfig</span> <span class="s">`json:&#34;sampling&#34; yaml:&#34;sampling&#34;`</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 记录器的编码，有效值为 &#39;json&#39; 和 &#39;console&#39; 以及通过 `RegisterEncoder` 注册的有效编码
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">Encoding</span> <span class="kt">string</span> <span class="s">`json:&#34;encoding&#34; yaml:&#34;encoding&#34;`</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 编码器选项
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">EncoderConfig</span> <span class="nx">zapcore</span><span class="p">.</span><span class="nx">EncoderConfig</span> <span class="s">`json:&#34;encoderConfig&#34; yaml:&#34;encoderConfig&#34;`</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 日志的输出路径
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">OutputPaths</span> <span class="p">[]</span><span class="kt">string</span> <span class="s">`json:&#34;outputPaths&#34; yaml:&#34;outputPaths&#34;`</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// zap 内部错误的输出路径
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">ErrorOutputPaths</span> <span class="p">[]</span><span class="kt">string</span> <span class="s">`json:&#34;errorOutputPaths&#34; yaml:&#34;errorOutputPaths&#34;`</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 添加到根记录器的字段的集合
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">InitialFields</span> <span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="kd">interface</span><span class="p">{}</span> <span class="s">`json:&#34;initialFields&#34; yaml:&#34;initialFields&#34;`</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><strong>NewDevelopment</strong></p>
+<p>从下面代码中可以看出，此函数是对 <code>NewDevelopmentConfig().Build(...)</code> 封装的快捷方式</p>
+<p><code>zap@v1.16.0 - logger.go</code></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">NewDevelopment</span><span class="p">(</span><span class="nx">options</span> <span class="o">...</span><span class="nx">Option</span><span class="p">)</span> <span class="p">(</span><span class="o">*</span><span class="nx">Logger</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="nf">NewDevelopmentConfig</span><span class="p">().</span><span class="nf">Build</span><span class="p">(</span><span class="nx">options</span><span class="o">...</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><strong>NewDevelopmentConfig</strong></p>
+<p>此函数在 DebugLevel 及更高版本上启用日志记录，它使用 console 编码器，写入 stderr，禁用采样。</p>
+<p><code>zap@v1.16.0 - config.go</code></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">NewDevelopmentConfig</span><span class="p">()</span> <span class="nx">Config</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="nx">Config</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// debug 等级
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="nx">Level</span><span class="p">:</span>            <span class="nf">NewAtomicLevelAt</span><span class="p">(</span><span class="nx">DebugLevel</span><span class="p">),</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 开发模式
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="nx">Development</span><span class="p">:</span>      <span class="kc">true</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// console 编码器
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="nx">Encoding</span><span class="p">:</span>         <span class="s">&#34;console&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">EncoderConfig</span><span class="p">:</span>    <span class="nf">NewDevelopmentEncoderConfig</span><span class="p">(),</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 输出到 stderr
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="nx">OutputPaths</span><span class="p">:</span>      <span class="p">[]</span><span class="kt">string</span><span class="p">{</span><span class="s">&#34;stderr&#34;</span><span class="p">},</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">ErrorOutputPaths</span><span class="p">:</span> <span class="p">[]</span><span class="kt">string</span><span class="p">{</span><span class="s">&#34;stderr&#34;</span><span class="p">},</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><code>NewProductionEncoderConfig</code> 和 <code>NewDevelopmentEncoderConfig</code> 都是返回编码器配置。</p>
+<p><code>zap@v1.16.0 - config.go</code></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">EncoderConfig</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 设置 编码为 JSON 时的 KEY
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">// 如果为空，则省略
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">MessageKey</span>    <span class="kt">string</span> <span class="s">`json:&#34;messageKey&#34; yaml:&#34;messageKey&#34;`</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">LevelKey</span>      <span class="kt">string</span> <span class="s">`json:&#34;levelKey&#34; yaml:&#34;levelKey&#34;`</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">TimeKey</span>       <span class="kt">string</span> <span class="s">`json:&#34;timeKey&#34; yaml:&#34;timeKey&#34;`</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">NameKey</span>       <span class="kt">string</span> <span class="s">`json:&#34;nameKey&#34; yaml:&#34;nameKey&#34;`</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">CallerKey</span>     <span class="kt">string</span> <span class="s">`json:&#34;callerKey&#34; yaml:&#34;callerKey&#34;`</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">FunctionKey</span>   <span class="kt">string</span> <span class="s">`json:&#34;functionKey&#34; yaml:&#34;functionKey&#34;`</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">StacktraceKey</span> <span class="kt">string</span> <span class="s">`json:&#34;stacktraceKey&#34; yaml:&#34;stacktraceKey&#34;`</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// 配置行分隔符
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">LineEnding</span>    <span class="kt">string</span> <span class="s">`json:&#34;lineEnding&#34; yaml:&#34;lineEnding&#34;`</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 配置常见复杂类型的基本表示形式。
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">EncodeLevel</span>    <span class="nx">LevelEncoder</span>    <span class="s">`json:&#34;levelEncoder&#34; yaml:&#34;levelEncoder&#34;`</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">EncodeTime</span>     <span class="nx">TimeEncoder</span>     <span class="s">`json:&#34;timeEncoder&#34; yaml:&#34;timeEncoder&#34;`</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">EncodeDuration</span> <span class="nx">DurationEncoder</span> <span class="s">`json:&#34;durationEncoder&#34; yaml:&#34;durationEncoder&#34;`</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">EncodeCaller</span>   <span class="nx">CallerEncoder</span>   <span class="s">`json:&#34;callerEncoder&#34; yaml:&#34;callerEncoder&#34;`</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 日志名称，此参数可选
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">EncodeName</span> <span class="nx">NameEncoder</span> <span class="s">`json:&#34;nameEncoder&#34; yaml:&#34;nameEncoder&#34;`</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 配置 console 编码器使用的字段分隔符，默认 tab
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">ConsoleSeparator</span> <span class="kt">string</span> <span class="s">`json:&#34;consoleSeparator&#34; yaml:&#34;consoleSeparator&#34;`</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><strong>NewProductionEncoderConfig</strong></p>
+<p><code>zap@v1.16.0 - config.go</code></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">NewProductionEncoderConfig</span><span class="p">()</span> <span class="nx">zapcore</span><span class="p">.</span><span class="nx">EncoderConfig</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="nx">zapcore</span><span class="p">.</span><span class="nx">EncoderConfig</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">TimeKey</span><span class="p">:</span>        <span class="s">&#34;ts&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">LevelKey</span><span class="p">:</span>       <span class="s">&#34;level&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">NameKey</span><span class="p">:</span>        <span class="s">&#34;logger&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">CallerKey</span><span class="p">:</span>      <span class="s">&#34;caller&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">FunctionKey</span><span class="p">:</span>    <span class="nx">zapcore</span><span class="p">.</span><span class="nx">OmitKey</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">MessageKey</span><span class="p">:</span>     <span class="s">&#34;msg&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">StacktraceKey</span><span class="p">:</span>  <span class="s">&#34;stacktrace&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 默认换行符 \n
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="nx">LineEnding</span><span class="p">:</span>     <span class="nx">zapcore</span><span class="p">.</span><span class="nx">DefaultLineEnding</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 日志等级序列为小写字符串，如:InfoLevel被序列化为 &#34;info&#34;
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="nx">EncodeLevel</span><span class="p">:</span>    <span class="nx">zapcore</span><span class="p">.</span><span class="nx">LowercaseLevelEncoder</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 时间序列化成浮点秒数
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="nx">EncodeTime</span><span class="p">:</span>     <span class="nx">zapcore</span><span class="p">.</span><span class="nx">EpochTimeEncoder</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 时间序列化，Duration为经过的浮点秒数
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="nx">EncodeDuration</span><span class="p">:</span> <span class="nx">zapcore</span><span class="p">.</span><span class="nx">SecondsDurationEncoder</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 以 包名/文件名:行数 格式序列化
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="nx">EncodeCaller</span><span class="p">:</span>   <span class="nx">zapcore</span><span class="p">.</span><span class="nx">ShortCallerEncoder</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>该配置会输出如下结果，此结果出处参见 <strong>Example</strong> 中的<a class="link" href="#example_1" >例一</a></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="o">{</span><span class="s2">&#34;level&#34;</span>:<span class="s2">&#34;info&#34;</span>,<span class="s2">&#34;ts&#34;</span>:1620367988.461055,<span class="s2">&#34;caller&#34;</span>:<span class="s2">&#34;test/use_test.go:24&#34;</span>,<span class="s2">&#34;msg&#34;</span>:<span class="s2">&#34;Failed to fetch URL: https://baidu.com&#34;</span><span class="o">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><strong>NewDevelopmentEncoderConfig</strong></p>
+<p><code>zap@v1.16.0 - config.go</code></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">NewDevelopmentEncoderConfig</span><span class="p">()</span> <span class="nx">zapcore</span><span class="p">.</span><span class="nx">EncoderConfig</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="nx">zapcore</span><span class="p">.</span><span class="nx">EncoderConfig</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="c1">// keys 值可以是任意非空的值
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="nx">TimeKey</span><span class="p">:</span>        <span class="s">&#34;T&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">LevelKey</span><span class="p">:</span>       <span class="s">&#34;L&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">NameKey</span><span class="p">:</span>        <span class="s">&#34;N&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">CallerKey</span><span class="p">:</span>      <span class="s">&#34;C&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">FunctionKey</span><span class="p">:</span>    <span class="nx">zapcore</span><span class="p">.</span><span class="nx">OmitKey</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">MessageKey</span><span class="p">:</span>     <span class="s">&#34;M&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">StacktraceKey</span><span class="p">:</span>  <span class="s">&#34;S&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">     <span class="c1">// 默认换行符 \n
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="nx">LineEnding</span><span class="p">:</span>     <span class="nx">zapcore</span><span class="p">.</span><span class="nx">DefaultLineEnding</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 日志等级序列为大写字符串，如:InfoLevel被序列化为 &#34;INFO&#34;
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="nx">EncodeLevel</span><span class="p">:</span>    <span class="nx">zapcore</span><span class="p">.</span><span class="nx">CapitalLevelEncoder</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 时间格式化为  ISO8601 格式
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="nx">EncodeTime</span><span class="p">:</span>     <span class="nx">zapcore</span><span class="p">.</span><span class="nx">ISO8601TimeEncoder</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">EncodeDuration</span><span class="p">:</span> <span class="nx">zapcore</span><span class="p">.</span><span class="nx">StringDurationEncoder</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// // 以 包名/文件名:行数 格式序列化
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="nx">EncodeCaller</span><span class="p">:</span>   <span class="nx">zapcore</span><span class="p">.</span><span class="nx">ShortCallerEncoder</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>该配置会输出如下结果，此结果出处参见 Example 中的 <!-- raw HTML omitted -->例二<!-- raw HTML omitted --></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">2021-05-07T14:14:12.434+0800	INFO	test/use_test.go:31	failed to fetch URL	<span class="o">{</span><span class="s2">&#34;url&#34;</span>: <span class="s2">&#34;https://baidu.com&#34;</span>, <span class="s2">&#34;attempt&#34;</span>: 3, <span class="s2">&#34;backoff&#34;</span>: <span class="s2">&#34;1s&#34;</span><span class="o">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><code>NewProductionConfig</code> 和 <code>NewDevelopmentConfig</code> 返回 config 调用 <code>Build</code> 函数返回 logger，接下来我们看看这个函数。</p>
+<p><code>zap@v1.16.0 - config.go</code></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">cfg</span> <span class="nx">Config</span><span class="p">)</span> <span class="nf">Build</span><span class="p">(</span><span class="nx">opts</span> <span class="o">...</span><span class="nx">Option</span><span class="p">)</span> <span class="p">(</span><span class="o">*</span><span class="nx">Logger</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">enc</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">cfg</span><span class="p">.</span><span class="nf">buildEncoder</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="nx">sink</span><span class="p">,</span> <span class="nx">errSink</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">cfg</span><span class="p">.</span><span class="nf">openSinks</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="nx">cfg</span><span class="p">.</span><span class="nx">Level</span> <span class="o">==</span> <span class="p">(</span><span class="nx">AtomicLevel</span><span class="p">{})</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;missing Level&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	
+</span></span><span class="line"><span class="cl">	<span class="nx">log</span> <span class="o">:=</span> <span class="nf">New</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">zapcore</span><span class="p">.</span><span class="nf">NewCore</span><span class="p">(</span><span class="nx">enc</span><span class="p">,</span> <span class="nx">sink</span><span class="p">,</span> <span class="nx">cfg</span><span class="p">.</span><span class="nx">Level</span><span class="p">),</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">cfg</span><span class="p">.</span><span class="nf">buildOptions</span><span class="p">(</span><span class="nx">errSink</span><span class="p">)</span><span class="o">...</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nx">opts</span><span class="p">)</span> <span class="p">&gt;</span> <span class="mi">0</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">log</span> <span class="p">=</span> <span class="nx">log</span><span class="p">.</span><span class="nf">WithOptions</span><span class="p">(</span><span class="nx">opts</span><span class="o">...</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="nx">log</span><span class="p">,</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>从上面的代码中，通过解析 config 的参数，调用 <code>New</code> 方法来创建 Logger。在 <strong>Example</strong> 中<!-- raw HTML omitted -->例四<!-- raw HTML omitted -->，就是调用 <code>New</code> 方法来自定义 Logger。</p>
+<h4 id="sugaredlogger">SugaredLogger</h4>
+<p><code>Logger</code> 作为 <code>SugaredLogger</code> 的属性，这个封装优点在于不是很在乎性能的情况下，可以快速调用<code>Logger</code>。所以名字为加了糖的 Logger。</p>
+<p><code>zap@v1.16.0 - logger.go</code></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">SugaredLogger</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">base</span> <span class="o">*</span><span class="nx">Logger</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="nx">zap</span><span class="p">.</span><span class="nf">ReplaceGlobals</span><span class="p">(</span><span class="nx">logger</span><span class="p">)</span>			<span class="c1">// 重新配置全局变量
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="nx">zap</span><span class="p">.</span><span class="nf">S</span><span class="p">().</span><span class="nf">Info</span><span class="p">(</span><span class="s">&#34;SugaredLogger&#34;</span><span class="p">)</span>   <span class="c1">// S 返回全局 SugaredLogger
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="nx">zap</span><span class="p">.</span><span class="nf">L</span><span class="p">().</span><span class="nf">Info</span><span class="p">(</span><span class="s">&#34;logger&#34;</span><span class="p">)</span>				  <span class="c1">// L 返回全局 logger
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><p>与<code>Logger</code>不同，<code>SugaredLogger</code>不强制日志结构化。所以对于每个日志级别，都提供了三种方法。</p>
+<p><img src="http://img.golang.space/shot-1621394160652.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="level"
+	
+	
+></p>
+<p><code>zap@v1.16.0 - sugar.go</code></p>
+<p>以 info 级别为例，相关的三种方法。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// Info 使用 fmt.Sprint 构造和记录消息。
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">s</span> <span class="o">*</span><span class="nx">SugaredLogger</span><span class="p">)</span> <span class="nf">Info</span><span class="p">(</span><span class="nx">args</span> <span class="o">...</span><span class="kd">interface</span><span class="p">{})</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">s</span><span class="p">.</span><span class="nf">log</span><span class="p">(</span><span class="nx">InfoLevel</span><span class="p">,</span> <span class="s">&#34;&#34;</span><span class="p">,</span> <span class="nx">args</span><span class="p">,</span> <span class="kc">nil</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// Infof 使用 fmt.Sprintf 记录模板消息。
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">s</span> <span class="o">*</span><span class="nx">SugaredLogger</span><span class="p">)</span> <span class="nf">Infof</span><span class="p">(</span><span class="nx">template</span> <span class="kt">string</span><span class="p">,</span> <span class="nx">args</span> <span class="o">...</span><span class="kd">interface</span><span class="p">{})</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">s</span><span class="p">.</span><span class="nf">log</span><span class="p">(</span><span class="nx">InfoLevel</span><span class="p">,</span> <span class="nx">template</span><span class="p">,</span> <span class="nx">args</span><span class="p">,</span> <span class="kc">nil</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// Infow 记录带有其他上下文的消息
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">s</span> <span class="o">*</span><span class="nx">SugaredLogger</span><span class="p">)</span> <span class="nf">Infow</span><span class="p">(</span><span class="nx">msg</span> <span class="kt">string</span><span class="p">,</span> <span class="nx">keysAndValues</span> <span class="o">...</span><span class="kd">interface</span><span class="p">{})</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">s</span><span class="p">.</span><span class="nf">log</span><span class="p">(</span><span class="nx">InfoLevel</span><span class="p">,</span> <span class="nx">msg</span><span class="p">,</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">keysAndValues</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>在 <code>sugar.Infof(&quot;...&quot;)</code> 打上断点，从这开始追踪源码。</p>
+<p><img src="http://img.golang.space/shot-1621393972465.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20210519111252185"
+	
+	
+></p>
+<p>在调试代码之前，先给大家看一下<code>SugaredLogger</code> 的  <code>Infof</code> 函数的调用的大致工作流，其中不涉及采样等。</p>
+<p><img src="http://img.golang.space/shot-1622542093397.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="infof工作流程"
+	
+	
+></p>
+<p><code>Info</code> , <code>Infof</code>, <code>Infow</code> 三个函数都调用了 <code>log</code> 函数，<code>log</code> 函数代码如下</p>
+<p><code>zap@v1.16.0 - sugar.go</code></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">s</span> <span class="o">*</span><span class="nx">SugaredLogger</span><span class="p">)</span> <span class="nf">log</span><span class="p">(</span><span class="nx">lvl</span> <span class="nx">zapcore</span><span class="p">.</span><span class="nx">Level</span><span class="p">,</span> <span class="nx">template</span> <span class="kt">string</span><span class="p">,</span> <span class="nx">fmtArgs</span> <span class="p">[]</span><span class="kd">interface</span><span class="p">{},</span> <span class="nx">context</span> <span class="p">[]</span><span class="kd">interface</span><span class="p">{})</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 判断是否启用的日志级别
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="k">if</span> <span class="nx">lvl</span> <span class="p">&lt;</span> <span class="nx">DPanicLevel</span> <span class="o">&amp;&amp;</span> <span class="p">!</span><span class="nx">s</span><span class="p">.</span><span class="nx">base</span><span class="p">.</span><span class="nf">Core</span><span class="p">().</span><span class="nf">Enabled</span><span class="p">(</span><span class="nx">lvl</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 将参数合并到语句中
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">msg</span> <span class="o">:=</span> <span class="nf">getMessage</span><span class="p">(</span><span class="nx">template</span><span class="p">,</span> <span class="nx">fmtArgs</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// Check 可以帮助避免分配一个分片来保存字段。
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="k">if</span> <span class="nx">ce</span> <span class="o">:=</span> <span class="nx">s</span><span class="p">.</span><span class="nx">base</span><span class="p">.</span><span class="nf">Check</span><span class="p">(</span><span class="nx">lvl</span><span class="p">,</span> <span class="nx">msg</span><span class="p">);</span> <span class="nx">ce</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">ce</span><span class="p">.</span><span class="nf">Write</span><span class="p">(</span><span class="nx">s</span><span class="p">.</span><span class="nf">sweetenFields</span><span class="p">(</span><span class="nx">context</span><span class="p">)</span><span class="o">...</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>函数的第一个参数 <code>InfoLevel</code> 是日志级别，其源码如下</p>
+<p><code>zap@v1.16.0 - zapcore/level.go</code></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">const</span> <span class="p">(</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// Debug 应是大量的，且通常在生产状态禁用.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">DebugLevel</span> <span class="p">=</span> <span class="nx">zapcore</span><span class="p">.</span><span class="nx">DebugLevel</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// Info 是默认的记录优先级.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">InfoLevel</span> <span class="p">=</span> <span class="nx">zapcore</span><span class="p">.</span><span class="nx">InfoLevel</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// Warn 比 info 更重要.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">WarnLevel</span> <span class="p">=</span> <span class="nx">zapcore</span><span class="p">.</span><span class="nx">WarnLevel</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// Error 是高优先级的,如果程序顺利不应该产生任何 err 级别日志.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">ErrorLevel</span> <span class="p">=</span> <span class="nx">zapcore</span><span class="p">.</span><span class="nx">ErrorLevel</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// DPanic 特别重大的错误，在开发模式下引起 panic. 
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">DPanicLevel</span> <span class="p">=</span> <span class="nx">zapcore</span><span class="p">.</span><span class="nx">DPanicLevel</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// Panic 记录消息后调用 panic.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">PanicLevel</span> <span class="p">=</span> <span class="nx">zapcore</span><span class="p">.</span><span class="nx">PanicLevel</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// Fatal 记录消息后调用 os.Exit(1).
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">FatalLevel</span> <span class="p">=</span> <span class="nx">zapcore</span><span class="p">.</span><span class="nx">FatalLevel</span>
+</span></span><span class="line"><span class="cl"><span class="p">)</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><code>getMessage</code> 函数处理 <code>template</code> 和 <code>fmtArgs</code> 参数，主要为不同的参数选择最合适的方式拼接消息</p>
+<p><code>zap@v1.16.0 - sugar.go</code></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">getMessage</span><span class="p">(</span><span class="nx">template</span> <span class="kt">string</span><span class="p">,</span> <span class="nx">fmtArgs</span> <span class="p">[]</span><span class="kd">interface</span><span class="p">{})</span> <span class="kt">string</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// 没有参数直接返回 template
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nx">fmtArgs</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="nx">template</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	
+</span></span><span class="line"><span class="cl">  <span class="c1">// 此处调用 Sprintf 会使用反射
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="k">if</span> <span class="nx">template</span> <span class="o">!=</span> <span class="s">&#34;&#34;</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Sprintf</span><span class="p">(</span><span class="nx">template</span><span class="p">,</span> <span class="nx">fmtArgs</span><span class="o">...</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	
+</span></span><span class="line"><span class="cl">  <span class="c1">// 消息为空并且有一个参数，返回该参数
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nx">fmtArgs</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="nx">str</span><span class="p">,</span> <span class="nx">ok</span> <span class="o">:=</span> <span class="nx">fmtArgs</span><span class="p">[</span><span class="mi">0</span><span class="p">].(</span><span class="kt">string</span><span class="p">);</span> <span class="nx">ok</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="k">return</span> <span class="nx">str</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// 返回所有 fmtArgs
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="k">return</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Sprint</span><span class="p">(</span><span class="nx">fmtArgs</span><span class="o">...</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>关于 <code>s.base.Check</code> ，这就需要介绍<code>zapcore</code> ，下面分析相关模块。</p>
+<h4 id="zapcore">zapcore</h4>
+<p><code>zapcore</code>包 定义并实现了构建 zap 的低级接口。通过提供这些接口的替代实现，外部包可以扩展 zap 的功能。</p>
+<p><code>zap@v1.16.0 - zapcore/core.go</code></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// Core 是一个最小的、快速的记录器接口。
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">type</span> <span class="nx">Core</span> <span class="kd">interface</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// 接口，决定一个日志等级是否启用
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">LevelEnabler</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 向 core 添加核心上下文
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nf">With</span><span class="p">([]</span><span class="nx">Field</span><span class="p">)</span> <span class="nx">Core</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 检查是否应记录提供的条目
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">// 在调用 write 之前必须先调用 Check
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nf">Check</span><span class="p">(</span><span class="nx">Entry</span><span class="p">,</span> <span class="o">*</span><span class="nx">CheckedEntry</span><span class="p">)</span> <span class="o">*</span><span class="nx">CheckedEntry</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 写入日志
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nf">Write</span><span class="p">(</span><span class="nx">Entry</span><span class="p">,</span> <span class="p">[]</span><span class="nx">Field</span><span class="p">)</span> <span class="kt">error</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// 同步刷新缓存日志(如果有)
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nf">Sync</span><span class="p">()</span> <span class="kt">error</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><code>Check</code> 函数有两个入参。第一个参数表示一条完整的日志消息，第二个参数为 nil 时会从 <code>sync.Pool</code> 创建的池中取出<code>*CheckedEntry </code>对象复用，避免重新分配内存。该函数内部调用 <code>AddCore</code> 实现获取 <code>*CheckedEntry</code>对象，最后调用 <code>Write</code> 写入日志消息。</p>
+<p>相关代码全部贴在下面，更多介绍请看代码中的注释。</p>
+<p><code>zap@v1.16.0 - zapcore/entry.go</code></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span><span class="lnt">9
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// 一个 entry 表示一个完整的日志消息
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">type</span> <span class="nx">Entry</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">Level</span>      <span class="nx">Level</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">Time</span>       <span class="nx">time</span><span class="p">.</span><span class="nx">Time</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">LoggerName</span> <span class="kt">string</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">Message</span>    <span class="kt">string</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">Caller</span>     <span class="nx">EntryCaller</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">Stack</span>      <span class="kt">string</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span><span class="lnt">51
+</span><span class="lnt">52
+</span><span class="lnt">53
+</span><span class="lnt">54
+</span><span class="lnt">55
+</span><span class="lnt">56
+</span><span class="lnt">57
+</span><span class="lnt">58
+</span><span class="lnt">59
+</span><span class="lnt">60
+</span><span class="lnt">61
+</span><span class="lnt">62
+</span><span class="lnt">63
+</span><span class="lnt">64
+</span><span class="lnt">65
+</span><span class="lnt">66
+</span><span class="lnt">67
+</span><span class="lnt">68
+</span><span class="lnt">69
+</span><span class="lnt">70
+</span><span class="lnt">71
+</span><span class="lnt">72
+</span><span class="lnt">73
+</span><span class="lnt">74
+</span><span class="lnt">75
+</span><span class="lnt">76
+</span><span class="lnt">77
+</span><span class="lnt">78
+</span><span class="lnt">79
+</span><span class="lnt">80
+</span><span class="lnt">81
+</span><span class="lnt">82
+</span><span class="lnt">83
+</span><span class="lnt">84
+</span><span class="lnt">85
+</span><span class="lnt">86
+</span><span class="lnt">87
+</span><span class="lnt">88
+</span><span class="lnt">89
+</span><span class="lnt">90
+</span><span class="lnt">91
+</span><span class="lnt">92
+</span><span class="lnt">93
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// 使用 sync.Pool 复用临时对象
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">var</span> <span class="p">(</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">_cePool</span> <span class="p">=</span> <span class="nx">sync</span><span class="p">.</span><span class="nx">Pool</span><span class="p">{</span><span class="nx">New</span><span class="p">:</span> <span class="kd">func</span><span class="p">()</span> <span class="kd">interface</span><span class="p">{}</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="o">&amp;</span><span class="nx">CheckedEntry</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="nx">cores</span><span class="p">:</span> <span class="nb">make</span><span class="p">([]</span><span class="nx">Core</span><span class="p">,</span> <span class="mi">4</span><span class="p">),</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}}</span>
+</span></span><span class="line"><span class="cl"><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// 从池中取出 CheckedEntry 并初始化值
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="nf">getCheckedEntry</span><span class="p">()</span> <span class="o">*</span><span class="nx">CheckedEntry</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">ce</span> <span class="o">:=</span> <span class="nx">_cePool</span><span class="p">.</span><span class="nf">Get</span><span class="p">().(</span><span class="o">*</span><span class="nx">CheckedEntry</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">ce</span><span class="p">.</span><span class="nf">reset</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="nx">ce</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// CheckedEntry 是 enter 和 cores 集合。
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">type</span> <span class="nx">CheckedEntry</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">Entry</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">ErrorOutput</span> <span class="nx">WriteSyncer</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">dirty</span>       <span class="kt">bool</span>  <span class="c1">// 用于检测是否重复使用对象
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">should</span>      <span class="nx">CheckWriteAction</span> <span class="c1">// 结束程序的动作
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">cores</span>       <span class="p">[]</span><span class="nx">Core</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// 重置对象
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">ce</span> <span class="o">*</span><span class="nx">CheckedEntry</span><span class="p">)</span> <span class="nf">reset</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">ce</span><span class="p">.</span><span class="nx">Entry</span> <span class="p">=</span> <span class="nx">Entry</span><span class="p">{}</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">ce</span><span class="p">.</span><span class="nx">ErrorOutput</span> <span class="p">=</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">ce</span><span class="p">.</span><span class="nx">dirty</span> <span class="p">=</span> <span class="kc">false</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">ce</span><span class="p">.</span><span class="nx">should</span> <span class="p">=</span> <span class="nx">WriteThenNoop</span>
+</span></span><span class="line"><span class="cl">	<span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">ce</span><span class="p">.</span><span class="nx">cores</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="c1">// 不要保留对 core 的引用!!
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="nx">ce</span><span class="p">.</span><span class="nx">cores</span><span class="p">[</span><span class="nx">i</span><span class="p">]</span> <span class="p">=</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">ce</span><span class="p">.</span><span class="nx">cores</span> <span class="p">=</span> <span class="nx">ce</span><span class="p">.</span><span class="nx">cores</span><span class="p">[:</span><span class="mi">0</span><span class="p">]</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// 将 entry 写入存储的 cores
+</span></span></span><span class="line"><span class="cl"><span class="c1">// 最后将 CheckedEntry 添加到池中
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">ce</span> <span class="o">*</span><span class="nx">CheckedEntry</span><span class="p">)</span> <span class="nf">Write</span><span class="p">(</span><span class="nx">fields</span> <span class="o">...</span><span class="nx">Field</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="nx">ce</span> <span class="o">==</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="nx">ce</span><span class="p">.</span><span class="nx">dirty</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="nx">ce</span><span class="p">.</span><span class="nx">ErrorOutput</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="c1">// 检查 CheckedEntry 的不安全重复使用
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>			<span class="nx">fmt</span><span class="p">.</span><span class="nf">Fprintf</span><span class="p">(</span><span class="nx">ce</span><span class="p">.</span><span class="nx">ErrorOutput</span><span class="p">,</span> <span class="s">&#34;%v Unsafe CheckedEntry re-use near Entry %+v.\n&#34;</span><span class="p">,</span> <span class="nx">ce</span><span class="p">.</span><span class="nx">Time</span><span class="p">,</span> <span class="nx">ce</span><span class="p">.</span><span class="nx">Entry</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">			<span class="nx">ce</span><span class="p">.</span><span class="nx">ErrorOutput</span><span class="p">.</span><span class="nf">Sync</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">ce</span><span class="p">.</span><span class="nx">dirty</span> <span class="p">=</span> <span class="kc">true</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="kd">var</span> <span class="nx">err</span> <span class="kt">error</span>
+</span></span><span class="line"><span class="cl"> 	<span class="c1">// 写入日志消息
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">ce</span><span class="p">.</span><span class="nx">cores</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">err</span> <span class="p">=</span> <span class="nx">multierr</span><span class="p">.</span><span class="nf">Append</span><span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">ce</span><span class="p">.</span><span class="nx">cores</span><span class="p">[</span><span class="nx">i</span><span class="p">].</span><span class="nf">Write</span><span class="p">(</span><span class="nx">ce</span><span class="p">.</span><span class="nx">Entry</span><span class="p">,</span> <span class="nx">fields</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// 处理内部发生的错误
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="k">if</span> <span class="nx">ce</span><span class="p">.</span><span class="nx">ErrorOutput</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="nx">fmt</span><span class="p">.</span><span class="nf">Fprintf</span><span class="p">(</span><span class="nx">ce</span><span class="p">.</span><span class="nx">ErrorOutput</span><span class="p">,</span> <span class="s">&#34;%v write error: %v\n&#34;</span><span class="p">,</span> <span class="nx">ce</span><span class="p">.</span><span class="nx">Time</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">			<span class="nx">ce</span><span class="p">.</span><span class="nx">ErrorOutput</span><span class="p">.</span><span class="nf">Sync</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="nx">should</span><span class="p">,</span> <span class="nx">msg</span> <span class="o">:=</span> <span class="nx">ce</span><span class="p">.</span><span class="nx">should</span><span class="p">,</span> <span class="nx">ce</span><span class="p">.</span><span class="nx">Message</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// 将 CheckedEntry 添加到池中，下次复用
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nf">putCheckedEntry</span><span class="p">(</span><span class="nx">ce</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	
+</span></span><span class="line"><span class="cl">  <span class="c1">// 判断是否需要 panic 或其它方式终止程序..
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="k">switch</span> <span class="nx">should</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">case</span> <span class="nx">WriteThenPanic</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">		<span class="nb">panic</span><span class="p">(</span><span class="nx">msg</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="k">case</span> <span class="nx">WriteThenFatal</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">exit</span><span class="p">.</span><span class="nf">Exit</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">	<span class="k">case</span> <span class="nx">WriteThenGoexit</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">runtime</span><span class="p">.</span><span class="nf">Goexit</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">ce</span> <span class="o">*</span><span class="nx">CheckedEntry</span><span class="p">)</span> <span class="nf">AddCore</span><span class="p">(</span><span class="nx">ent</span> <span class="nx">Entry</span><span class="p">,</span> <span class="nx">core</span> <span class="nx">Core</span><span class="p">)</span> <span class="o">*</span><span class="nx">CheckedEntry</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="nx">ce</span> <span class="o">==</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 从池中取 CheckedEntry，减少内存分配
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="nx">ce</span> <span class="p">=</span> <span class="nf">getCheckedEntry</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">ce</span><span class="p">.</span><span class="nx">Entry</span> <span class="p">=</span> <span class="nx">ent</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">ce</span><span class="p">.</span><span class="nx">cores</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">ce</span><span class="p">.</span><span class="nx">cores</span><span class="p">,</span> <span class="nx">core</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="nx">ce</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h2 id="doc">Doc</h2>
+<p><a class="link" href="https://pkg.go.dev/go.uber.org/zap"  target="_blank" rel="noopener"
+    >https://pkg.go.dev/go.uber.org/zap</a></p>
+<h2 id="qa">QA</h2>
+<h3 id="设计问题">设计问题</h3>
+<h4 id="为什么要在logger性能上花费这么多精力呢">为什么要在Logger性能上花费这么多精力呢？</h4>
+<p>当然，大多数应用程序不会注意到Logger慢的影响：因为它们每次操作会需要几十或几百毫秒，所以额外的几毫秒很无关紧要。</p>
+<p>另一方面，为什么不使用结构化日志快速开发呢？与其他日志包相比<code>SugaredLogger</code>的使用并不难，<code>Logger</code>使结构化记录在对性能要求严格的环境中成为可能。在 Go 微服务的架构体系中，使每个应用程序甚至稍微更有效地加速执行。</p>
+<h4 id="为什么没有logger和sugaredlogger接口">为什么没有<code>Logger</code>和<code>SugaredLogger</code>接口？</h4>
+<p>不像熟悉的<code>io.Writer</code>和<code>http.Handler</code>、<code>Logger</code>和<code>SugaredLogger</code>接口将包括<strong>很多</strong>方法。正如 <a class="link" href="https://go-proverbs.github.io/"  target="_blank" rel="noopener"
+    >Rob Pike 谚语指出</a>的，&ldquo;The bigger the interface, the weaker the abstraction&rdquo;(接口越大，抽象越弱)。接口也是严格的，任何更改都需要发布一个新的主版本，因为它打破了所有第三方实现。</p>
+<p><code>Logger</code>和<code>SugaredLogger</code>成为具体类型并不会牺牲太多抽象，而且它允许我们在不引入破坏性更改的情况下添加方法。您的应用程序应该定义并依赖只包含您使用的方法的接口。</p>
+<h4 id="为什么我的一些日志会丢失">为什么我的一些日志会丢失？</h4>
+<p>在启用抽样时，通过zap有意地删除日志。生产配置(如NewProductionConfig()返回的那样)支持抽样，这将导致在一秒钟内对重复日志进行抽样。有关为什么启用抽样的更多详细信息，请参见<a class="link" href="https://github.com/uber-go/zap/blob/master/FAQ.md#why-sample-application-logs"  target="_blank" rel="noopener"
+    >&ldquo;为什么使用示例应用日志&quot;中启用采样</a>.</p>
+<h4 id="为什么要使用示例应用程序日志">为什么要使用示例应用程序日志？</h4>
+<p>应用程序经常会遇到错误，无论是因为错误还是因为用户使用错误。记录错误日志通常是一个好主意，但它很容易使这种糟糕的情况变得更糟：不仅您的应用程序应对大量错误，它还花费额外的CPU周期和I/O记录这些错误日志。由于写入通常是序列化的，因此在最需要时，<code>logger</code>会限制吞吐量。</p>
+<p>采样通过删除重复的日志条目来解决这个问题。在正常情况下，您的应用程序会输出每个记录。但是，当类似的记录每秒输出数百或数千次时，zap 开始丢弃重复以保存吞吐量。</p>
+<h4 id="为什么结构化的日志-api-除了接受字段之外还可以接收消息">为什么结构化的日志 API 除了接受字段之外还可以接收消息？</h4>
+<p>主观上，我们发现在结构化上下文中附带一个简短的描述是有帮助的。这在开发过程中并不关键，但它使调试和操作不熟悉的系统更加容易。</p>
+<p>更具体地说，zap 的采样算法使用消息来识别重复的条目。根据我们的经验，这是一个介于随机抽样（通常在调试时删除您需要的确切条目）和哈希完整条目（代价高）之间的一个中间方法。</p>
+<h4 id="为什么要包括全局-loggers">为什么要包括全局 loggers？</h4>
+<p>由于许多其他日志包都包含全局变量logger，许多应用程序没有设计成接收logger作为显式参数。更改函数签名通常是一种破坏性的更改，因此zap包含全局logger以简化迁移。</p>
+<p>尽可能避免使用它们。</p>
+<h4 id="为什么包括专用的panic和fatal日志级别">为什么包括专用的Panic和Fatal日志级别？</h4>
+<p>一般来说，应用程序代码应优雅地处理错误，而不是使用<code>panic</code>或<code>os.Exit</code>。但是，每个规则都有例外，当错误确实无法恢复时，崩溃是很常见的。为了避免丢失任何信息（尤其是崩溃的原因），记录器必须在进程退出之前冲洗任何缓冲条目。</p>
+<p>Zap 通过提供在退出前自动冲洗的<code>Panic</code>和<code>Fatal</code>记录方法来使这一操作变得简单。当然，这并不保证日志永远不会丢失，但它消除了常见的错误。</p>
+<p>有关详细信息，请参阅 Uber-go/zap#207 中的讨论。</p>
+<h4 id="什么是dpanic">什么是<code>DPanic</code>?</h4>
+<p><code>DPanic</code>代表&quot;panic in development.&quot;。在development中，它会打印Panic级别的日志：反之，它将发生在Error级别的日志，<code>DPanic</code>更加容易捕获可能但实际上不应该发生的错误，而不是在生产环境中Panic。</p>
+<p>如果你曾经写过这样的代码，就可以使用<code>DPanic</code>:</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nb">panic</span><span class="p">(</span><span class="nx">fmt</span><span class="p">.</span><span class="nf">Sprintf</span><span class="p">(</span><span class="s">&#34;shouldn&#39;t ever get here: %v&#34;</span><span class="p">,</span> <span class="nx">err</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="安装问题">安装问题</h3>
+<h4 id="错误expects-import-gouberorgzap是什么意思">错误<code>expects import &quot;go.uber.org/zap&quot;</code>是什么意思？</h4>
+<p>要么zap安装错误，要么您引用了代码中的错误包名。</p>
+<p>Zap 的源代码托管在 GitHub 上，但  <a class="link" href="https://golang.org/cmd/go/#hdr-Remote_import_paths"  target="_blank" rel="noopener"
+    >import path</a>是  <code>go.uber.org/zap</code>，让我们项目维护者，可以更方便地自由移动源代码。所以在安装和使用包时需要注意这一点。</p>
+<p>如果你遵循两个简单的规则，就会正常工作：安装zap<code>go get -u go.uber.org/zap</code>并始终导入它在你的代码<code>import &quot;go.uber.org/zap&quot;</code>，代码不应包含任何对<code>github.com/uber-go/zap</code>的引用.</p>
+<h3 id="用法问题">用法问题</h3>
+<h4 id="zap是否支持日志切割">Zap是否支持日志切割？</h4>
+<p>Zap 不支持切割日志文件，因为我们更喜欢将此交给外部程序，如<code>logrotate</code>.</p>
+<p>但是，日志切割包很容易集成，如  <a class="link" href="https://godoc.org/gopkg.in/natefinch/lumberjack.v2"  target="_blank" rel="noopener"
+    ><code>gopkg.in/natefinch/lumberjack.v2</code></a> 作为<code>zapcore.WriteSyncer</code>.</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// lumberjack.Logger is already safe for concurrent use, so we don&#39;t need to
+</span></span></span><span class="line"><span class="cl"><span class="c1">// lock it.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="nx">w</span> <span class="o">:=</span> <span class="nx">zapcore</span><span class="p">.</span><span class="nf">AddSync</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">lumberjack</span><span class="p">.</span><span class="nx">Logger</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">Filename</span><span class="p">:</span>   <span class="s">&#34;/var/log/myapp/foo.log&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">MaxSize</span><span class="p">:</span>    <span class="mi">500</span><span class="p">,</span> <span class="c1">// megabytes
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">MaxBackups</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">MaxAge</span><span class="p">:</span>     <span class="mi">28</span><span class="p">,</span> <span class="c1">// days
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="p">})</span>
+</span></span><span class="line"><span class="cl"><span class="nx">core</span> <span class="o">:=</span> <span class="nx">zapcore</span><span class="p">.</span><span class="nf">NewCore</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">zapcore</span><span class="p">.</span><span class="nf">NewJSONEncoder</span><span class="p">(</span><span class="nx">zap</span><span class="p">.</span><span class="nf">NewProductionEncoderConfig</span><span class="p">()),</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">w</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">zap</span><span class="p">.</span><span class="nx">InfoLevel</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl"><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="nx">logger</span> <span class="o">:=</span> <span class="nx">zap</span><span class="p">.</span><span class="nf">New</span><span class="p">(</span><span class="nx">core</span><span class="p">)</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h4 id="插件">插件</h4>
+<p>我们很希望zap 本身能满足的每一个logging需求，但我们只熟悉少数日志摄入(log ingestion)系统、参数解析(flag-parsing)包等。所以我们更愿意发展 zap 插件生态系统。</p>
+<p>下面扩展包，可以作为参考使用：</p>
+<div class="table-wrapper"><table>
+<thead>
+<tr>
+<th>包</th>
+<th>集成</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>github.com/tchap/zapext</code></td>
+<td>Sentry, syslog</td>
+</tr>
+<tr>
+<td><code>github.com/fgrosse/zaptest</code></td>
+<td>Ginkgo</td>
+</tr>
+<tr>
+<td><code>github.com/blendle/zapdriver</code></td>
+<td>Stackdriver</td>
+</tr>
+<tr>
+<td><code>github.com/moul/zapgorm</code></td>
+<td>Gorm</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="性能比较">性能比较</h3>
+<blockquote>
+<p>说明 : 以下资料来源于 zap 官方，Zap 提供的基准测试清楚地表明，<a class="link" href="https://github.com/rs/zerolog"  target="_blank" rel="noopener"
+    >zerolog</a>是与 Zap 竞争最激烈的。zerolo还提供结果非常相似的<a class="link" href="https://github.com/rs/zerolog#benchmarks"  target="_blank" rel="noopener"
+    >基准测试</a>：</p>
+</blockquote>
+<p>记录一个10个kv字段的消息：</p>
+<div class="table-wrapper"><table>
+<thead>
+<tr>
+<th>库名</th>
+<th>每次迭代耗时</th>
+<th>耗时相比zap</th>
+<th>每次迭代内存分配次数</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>⚡ zap</td>
+<td>862 ns/op</td>
+<td>+0%</td>
+<td>5 allocs/op</td>
+</tr>
+<tr>
+<td>⚡ zap (sugared)</td>
+<td>1250 ns/op</td>
+<td>+45%</td>
+<td>11 allocs/op</td>
+</tr>
+<tr>
+<td>zerolog</td>
+<td>4021 ns/op</td>
+<td>+366%</td>
+<td>76 allocs/op</td>
+</tr>
+<tr>
+<td>go-kit</td>
+<td>4542 ns/op</td>
+<td>+427%</td>
+<td>105 allocs/op</td>
+</tr>
+<tr>
+<td>apex/log</td>
+<td>26785 ns/op</td>
+<td>+3007%</td>
+<td>115 allocs/op</td>
+</tr>
+<tr>
+<td>logrus</td>
+<td>29501 ns/op</td>
+<td>+3322%</td>
+<td>125 allocs/op</td>
+</tr>
+<tr>
+<td>log15</td>
+<td>29906 ns/op</td>
+<td>+3369%</td>
+<td>122 allocs/op</td>
+</tr>
+</tbody>
+</table></div>
+<p>使用一个已经有10个kv字段的logger记录一条消息：</p>
+<div class="table-wrapper"><table>
+<thead>
+<tr>
+<th>库名</th>
+<th>每次迭代耗时</th>
+<th>耗时相比zap</th>
+<th>每次迭代内存分配次数</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>⚡ zap</td>
+<td>126 ns/op</td>
+<td>+0%</td>
+<td>0 allocs/op</td>
+</tr>
+<tr>
+<td>⚡ zap (sugared)</td>
+<td>187 ns/op</td>
+<td>+48%</td>
+<td>2 allocs/op</td>
+</tr>
+<tr>
+<td>zerolog</td>
+<td>88 ns/op</td>
+<td>-30%</td>
+<td>0 allocs/op</td>
+</tr>
+<tr>
+<td>go-kit</td>
+<td>5087 ns/op</td>
+<td>+3937%</td>
+<td>103 allocs/op</td>
+</tr>
+<tr>
+<td>log15</td>
+<td>18548 ns/op</td>
+<td>+14621%</td>
+<td>73 allocs/op</td>
+</tr>
+<tr>
+<td>apex/log</td>
+<td>26012 ns/op</td>
+<td>+20544%</td>
+<td>104 allocs/op</td>
+</tr>
+<tr>
+<td>logrus</td>
+<td>27236 ns/op</td>
+<td>+21516%</td>
+<td>113 allocs/op</td>
+</tr>
+</tbody>
+</table></div>
+<p>记录一个字符串，没有字段或<code>printf</code>风格的模板：</p>
+<div class="table-wrapper"><table>
+<thead>
+<tr>
+<th>库名</th>
+<th>每次迭代耗时</th>
+<th>耗时相比zap</th>
+<th>每次迭代内存分配次数</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>⚡ zap</td>
+<td>118 ns/op</td>
+<td>+0%</td>
+<td>0 allocs/op</td>
+</tr>
+<tr>
+<td>⚡ zap (sugared)</td>
+<td>191 ns/op</td>
+<td>+62%</td>
+<td>2 allocs/op</td>
+</tr>
+<tr>
+<td>zerolog</td>
+<td>93 ns/op</td>
+<td>-21%</td>
+<td>0 allocs/op</td>
+</tr>
+<tr>
+<td>go-kit</td>
+<td>280 ns/op</td>
+<td>+137%</td>
+<td>11 allocs/op</td>
+</tr>
+<tr>
+<td>standard library</td>
+<td>499 ns/op</td>
+<td>+323%</td>
+<td>2 allocs/op</td>
+</tr>
+<tr>
+<td>apex/log</td>
+<td>1990 ns/op</td>
+<td>+1586%</td>
+<td>10 allocs/op</td>
+</tr>
+<tr>
+<td>logrus</td>
+<td>3129 ns/op</td>
+<td>+2552%</td>
+<td>24 allocs/op</td>
+</tr>
+<tr>
+<td>log15</td>
+<td>3887 ns/op</td>
+<td>+3194%</td>
+<td>23 allocs/op</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="相似的库">相似的库</h3>
+<p><a class="link" href="https://github.com/sirupsen/logrus"  target="_blank" rel="noopener"
+    >logrus</a>  功能强大</p>
+<p><a class="link" href="https://github.com/rs/zerolog"  target="_blank" rel="noopener"
+    >zerolog</a> 性能相当好的日志库</p>
+
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/%E6%97%A5%E5%BF%97/">日志</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+     
+    
+        
+    <script src="https://utteranc.es/client.js" 
+        repo="ixugo/ixugo.github.io"
+        issue-term="pathname"
+        
+        crossorigin="anonymous"
+        async
+        >
+</script>
+
+<style>
+    .utterances {
+        max-width: unset;
+    }
+</style>
+
+<script>
+    function setUtterancesTheme(theme) {
+        let utterances = document.querySelector('.utterances iframe');
+        if (utterances) {
+            utterances.contentWindow.postMessage(
+                {
+                    type: 'set-theme',
+                    theme: `github-${theme}`
+                },
+                'https://utteranc.es'
+            );
+        }
+    }
+
+    addEventListener('message', event => {
+        if (event.origin !== 'https://utteranc.es') return;
+        setUtterancesTheme(document.documentElement.dataset.scheme)
+    });
+
+    window.addEventListener('onColorSchemeChange', (e) => {
+        setUtterancesTheme(e.detail)
+    })
+</script>
+
+
+    
+
+    <footer class="site-footer">
+  <section class="copyright">
+    &copy;
+    
+    2018 -
+    
+    2023 ixugo
+  </section>
+  <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+  <section class="powerby">
+
+    
+    <span id="busuanzi_container_page_pv">本文阅读量
+      <span style="font-size: 14px" id="busuanzi_value_page_pv"></span>
+      次，</span>
+    <span id="busuanzi_container_site_pv">总访问量
+      <span style="font-size: 14px" id="busuanzi_value_site_pv"></span>
+      次 </span>，总访客数
+    <span style="font-size: 14px" id="busuanzi_value_site_uv"></span> 人
+    <br />
+
+
+    Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> .&nbsp;&nbsp;
+    Theme <a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener"
+      data-version="3.16.0">Stack</a> designed by <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a>
+  </section>
+
+
+
+
+  <script>
+    function count() {
+      let href = window.location.href;
+      let regexp = /^https?:\/\/blog.golang.space\/?(page\/[\d]+\/?)?$/;
+      if (regexp.test(href)) {
+        let e = document.getElementById("busuanzi_container_page_pv");
+        e.innerText = "";
+      }
+    }
+    window.onload = count;
+  </script>
+</footer>
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

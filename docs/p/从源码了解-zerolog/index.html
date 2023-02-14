@@ -1,0 +1,2295 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='zerolog 什么是 Zerolog ? zerolog 包提供了一个专门用于 JSON 输出的简单快速的Logger。
+zerolog 的 API 旨在为开发者提供出色的体验和令人惊叹的性能。其独特的链式 API 允许通过避免内存分配和反射来写入 JSON ( 或 CBOR ) 日志。
+uber 的 zap 库开创了这种方法，zerolog 通过更简单的应用编程接口和更好的性能，将这一概念提升到了更高的层次。
+使用 zerolog 安装 1 go get -u github.com/rs/zerolog/log Contextual Logger 1 2 3 4 5 6 7 8 9 func TestContextualLogger(t *testing.T) { log := zerolog.New(os.Stdout) log.Info().Str(&amp;#34;content&amp;#34;, &amp;#34;Hello world&amp;#34;).Int(&amp;#34;count&amp;#34;, 3).Msg(&amp;#34;TestContextualLogger&amp;#34;) // 添加上下文 (文件名/行号/字符串) log = log.With().Caller().Str(&amp;#34;foo&amp;#34;, &amp;#34;bar&amp;#34;).Logger() log.Info().Msg(&amp;#34;Hello wrold&amp;#34;) } 输出
+1 2 // {&amp;#34;level&amp;#34;:&amp;#34;info&amp;#34;,&amp;#34;content&amp;#34;:&amp;#34;Hello world&amp;#34;,&amp;#34;count&amp;#34;:3,&amp;#34;message&amp;#34;:&amp;#34;TestContextualLogger&amp;#34;} // {&amp;#34;level&amp;#34;:&amp;#34;info&amp;#34;,&amp;#34;caller&amp;#34;:&amp;#34;log_example_test.'>
+<title>从源码了解 zerolog</title>
+
+<link rel='canonical' href='https://blog.golang.space/p/%E4%BB%8E%E6%BA%90%E7%A0%81%E4%BA%86%E8%A7%A3-zerolog/'>
+
+<link rel="stylesheet" href="/scss/style.min.8191399262444ab68b72a18c97392f5349be20a1615d77445be51e974c144cff.css"><meta property='og:title' content='从源码了解 zerolog'>
+<meta property='og:description' content='zerolog 什么是 Zerolog ? zerolog 包提供了一个专门用于 JSON 输出的简单快速的Logger。
+zerolog 的 API 旨在为开发者提供出色的体验和令人惊叹的性能。其独特的链式 API 允许通过避免内存分配和反射来写入 JSON ( 或 CBOR ) 日志。
+uber 的 zap 库开创了这种方法，zerolog 通过更简单的应用编程接口和更好的性能，将这一概念提升到了更高的层次。
+使用 zerolog 安装 1 go get -u github.com/rs/zerolog/log Contextual Logger 1 2 3 4 5 6 7 8 9 func TestContextualLogger(t *testing.T) { log := zerolog.New(os.Stdout) log.Info().Str(&amp;#34;content&amp;#34;, &amp;#34;Hello world&amp;#34;).Int(&amp;#34;count&amp;#34;, 3).Msg(&amp;#34;TestContextualLogger&amp;#34;) // 添加上下文 (文件名/行号/字符串) log = log.With().Caller().Str(&amp;#34;foo&amp;#34;, &amp;#34;bar&amp;#34;).Logger() log.Info().Msg(&amp;#34;Hello wrold&amp;#34;) } 输出
+1 2 // {&amp;#34;level&amp;#34;:&amp;#34;info&amp;#34;,&amp;#34;content&amp;#34;:&amp;#34;Hello world&amp;#34;,&amp;#34;count&amp;#34;:3,&amp;#34;message&amp;#34;:&amp;#34;TestContextualLogger&amp;#34;} // {&amp;#34;level&amp;#34;:&amp;#34;info&amp;#34;,&amp;#34;caller&amp;#34;:&amp;#34;log_example_test.'>
+<meta property='og:url' content='https://blog.golang.space/p/%E4%BB%8E%E6%BA%90%E7%A0%81%E4%BA%86%E8%A7%A3-zerolog/'>
+<meta property='og:site_name' content='ixugo'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='日志' /><meta property='article:published_time' content='2021-02-18T15:00:00&#43;00:00'/><meta property='article:modified_time' content='2021-02-18T15:00:00&#43;00:00'/>
+<meta name="twitter:title" content="从源码了解 zerolog">
+<meta name="twitter:description" content="zerolog 什么是 Zerolog ? zerolog 包提供了一个专门用于 JSON 输出的简单快速的Logger。
+zerolog 的 API 旨在为开发者提供出色的体验和令人惊叹的性能。其独特的链式 API 允许通过避免内存分配和反射来写入 JSON ( 或 CBOR ) 日志。
+uber 的 zap 库开创了这种方法，zerolog 通过更简单的应用编程接口和更好的性能，将这一概念提升到了更高的层次。
+使用 zerolog 安装 1 go get -u github.com/rs/zerolog/log Contextual Logger 1 2 3 4 5 6 7 8 9 func TestContextualLogger(t *testing.T) { log := zerolog.New(os.Stdout) log.Info().Str(&amp;#34;content&amp;#34;, &amp;#34;Hello world&amp;#34;).Int(&amp;#34;count&amp;#34;, 3).Msg(&amp;#34;TestContextualLogger&amp;#34;) // 添加上下文 (文件名/行号/字符串) log = log.With().Caller().Str(&amp;#34;foo&amp;#34;, &amp;#34;bar&amp;#34;).Logger() log.Info().Msg(&amp;#34;Hello wrold&amp;#34;) } 输出
+1 2 // {&amp;#34;level&amp;#34;:&amp;#34;info&amp;#34;,&amp;#34;content&amp;#34;:&amp;#34;Hello world&amp;#34;,&amp;#34;count&amp;#34;:3,&amp;#34;message&amp;#34;:&amp;#34;TestContextualLogger&amp;#34;} // {&amp;#34;level&amp;#34;:&amp;#34;info&amp;#34;,&amp;#34;caller&amp;#34;:&amp;#34;log_example_test.">
+    <link rel="shortcut icon" href="img/favicon.ico" />
+
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+	(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+	m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+	})(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+	ga('create', 'UA-192125643-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="Toggle Menu">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu0b04ba6d7249c9f90c92db974439eb8c_208246_300x0_resize_box_3.png" width="300"
+                            height="321" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🧐</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">ixugo</a></h1>
+            <h2 class="site-description">走出舒适区</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/ixugo'
+                        target="_blank"
+                        title="GitHub"
+                        rel="me"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>Home</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/about/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>About</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>Archives</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>Search</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>Dark Mode</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">Table of contents</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#zerologhttpsgithubcomrszerolog"><a href="https://github.com/rs/zerolog">zerolog</a></a></li>
+    <li><a href="#什么是-zerolog-">什么是 Zerolog ?</a></li>
+    <li><a href="#使用-zerolog">使用 zerolog</a>
+      <ol>
+        <li><a href="#安装">安装</a></li>
+        <li><a href="#contextual-logger">Contextual Logger</a></li>
+        <li><a href="#多级logger">多级Logger</a></li>
+        <li><a href="#注意事项">注意事项</a></li>
+      </ol>
+    </li>
+    <li><a href="#了解源码">了解源码</a>
+      <ol>
+        <li><a href="#看一下-logger-结构体">看一下 Logger 结构体</a></li>
+        <li><a href="#debug-了解输出日志流程">debug 了解输出日志流程</a></li>
+        <li><a href="#从-zerolog-学习避免内存分配">从 zerolog 学习避免内存分配</a></li>
+        <li><a href="#学习日志级别">学习日志级别</a></li>
+        <li><a href="#学习如何实现-hook">学习如何实现 Hook</a></li>
+        <li><a href="#学习如何得到调用者函数名">学习如何得到调用者函数名</a></li>
+        <li><a href="#从日志采样中学习-atomic">从日志采样中学习 atomic</a></li>
+      </ol>
+    </li>
+    <li><a href="#doc">Doc</a></li>
+    <li><a href="#比较">比较</a>
+      <ol>
+        <li><a href="#相似的库">相似的库</a></li>
+      </ol>
+    </li>
+    <li><a href="#参考资料">参考资料</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+            <main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/%E4%BB%8E%E6%BA%90%E7%A0%81%E4%BA%86%E8%A7%A3-zerolog/">从源码了解 zerolog</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    
+    
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Feb 18, 2021</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    14 minute read
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+
+</header>
+
+    <section class="article-content">
+    
+    
+    <h2 id="zerologhttpsgithubcomrszerolog"><a class="link" href="https://github.com/rs/zerolog"  target="_blank" rel="noopener"
+    >zerolog</a></h2>
+<h2 id="什么是-zerolog-">什么是 Zerolog ?</h2>
+<p>zerolog 包提供了一个专门用于 JSON 输出的简单快速的Logger。</p>
+<p>zerolog 的 API 旨在为开发者提供出色的体验和令人惊叹的<a class="link" href="https://github.com/rs/zerolog#benchmarks"  target="_blank" rel="noopener"
+    >性能</a>。其独特的链式 API 允许通过避免内存分配和反射来写入 JSON ( 或 CBOR ) 日志。</p>
+<p>uber 的 <a class="link" href="https://godoc.org/go.uber.org/zap"  target="_blank" rel="noopener"
+    >zap</a> 库开创了这种方法，zerolog 通过更简单的应用编程接口和更好的性能，将这一概念提升到了更高的层次。</p>
+<h2 id="使用-zerolog">使用 zerolog</h2>
+<h3 id="安装">安装</h3>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">go get -u github.com/rs/zerolog/log
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="contextual-logger">Contextual Logger</h3>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span><span class="lnt">9
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">TestContextualLogger</span><span class="p">(</span><span class="nx">t</span> <span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">log</span> <span class="o">:=</span> <span class="nx">zerolog</span><span class="p">.</span><span class="nf">New</span><span class="p">(</span><span class="nx">os</span><span class="p">.</span><span class="nx">Stdout</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">log</span><span class="p">.</span><span class="nf">Info</span><span class="p">().</span><span class="nf">Str</span><span class="p">(</span><span class="s">&#34;content&#34;</span><span class="p">,</span> <span class="s">&#34;Hello world&#34;</span><span class="p">).</span><span class="nf">Int</span><span class="p">(</span><span class="s">&#34;count&#34;</span><span class="p">,</span> <span class="mi">3</span><span class="p">).</span><span class="nf">Msg</span><span class="p">(</span><span class="s">&#34;TestContextualLogger&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  
+</span></span><span class="line"><span class="cl">  
+</span></span><span class="line"><span class="cl">  <span class="c1">// 添加上下文 (文件名/行号/字符串)
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">log</span> <span class="p">=</span> <span class="nx">log</span><span class="p">.</span><span class="nf">With</span><span class="p">().</span><span class="nf">Caller</span><span class="p">().</span><span class="nf">Str</span><span class="p">(</span><span class="s">&#34;foo&#34;</span><span class="p">,</span> <span class="s">&#34;bar&#34;</span><span class="p">).</span><span class="nf">Logger</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">log</span><span class="p">.</span><span class="nf">Info</span><span class="p">().</span><span class="nf">Msg</span><span class="p">(</span><span class="s">&#34;Hello wrold&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>输出</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">// <span class="o">{</span><span class="s2">&#34;level&#34;</span>:<span class="s2">&#34;info&#34;</span>,<span class="s2">&#34;content&#34;</span>:<span class="s2">&#34;Hello world&#34;</span>,<span class="s2">&#34;count&#34;</span>:3,<span class="s2">&#34;message&#34;</span>:<span class="s2">&#34;TestContextualLogger&#34;</span><span class="o">}</span>
+</span></span><span class="line"><span class="cl">// <span class="o">{</span><span class="s2">&#34;level&#34;</span>:<span class="s2">&#34;info&#34;</span>,<span class="s2">&#34;caller&#34;</span>:<span class="s2">&#34;log_example_test.go:29&#34;</span>,<span class="s2">&#34;message&#34;</span>:<span class="s2">&#34;Hello wrold&#34;</span><span class="o">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>与 zap 相同的是，都定义了强类型字段，你可以在<a class="link" href="https://pkg.go.dev/github.com/rs/zerolog#readme-standard-types"  target="_blank" rel="noopener"
+    >这里</a>找到支持字段的完整列表。</p>
+<p>与 zap 不同的是，zerolog 采用链式调用。</p>
+<h3 id="多级logger">多级Logger</h3>
+<p>zerolog 提供了从 <strong>Trace</strong> 到  <strong>Panic</strong> 七个级别</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl">	<span class="c1">// 设置日志级别
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">zerolog</span><span class="p">.</span><span class="nf">SetGlobalLevel</span><span class="p">(</span><span class="nx">zerolog</span><span class="p">.</span><span class="nx">WarnLevel</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">log</span><span class="p">.</span><span class="nf">Trace</span><span class="p">().</span><span class="nf">Msg</span><span class="p">(</span><span class="s">&#34;Trace&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">log</span><span class="p">.</span><span class="nf">Debug</span><span class="p">().</span><span class="nf">Msg</span><span class="p">(</span><span class="s">&#34;Debug&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">log</span><span class="p">.</span><span class="nf">Info</span><span class="p">().</span><span class="nf">Msg</span><span class="p">(</span><span class="s">&#34;Info&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">log</span><span class="p">.</span><span class="nf">Warn</span><span class="p">().</span><span class="nf">Msg</span><span class="p">(</span><span class="s">&#34;Warn&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">log</span><span class="p">.</span><span class="nf">Error</span><span class="p">().</span><span class="nf">Msg</span><span class="p">(</span><span class="s">&#34;Error&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">log</span><span class="p">.</span><span class="nf">Log</span><span class="p">().</span><span class="nf">Msg</span><span class="p">(</span><span class="s">&#34;没有级别&#34;</span><span class="p">)</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>输出</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"> <span class="o">{</span><span class="s2">&#34;level&#34;</span>:<span class="s2">&#34;warn&#34;</span>,<span class="s2">&#34;message&#34;</span>:<span class="s2">&#34;Warn&#34;</span><span class="o">}</span>
+</span></span><span class="line"><span class="cl"> <span class="o">{</span><span class="s2">&#34;level&#34;</span>:<span class="s2">&#34;error&#34;</span>,<span class="s2">&#34;message&#34;</span>:<span class="s2">&#34;Error&#34;</span><span class="o">}</span>
+</span></span><span class="line"><span class="cl"> <span class="o">{</span><span class="s2">&#34;message&#34;</span>:<span class="s2">&#34;没有级别&#34;</span><span class="o">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="注意事项">注意事项</h3>
+<p>1.zerolog 不会对重复的字段删除</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="nx">logger</span> <span class="o">:=</span> <span class="nx">zerolog</span><span class="p">.</span><span class="nf">New</span><span class="p">(</span><span class="nx">os</span><span class="p">.</span><span class="nx">Stderr</span><span class="p">).</span><span class="nf">With</span><span class="p">().</span><span class="nf">Timestamp</span><span class="p">().</span><span class="nf">Logger</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="nx">logger</span><span class="p">.</span><span class="nf">Info</span><span class="p">().</span>
+</span></span><span class="line"><span class="cl">       <span class="nf">Timestamp</span><span class="p">().</span>
+</span></span><span class="line"><span class="cl">       <span class="nf">Msg</span><span class="p">(</span><span class="s">&#34;dup&#34;</span><span class="p">)</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>输出</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="o">{</span><span class="s2">&#34;level&#34;</span>:<span class="s2">&#34;info&#34;</span>,<span class="s2">&#34;time&#34;</span>:1494567715,<span class="s2">&#34;time&#34;</span>:1494567715,<span class="s2">&#34;message&#34;</span>:<span class="s2">&#34;dup&#34;</span><span class="o">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>2.链式调用必须调用 <strong>Msg</strong> 或 <strong>Msgf</strong>，<strong>Send</strong> 才能输出日志，<strong>Send</strong> 相当于调用 <strong>Msg(&quot;&quot;)</strong></p>
+<p>3.一旦调用 <strong>Msg</strong> ，<strong>Event</strong> 将会被处理 ( 放回池中或丢掉 )，不允许二次调用。</p>
+<h2 id="了解源码">了解源码</h2>
+<p>本次zerolog的源码分析基于 zerolog 1.22.0 版本，源码分析较长，希望大家耐心看完。希望大家能有所收获。</p>
+<h3 id="看一下-logger-结构体">看一下 Logger 结构体</h3>
+<p><strong>Logger</strong> 的参数 <strong>w</strong> 类型是 <strong>LevelWriter</strong> 接口，用于向目标输出事件。<strong>zerolog.New</strong> 函数用来创建 <strong>Logger</strong>，看下方源码。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// ============ log.go ===
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>
+</span></span><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">Logger</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">w</span>       <span class="nx">LevelWriter</span> <span class="c1">// 输出对象
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">level</span>   <span class="nx">Level</span>       <span class="c1">// 日志级别
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">sampler</span> <span class="nx">Sampler</span>     <span class="c1">// 采样器
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">context</span> <span class="p">[]</span><span class="kt">byte</span>   		<span class="c1">// 存储上下文
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">hooks</span>   <span class="p">[]</span><span class="nx">Hook</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">stack</span>   <span class="kt">bool</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">New</span><span class="p">(</span><span class="nx">w</span> <span class="nx">io</span><span class="p">.</span><span class="nx">Writer</span><span class="p">)</span> <span class="nx">Logger</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="nx">w</span> <span class="o">==</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="c1">// ioutil.Discard 所有成功执行的 Write 操作都不会产生任何实际的效果
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="nx">w</span> <span class="p">=</span> <span class="nx">ioutil</span><span class="p">.</span><span class="nx">Discard</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">lw</span><span class="p">,</span> <span class="nx">ok</span> <span class="o">:=</span> <span class="nx">w</span><span class="p">.(</span><span class="nx">LevelWriter</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 传入的不是 LevelWriter 类型，封装成此类型
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="k">if</span> <span class="p">!</span><span class="nx">ok</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">lw</span> <span class="p">=</span> <span class="nx">levelWriterAdapter</span><span class="p">{</span><span class="nx">w</span><span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 默认输出日志级别 TraceLevel
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="k">return</span> <span class="nx">Logger</span><span class="p">{</span><span class="nx">w</span><span class="p">:</span> <span class="nx">lw</span><span class="p">,</span> <span class="nx">level</span><span class="p">:</span> <span class="nx">TraceLevel</span><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="debug-了解输出日志流程">debug 了解输出日志流程</h3>
+<p><img src="http://img.golang.space/shot-1623740459584.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20210615150059405"
+	
+	
+></p>
+<p>如上图所示，在第三行打上断点。</p>
+<p>下图表示该行代码执行流程。</p>
+<p><img src="http://img.golang.space/shot-1623828740595.png"
+	
+	
+	
+	loading="lazy"
+	
+	
+></p>
+<p>开始 debug</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// ============ log.go ===
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>
+</span></span><span class="line"><span class="cl"><span class="c1">// Info 开始记录一条 info 级别的消息
+</span></span></span><span class="line"><span class="cl"><span class="c1">// 你必须在返回的 *Event 上调用 Msg 才能发送事件
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">l</span> <span class="o">*</span><span class="nx">Logger</span><span class="p">)</span> <span class="nf">Info</span><span class="p">()</span> <span class="o">*</span><span class="nx">Event</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="nx">l</span><span class="p">.</span><span class="nf">newEvent</span><span class="p">(</span><span class="nx">InfoLevel</span><span class="p">,</span> <span class="kc">nil</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">l</span> <span class="o">*</span><span class="nx">Logger</span><span class="p">)</span> <span class="nf">newEvent</span><span class="p">(</span><span class="nx">level</span> <span class="nx">Level</span><span class="p">,</span> <span class="nx">done</span> <span class="kd">func</span><span class="p">(</span><span class="kt">string</span><span class="p">))</span> <span class="o">*</span><span class="nx">Event</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// 判断是否应该记录的级别
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">enabled</span> <span class="o">:=</span> <span class="nx">l</span><span class="p">.</span><span class="nf">should</span><span class="p">(</span><span class="nx">level</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">!</span><span class="nx">enabled</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// 创建记录日志的对象
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">e</span> <span class="o">:=</span> <span class="nf">newEvent</span><span class="p">(</span><span class="nx">l</span><span class="p">.</span><span class="nx">w</span><span class="p">,</span> <span class="nx">level</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// 设置 done 函数
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">e</span><span class="p">.</span><span class="nx">done</span> <span class="p">=</span> <span class="nx">done</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// 设置 hook 函数
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">e</span><span class="p">.</span><span class="nx">ch</span> <span class="p">=</span> <span class="nx">l</span><span class="p">.</span><span class="nx">hooks</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// 记录日志级别
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="k">if</span> <span class="nx">level</span> <span class="o">!=</span> <span class="nx">NoLevel</span> <span class="o">&amp;&amp;</span> <span class="nx">LevelFieldName</span> <span class="o">!=</span> <span class="s">&#34;&#34;</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">e</span><span class="p">.</span><span class="nf">Str</span><span class="p">(</span><span class="nx">LevelFieldName</span><span class="p">,</span> <span class="nf">LevelFieldMarshalFunc</span><span class="p">(</span><span class="nx">level</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// 记录上下文
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="k">if</span> <span class="nx">l</span><span class="p">.</span><span class="nx">context</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="o">&amp;&amp;</span> <span class="nb">len</span><span class="p">(</span><span class="nx">l</span><span class="p">.</span><span class="nx">context</span><span class="p">)</span> <span class="p">&gt;</span> <span class="mi">1</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">e</span><span class="p">.</span><span class="nx">buf</span> <span class="p">=</span> <span class="nx">enc</span><span class="p">.</span><span class="nf">AppendObjectData</span><span class="p">(</span><span class="nx">e</span><span class="p">.</span><span class="nx">buf</span><span class="p">,</span> <span class="nx">l</span><span class="p">.</span><span class="nx">context</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// 堆栈跟踪
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="k">if</span> <span class="nx">l</span><span class="p">.</span><span class="nx">stack</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">e</span><span class="p">.</span><span class="nf">Stack</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="nx">e</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><strong>should</strong> 函数用于判断是否需要记录本次消息。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// ============ log.go ===
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>
+</span></span><span class="line"><span class="cl"><span class="c1">// should 如果应该被记录，则返回 true
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">l</span> <span class="o">*</span><span class="nx">Logger</span><span class="p">)</span> <span class="nf">should</span><span class="p">(</span><span class="nx">lvl</span> <span class="nx">Level</span><span class="p">)</span> <span class="kt">bool</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="nx">lvl</span> <span class="p">&lt;</span> <span class="nx">l</span><span class="p">.</span><span class="nx">level</span> <span class="o">||</span> <span class="nx">lvl</span> <span class="p">&lt;</span> <span class="nf">GlobalLevel</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="kc">false</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// 采样后面讲
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="k">if</span> <span class="nx">l</span><span class="p">.</span><span class="nx">sampler</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="o">&amp;&amp;</span> <span class="p">!</span><span class="nf">samplingDisabled</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="nx">l</span><span class="p">.</span><span class="nx">sampler</span><span class="p">.</span><span class="nf">Sample</span><span class="p">(</span><span class="nx">lvl</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="kc">true</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><strong>newEvent</strong> 函数使用 <strong>sync.Pool</strong> 获取Event对象，并将 <strong>Event</strong> 参数初始化：日志级别<strong>level</strong>和写入对象<strong>LevelWriter</strong>。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// ============ event.go ===
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>
+</span></span><span class="line"><span class="cl"><span class="c1">// 表示一个日志事件
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">type</span> <span class="nx">Event</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">buf</span>       <span class="p">[]</span><span class="kt">byte</span>			  <span class="c1">// 消息
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">w</span>         <span class="nx">LevelWriter</span>   <span class="c1">// 待写入的目标接口
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">level</span>     <span class="nx">Level</span>					<span class="c1">// 日志级别
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">done</span>      <span class="kd">func</span><span class="p">(</span><span class="nx">msg</span> <span class="kt">string</span><span class="p">)</span>	<span class="c1">// msg 函数结束事件
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">stack</span>     <span class="kt">bool</span>   				<span class="c1">// 错误堆栈跟踪
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">ch</span>        <span class="p">[]</span><span class="nx">Hook</span>				<span class="c1">// hook 函数组
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">skipFrame</span> <span class="kt">int</span>   			
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">newEvent</span><span class="p">(</span><span class="nx">w</span> <span class="nx">LevelWriter</span><span class="p">,</span> <span class="nx">level</span> <span class="nx">Level</span><span class="p">)</span> <span class="o">*</span><span class="nx">Event</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">e</span> <span class="o">:=</span> <span class="nx">eventPool</span><span class="p">.</span><span class="nf">Get</span><span class="p">().(</span><span class="o">*</span><span class="nx">Event</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">e</span><span class="p">.</span><span class="nx">buf</span> <span class="p">=</span> <span class="nx">e</span><span class="p">.</span><span class="nx">buf</span><span class="p">[:</span><span class="mi">0</span><span class="p">]</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">e</span><span class="p">.</span><span class="nx">ch</span> <span class="p">=</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// 在开始添加左大括号 &#39;{&#39;
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">e</span><span class="p">.</span><span class="nx">buf</span> <span class="p">=</span> <span class="nx">enc</span><span class="p">.</span><span class="nf">AppendBeginMarker</span><span class="p">(</span><span class="nx">e</span><span class="p">.</span><span class="nx">buf</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">e</span><span class="p">.</span><span class="nx">w</span> <span class="p">=</span> <span class="nx">w</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">e</span><span class="p">.</span><span class="nx">level</span> <span class="p">=</span> <span class="nx">level</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">e</span><span class="p">.</span><span class="nx">stack</span> <span class="p">=</span> <span class="kc">false</span> 
+</span></span><span class="line"><span class="cl">	<span class="nx">e</span><span class="p">.</span><span class="nx">skipFrame</span> <span class="p">=</span> <span class="mi">0</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="nx">e</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><strong>Str</strong> 函数是负责将键值对添加到 <strong>buf</strong>，字符串类型添加到 JSON 格式，涉及到特殊字符编码问题，如果是特殊字符，调用 <strong>appendStringComplex</strong> 函数解决。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// ============ event.go ===
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">e</span> <span class="o">*</span><span class="nx">Event</span><span class="p">)</span> <span class="nf">Str</span><span class="p">(</span><span class="nx">key</span><span class="p">,</span> <span class="nx">val</span> <span class="kt">string</span><span class="p">)</span> <span class="o">*</span><span class="nx">Event</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="nx">e</span> <span class="o">==</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="nx">e</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">e</span><span class="p">.</span><span class="nx">buf</span> <span class="p">=</span> <span class="nx">enc</span><span class="p">.</span><span class="nf">AppendString</span><span class="p">(</span><span class="nx">enc</span><span class="p">.</span><span class="nf">AppendKey</span><span class="p">(</span><span class="nx">e</span><span class="p">.</span><span class="nx">buf</span><span class="p">,</span> <span class="nx">key</span><span class="p">),</span> <span class="nx">val</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="nx">e</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// ============ internal/json/base.go ===
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">type</span> <span class="nx">Encoder</span> <span class="kd">struct</span><span class="p">{}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// 添加一个新 key 
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">e</span> <span class="nx">Encoder</span><span class="p">)</span> <span class="nf">AppendKey</span><span class="p">(</span><span class="nx">dst</span> <span class="p">[]</span><span class="kt">byte</span><span class="p">,</span> <span class="nx">key</span> <span class="kt">string</span><span class="p">)</span> <span class="p">[]</span><span class="kt">byte</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 非第一个参数，加个逗号
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="k">if</span> <span class="nx">dst</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="nx">dst</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">!=</span> <span class="sc">&#39;{&#39;</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">dst</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">dst</span><span class="p">,</span> <span class="sc">&#39;,&#39;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="nb">append</span><span class="p">(</span><span class="nx">e</span><span class="p">.</span><span class="nf">AppendString</span><span class="p">(</span><span class="nx">dst</span><span class="p">,</span> <span class="nx">key</span><span class="p">),</span> <span class="sc">&#39;:&#39;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// === internal/json/string.go ===
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">Encoder</span><span class="p">)</span> <span class="nf">AppendString</span><span class="p">(</span><span class="nx">dst</span> <span class="p">[]</span><span class="kt">byte</span><span class="p">,</span> <span class="nx">s</span> <span class="kt">string</span><span class="p">)</span> <span class="p">[]</span><span class="kt">byte</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 双引号起
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">dst</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">dst</span><span class="p">,</span> <span class="sc">&#39;&#34;&#39;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 遍历字符
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="mi">0</span><span class="p">;</span> <span class="nx">i</span> <span class="p">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="nx">s</span><span class="p">);</span> <span class="nx">i</span><span class="o">++</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="c1">// 检查字符是否需要编码
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="k">if</span> <span class="p">!</span><span class="nx">noEscapeTable</span><span class="p">[</span><span class="nx">s</span><span class="p">[</span><span class="nx">i</span><span class="p">]]</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="nx">dst</span> <span class="p">=</span> <span class="nf">appendStringComplex</span><span class="p">(</span><span class="nx">dst</span><span class="p">,</span> <span class="nx">s</span><span class="p">,</span> <span class="nx">i</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">			<span class="k">return</span> <span class="nb">append</span><span class="p">(</span><span class="nx">dst</span><span class="p">,</span> <span class="sc">&#39;&#34;&#39;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 不需要编码的字符串，添加到 dst
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">dst</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">dst</span><span class="p">,</span> <span class="nx">s</span><span class="o">...</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 双引号收
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="k">return</span> <span class="nb">append</span><span class="p">(</span><span class="nx">dst</span><span class="p">,</span> <span class="sc">&#39;&#34;&#39;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><strong>Int</strong> 函数将键值(int类型)对添加到 <strong>buf</strong>，内部调用 <strong>strconv.AppendInt</strong> 函数实现。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// ============ event.go ===
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">e</span> <span class="o">*</span><span class="nx">Event</span><span class="p">)</span> <span class="nf">Int</span><span class="p">(</span><span class="nx">key</span> <span class="kt">string</span><span class="p">,</span> <span class="nx">i</span> <span class="kt">int</span><span class="p">)</span> <span class="o">*</span><span class="nx">Event</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="nx">e</span> <span class="o">==</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="nx">e</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">e</span><span class="p">.</span><span class="nx">buf</span> <span class="p">=</span> <span class="nx">enc</span><span class="p">.</span><span class="nf">AppendInt</span><span class="p">(</span><span class="nx">enc</span><span class="p">.</span><span class="nf">AppendKey</span><span class="p">(</span><span class="nx">e</span><span class="p">.</span><span class="nx">buf</span><span class="p">,</span> <span class="nx">key</span><span class="p">),</span> <span class="nx">i</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="nx">e</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// === internal/json/types.go === 
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">Encoder</span><span class="p">)</span> <span class="nf">AppendInt</span><span class="p">(</span><span class="nx">dst</span> <span class="p">[]</span><span class="kt">byte</span><span class="p">,</span> <span class="nx">val</span> <span class="kt">int</span><span class="p">)</span> <span class="p">[]</span><span class="kt">byte</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 添加整数
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="k">return</span> <span class="nx">strconv</span><span class="p">.</span><span class="nf">AppendInt</span><span class="p">(</span><span class="nx">dst</span><span class="p">,</span> <span class="nb">int64</span><span class="p">(</span><span class="nx">val</span><span class="p">),</span> <span class="mi">10</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><strong>Msg</strong> 函数</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span><span class="lnt">51
+</span><span class="lnt">52
+</span><span class="lnt">53
+</span><span class="lnt">54
+</span><span class="lnt">55
+</span><span class="lnt">56
+</span><span class="lnt">57
+</span><span class="lnt">58
+</span><span class="lnt">59
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// === event.go ===
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>
+</span></span><span class="line"><span class="cl"><span class="c1">// Msg 是对 msg 的封装调用，当指针接收器为 nil 返回
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">e</span> <span class="o">*</span><span class="nx">Event</span><span class="p">)</span> <span class="nf">Msg</span><span class="p">(</span><span class="nx">msg</span> <span class="kt">string</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="nx">e</span> <span class="o">==</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">e</span><span class="p">.</span><span class="nf">msg</span><span class="p">(</span><span class="nx">msg</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// msg
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">e</span> <span class="o">*</span><span class="nx">Event</span><span class="p">)</span> <span class="nf">msg</span><span class="p">(</span><span class="nx">msg</span> <span class="kt">string</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// 运行 hook
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">hook</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">e</span><span class="p">.</span><span class="nx">ch</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">hook</span><span class="p">.</span><span class="nf">Run</span><span class="p">(</span><span class="nx">e</span><span class="p">,</span> <span class="nx">e</span><span class="p">.</span><span class="nx">level</span><span class="p">,</span> <span class="nx">msg</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// 记录消息
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="k">if</span> <span class="nx">msg</span> <span class="o">!=</span> <span class="s">&#34;&#34;</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">e</span><span class="p">.</span><span class="nx">buf</span> <span class="p">=</span> <span class="nx">enc</span><span class="p">.</span><span class="nf">AppendString</span><span class="p">(</span><span class="nx">enc</span><span class="p">.</span><span class="nf">AppendKey</span><span class="p">(</span><span class="nx">e</span><span class="p">.</span><span class="nx">buf</span><span class="p">,</span> <span class="nx">MessageFieldName</span><span class="p">),</span> <span class="nx">msg</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// 判断不为 nil，则使用 defer 调用 done 函数
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="k">if</span> <span class="nx">e</span><span class="p">.</span><span class="nx">done</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">defer</span> <span class="nx">e</span><span class="p">.</span><span class="nf">done</span><span class="p">(</span><span class="nx">msg</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// 写入日志
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">e</span><span class="p">.</span><span class="nf">write</span><span class="p">();</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="nx">ErrorHandler</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="nf">ErrorHandler</span><span class="p">(</span><span class="nx">err</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="nx">fmt</span><span class="p">.</span><span class="nf">Fprintf</span><span class="p">(</span><span class="nx">os</span><span class="p">.</span><span class="nx">Stderr</span><span class="p">,</span> <span class="s">&#34;zerolog: could not write event: %v\n&#34;</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// 写入日志
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">e</span> <span class="o">*</span><span class="nx">Event</span><span class="p">)</span> <span class="nf">write</span><span class="p">()</span> <span class="p">(</span><span class="nx">err</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="nx">e</span> <span class="o">==</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="nx">e</span><span class="p">.</span><span class="nx">level</span> <span class="o">!=</span> <span class="nx">Disabled</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 大括号收尾
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="nx">e</span><span class="p">.</span><span class="nx">buf</span> <span class="p">=</span> <span class="nx">enc</span><span class="p">.</span><span class="nf">AppendEndMarker</span><span class="p">(</span><span class="nx">e</span><span class="p">.</span><span class="nx">buf</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 换行
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="nx">e</span><span class="p">.</span><span class="nx">buf</span> <span class="p">=</span> <span class="nx">enc</span><span class="p">.</span><span class="nf">AppendLineBreak</span><span class="p">(</span><span class="nx">e</span><span class="p">.</span><span class="nx">buf</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 向目标写入日志
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="k">if</span> <span class="nx">e</span><span class="p">.</span><span class="nx">w</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="c1">// 这里传递的日志级别，函数内并没有使用
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>			<span class="nx">_</span><span class="p">,</span> <span class="nx">err</span> <span class="p">=</span> <span class="nx">e</span><span class="p">.</span><span class="nx">w</span><span class="p">.</span><span class="nf">WriteLevel</span><span class="p">(</span><span class="nx">e</span><span class="p">.</span><span class="nx">level</span><span class="p">,</span> <span class="nx">e</span><span class="p">.</span><span class="nx">buf</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// 将对象放回池中
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nf">putEvent</span><span class="p">(</span><span class="nx">e</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// === writer.go ===
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">lw</span> <span class="nx">levelWriterAdapter</span><span class="p">)</span> <span class="nf">WriteLevel</span><span class="p">(</span><span class="nx">l</span> <span class="nx">Level</span><span class="p">,</span> <span class="nx">p</span> <span class="p">[]</span><span class="kt">byte</span><span class="p">)</span> <span class="p">(</span><span class="nx">n</span> <span class="kt">int</span><span class="p">,</span> <span class="nx">err</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="nx">lw</span><span class="p">.</span><span class="nf">Write</span><span class="p">(</span><span class="nx">p</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>以上 debug 让我们对日志记录流程有了大概的认识，接下来扩充一下相关知识。</p>
+<h3 id="从-zerolog-学习避免内存分配">从 zerolog 学习避免内存分配</h3>
+<p>每一条日志都会产生一个 *<strong>Event</strong>对象 ，当多个 Goroutine 操作日志，导致创建的对象数目剧增，进而导致 GC 压力增大。形成 <strong>&ldquo;并发大 - 占用内存大 - GC 缓慢 - 处理并发能力降低 - 并发更大&rdquo;</strong> 这样的恶性循环。在这个时候，需要有一个对象池，程序不再自己单独创建对象，而是从对象池中获取。</p>
+<p>使用 <code>sync.Pool</code> 可以将暂时不用的对象缓存起来，下次需要的时候从池中取，不用再次经过内存分配。</p>
+<p>下面代码中 <strong>putEvent</strong> 函数，当对象中记录消息的 <strong>buf</strong> 不超过 64KB 时，放回池中。这里有个链接，通过这个 <a class="link" href="https://golang.org/issue/23199"  target="_blank" rel="noopener"
+    >issue 23199</a>了解到使用动态增长的 buffer 会导致大量内存被固定，在活锁的情况下永远不会释放。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">var</span> <span class="nx">eventPool</span> <span class="p">=</span> <span class="o">&amp;</span><span class="nx">sync</span><span class="p">.</span><span class="nx">Pool</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">New</span><span class="p">:</span> <span class="kd">func</span><span class="p">()</span> <span class="kd">interface</span><span class="p">{}</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="o">&amp;</span><span class="nx">Event</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="nx">buf</span><span class="p">:</span> <span class="nb">make</span><span class="p">([]</span><span class="kt">byte</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">500</span><span class="p">),</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="p">},</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">putEvent</span><span class="p">(</span><span class="nx">e</span> <span class="o">*</span><span class="nx">Event</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 选择占用较小内存的 buf，将对象放回池中
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="c1">// See https://golang.org/issue/23199
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="kd">const</span> <span class="nx">maxSize</span> <span class="p">=</span> <span class="mi">1</span> <span class="o">&lt;&lt;</span> <span class="mi">16</span> <span class="c1">// 64KiB
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="k">if</span> <span class="nb">cap</span><span class="p">(</span><span class="nx">e</span><span class="p">.</span><span class="nx">buf</span><span class="p">)</span> <span class="p">&gt;</span> <span class="nx">maxSize</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">eventPool</span><span class="p">.</span><span class="nf">Put</span><span class="p">(</span><span class="nx">e</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="学习日志级别">学习日志级别</h3>
+<p>下面代码中，包含了日志级别类型的定义，日志级别对应的字符串值，获取字符串值的方法以及解析字符串为日志级别类型的方法。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span><span class="lnt">51
+</span><span class="lnt">52
+</span><span class="lnt">53
+</span><span class="lnt">54
+</span><span class="lnt">55
+</span><span class="lnt">56
+</span><span class="lnt">57
+</span><span class="lnt">58
+</span><span class="lnt">59
+</span><span class="lnt">60
+</span><span class="lnt">61
+</span><span class="lnt">62
+</span><span class="lnt">63
+</span><span class="lnt">64
+</span><span class="lnt">65
+</span><span class="lnt">66
+</span><span class="lnt">67
+</span><span class="lnt">68
+</span><span class="lnt">69
+</span><span class="lnt">70
+</span><span class="lnt">71
+</span><span class="lnt">72
+</span><span class="lnt">73
+</span><span class="lnt">74
+</span><span class="lnt">75
+</span><span class="lnt">76
+</span><span class="lnt">77
+</span><span class="lnt">78
+</span><span class="lnt">79
+</span><span class="lnt">80
+</span><span class="lnt">81
+</span><span class="lnt">82
+</span><span class="lnt">83
+</span><span class="lnt">84
+</span><span class="lnt">85
+</span><span class="lnt">86
+</span><span class="lnt">87
+</span><span class="lnt">88
+</span><span class="lnt">89
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// ============= log.go ===
+</span></span></span><span class="line"><span class="cl"><span class="c1">// 日志级别类型
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">type</span> <span class="nx">Level</span> <span class="kt">int8</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// 定义所有日志级别
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">const</span> <span class="p">(</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">DebugLevel</span> <span class="nx">Level</span> <span class="p">=</span> <span class="kc">iota</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">InfoLevel</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">WarnLevel</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">ErrorLevel</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">FatalLevel</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">PanicLevel</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">NoLevel</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">Disabled</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="nx">TraceLevel</span> <span class="nx">Level</span> <span class="p">=</span> <span class="o">-</span><span class="mi">1</span>
+</span></span><span class="line"><span class="cl"><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// 返回当前级别的 value
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">l</span> <span class="nx">Level</span><span class="p">)</span> <span class="nf">String</span><span class="p">()</span> <span class="kt">string</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">switch</span> <span class="nx">l</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">case</span> <span class="nx">TraceLevel</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="nx">LevelTraceValue</span>
+</span></span><span class="line"><span class="cl">	<span class="k">case</span> <span class="nx">DebugLevel</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="nx">LevelDebugValue</span>
+</span></span><span class="line"><span class="cl">	<span class="k">case</span> <span class="nx">InfoLevel</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="nx">LevelInfoValue</span>
+</span></span><span class="line"><span class="cl">	<span class="k">case</span> <span class="nx">WarnLevel</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="nx">LevelWarnValue</span>
+</span></span><span class="line"><span class="cl">	<span class="k">case</span> <span class="nx">ErrorLevel</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="nx">LevelErrorValue</span>
+</span></span><span class="line"><span class="cl">	<span class="k">case</span> <span class="nx">FatalLevel</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="nx">LevelFatalValue</span>
+</span></span><span class="line"><span class="cl">	<span class="k">case</span> <span class="nx">PanicLevel</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="nx">LevelPanicValue</span>
+</span></span><span class="line"><span class="cl">	<span class="k">case</span> <span class="nx">Disabled</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="s">&#34;disabled&#34;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">case</span> <span class="nx">NoLevel</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="s">&#34;&#34;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="s">&#34;&#34;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// ParseLevel 将级别字符串解析成 zerolog level value
+</span></span></span><span class="line"><span class="cl"><span class="c1">// 当字符串不匹配任何已知级别，返回错误
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="nf">ParseLevel</span><span class="p">(</span><span class="nx">levelStr</span> <span class="kt">string</span><span class="p">)</span> <span class="p">(</span><span class="nx">Level</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">switch</span> <span class="nx">levelStr</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">case</span> <span class="nf">LevelFieldMarshalFunc</span><span class="p">(</span><span class="nx">TraceLevel</span><span class="p">):</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="nx">TraceLevel</span><span class="p">,</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl">	<span class="k">case</span> <span class="nf">LevelFieldMarshalFunc</span><span class="p">(</span><span class="nx">DebugLevel</span><span class="p">):</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="nx">DebugLevel</span><span class="p">,</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl">	<span class="k">case</span> <span class="nf">LevelFieldMarshalFunc</span><span class="p">(</span><span class="nx">InfoLevel</span><span class="p">):</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="nx">InfoLevel</span><span class="p">,</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl">	<span class="k">case</span> <span class="nf">LevelFieldMarshalFunc</span><span class="p">(</span><span class="nx">WarnLevel</span><span class="p">):</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="nx">WarnLevel</span><span class="p">,</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl">	<span class="k">case</span> <span class="nf">LevelFieldMarshalFunc</span><span class="p">(</span><span class="nx">ErrorLevel</span><span class="p">):</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="nx">ErrorLevel</span><span class="p">,</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl">	<span class="k">case</span> <span class="nf">LevelFieldMarshalFunc</span><span class="p">(</span><span class="nx">FatalLevel</span><span class="p">):</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="nx">FatalLevel</span><span class="p">,</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl">	<span class="k">case</span> <span class="nf">LevelFieldMarshalFunc</span><span class="p">(</span><span class="nx">PanicLevel</span><span class="p">):</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="nx">PanicLevel</span><span class="p">,</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl">	<span class="k">case</span> <span class="nf">LevelFieldMarshalFunc</span><span class="p">(</span><span class="nx">Disabled</span><span class="p">):</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="nx">Disabled</span><span class="p">,</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl">	<span class="k">case</span> <span class="nf">LevelFieldMarshalFunc</span><span class="p">(</span><span class="nx">NoLevel</span><span class="p">):</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="nx">NoLevel</span><span class="p">,</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="nx">NoLevel</span><span class="p">,</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;Unknown Level String: &#39;%s&#39;, defaulting to NoLevel&#34;</span><span class="p">,</span> <span class="nx">levelStr</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// ============= globals.go ===
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">var</span> <span class="p">(</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// ......
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="c1">// 级别字段的 key 名称
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">LevelFieldName</span> <span class="p">=</span> <span class="s">&#34;level&#34;</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 各个级别的 value
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">LevelTraceValue</span> <span class="p">=</span> <span class="s">&#34;trace&#34;</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">LevelDebugValue</span> <span class="p">=</span> <span class="s">&#34;debug&#34;</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">LevelInfoValue</span> <span class="p">=</span> <span class="s">&#34;info&#34;</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">LevelWarnValue</span> <span class="p">=</span> <span class="s">&#34;warn&#34;</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">LevelErrorValue</span> <span class="p">=</span> <span class="s">&#34;error&#34;</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">LevelFatalValue</span> <span class="p">=</span> <span class="s">&#34;fatal&#34;</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">LevelPanicValue</span> <span class="p">=</span> <span class="s">&#34;panic&#34;</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 返回形参级别的 value
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">LevelFieldMarshalFunc</span> <span class="p">=</span> <span class="kd">func</span><span class="p">(</span><span class="nx">l</span> <span class="nx">Level</span><span class="p">)</span> <span class="kt">string</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="nx">l</span><span class="p">.</span><span class="nf">String</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// ......  
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="p">)</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><strong>全局日志级别参数</strong></p>
+<p>这里使用 <strong>atomic</strong> 来保证原子操作，要么都执行，要么都不执行，外界不会看到只执行到一半的状态，原子操作由底层硬件支持，通常比锁更有效率。</p>
+<p><strong>atomic.StoreInt32</strong> 用于存储 <strong>int32</strong> 类型的值。</p>
+<p><strong>atomic.LoadInt32</strong> 用于读取 <strong>int32</strong> 类型的值。</p>
+<p>在源码中，做级别判断时，多处调用 <strong>GlobalLevel</strong> 以保证并发安全。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// ============= globals.go ===
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>
+</span></span><span class="line"><span class="cl"><span class="kd">var</span> <span class="p">(</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">gLevel</span>          <span class="p">=</span> <span class="nb">new</span><span class="p">(</span><span class="kt">int32</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// ......
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// SetGlobalLevel 设置全局日志级别
+</span></span></span><span class="line"><span class="cl"><span class="c1">// 要全局禁用日志，入参为 Disabled 
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="nf">SetGlobalLevel</span><span class="p">(</span><span class="nx">l</span> <span class="nx">Level</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">atomic</span><span class="p">.</span><span class="nf">StoreInt32</span><span class="p">(</span><span class="nx">gLevel</span><span class="p">,</span> <span class="nb">int32</span><span class="p">(</span><span class="nx">l</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// 返回当前全局日志级别
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="nf">GlobalLevel</span><span class="p">()</span> <span class="nx">Level</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="nf">Level</span><span class="p">(</span><span class="nx">atomic</span><span class="p">.</span><span class="nf">LoadInt32</span><span class="p">(</span><span class="nx">gLevel</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="学习如何实现-hook">学习如何实现 Hook</h3>
+<p>首先定义 <strong>Hook</strong> 接口，内部有一个 <strong>Run</strong> 函数，入参包含 <em><strong>Event</strong>，日志级别</em>*level和消息 ( <strong>Msg</strong> 函数的参数 )。</p>
+<p>然后定义了 <strong>LevelHook</strong> 结构体，用于为每个级别设置 <strong>Hook 。</strong></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span><span class="lnt">51
+</span><span class="lnt">52
+</span><span class="lnt">53
+</span><span class="lnt">54
+</span><span class="lnt">55
+</span><span class="lnt">56
+</span><span class="lnt">57
+</span><span class="lnt">58
+</span><span class="lnt">59
+</span><span class="lnt">60
+</span><span class="lnt">61
+</span><span class="lnt">62
+</span><span class="lnt">63
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// ============= hook.go ===
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>
+</span></span><span class="line"><span class="cl"><span class="c1">// hook 接口
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">type</span> <span class="nx">Hook</span> <span class="kd">interface</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nf">Run</span><span class="p">(</span><span class="nx">e</span> <span class="o">*</span><span class="nx">Event</span><span class="p">,</span> <span class="nx">level</span> <span class="nx">Level</span><span class="p">,</span> <span class="nx">message</span> <span class="kt">string</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// HookFunc 函数适配器
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">type</span> <span class="nx">HookFunc</span> <span class="kd">func</span><span class="p">(</span><span class="nx">e</span> <span class="o">*</span><span class="nx">Event</span><span class="p">,</span> <span class="nx">level</span> <span class="nx">Level</span><span class="p">,</span> <span class="nx">message</span> <span class="kt">string</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// Run 实现 Hook 接口.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">h</span> <span class="nx">HookFunc</span><span class="p">)</span> <span class="nf">Run</span><span class="p">(</span><span class="nx">e</span> <span class="o">*</span><span class="nx">Event</span><span class="p">,</span> <span class="nx">level</span> <span class="nx">Level</span><span class="p">,</span> <span class="nx">message</span> <span class="kt">string</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nf">h</span><span class="p">(</span><span class="nx">e</span><span class="p">,</span> <span class="nx">level</span><span class="p">,</span> <span class="nx">message</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// 为每个级别应用不同的 hook
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">type</span> <span class="nx">LevelHook</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">NoLevelHook</span><span class="p">,</span> <span class="nx">TraceHook</span><span class="p">,</span> <span class="nx">DebugHook</span><span class="p">,</span> <span class="nx">InfoHook</span><span class="p">,</span> <span class="nx">WarnHook</span><span class="p">,</span> <span class="nx">ErrorHook</span><span class="p">,</span> <span class="nx">FatalHook</span><span class="p">,</span> <span class="nx">PanicHook</span> <span class="nx">Hook</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// Run 实现 Hook 接口
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">h</span> <span class="nx">LevelHook</span><span class="p">)</span> <span class="nf">Run</span><span class="p">(</span><span class="nx">e</span> <span class="o">*</span><span class="nx">Event</span><span class="p">,</span> <span class="nx">level</span> <span class="nx">Level</span><span class="p">,</span> <span class="nx">message</span> <span class="kt">string</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">switch</span> <span class="nx">level</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">case</span> <span class="nx">TraceLevel</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="nx">h</span><span class="p">.</span><span class="nx">TraceHook</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="nx">h</span><span class="p">.</span><span class="nx">TraceHook</span><span class="p">.</span><span class="nf">Run</span><span class="p">(</span><span class="nx">e</span><span class="p">,</span> <span class="nx">level</span><span class="p">,</span> <span class="nx">message</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="k">case</span> <span class="nx">DebugLevel</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="nx">h</span><span class="p">.</span><span class="nx">DebugHook</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="nx">h</span><span class="p">.</span><span class="nx">DebugHook</span><span class="p">.</span><span class="nf">Run</span><span class="p">(</span><span class="nx">e</span><span class="p">,</span> <span class="nx">level</span><span class="p">,</span> <span class="nx">message</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="k">case</span> <span class="nx">InfoLevel</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="nx">h</span><span class="p">.</span><span class="nx">InfoHook</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="nx">h</span><span class="p">.</span><span class="nx">InfoHook</span><span class="p">.</span><span class="nf">Run</span><span class="p">(</span><span class="nx">e</span><span class="p">,</span> <span class="nx">level</span><span class="p">,</span> <span class="nx">message</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="k">case</span> <span class="nx">WarnLevel</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="nx">h</span><span class="p">.</span><span class="nx">WarnHook</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="nx">h</span><span class="p">.</span><span class="nx">WarnHook</span><span class="p">.</span><span class="nf">Run</span><span class="p">(</span><span class="nx">e</span><span class="p">,</span> <span class="nx">level</span><span class="p">,</span> <span class="nx">message</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="k">case</span> <span class="nx">ErrorLevel</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="nx">h</span><span class="p">.</span><span class="nx">ErrorHook</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="nx">h</span><span class="p">.</span><span class="nx">ErrorHook</span><span class="p">.</span><span class="nf">Run</span><span class="p">(</span><span class="nx">e</span><span class="p">,</span> <span class="nx">level</span><span class="p">,</span> <span class="nx">message</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="k">case</span> <span class="nx">FatalLevel</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="nx">h</span><span class="p">.</span><span class="nx">FatalHook</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="nx">h</span><span class="p">.</span><span class="nx">FatalHook</span><span class="p">.</span><span class="nf">Run</span><span class="p">(</span><span class="nx">e</span><span class="p">,</span> <span class="nx">level</span><span class="p">,</span> <span class="nx">message</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="k">case</span> <span class="nx">PanicLevel</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="nx">h</span><span class="p">.</span><span class="nx">PanicHook</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="nx">h</span><span class="p">.</span><span class="nx">PanicHook</span><span class="p">.</span><span class="nf">Run</span><span class="p">(</span><span class="nx">e</span><span class="p">,</span> <span class="nx">level</span><span class="p">,</span> <span class="nx">message</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="k">case</span> <span class="nx">NoLevel</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="nx">h</span><span class="p">.</span><span class="nx">NoLevelHook</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="nx">h</span><span class="p">.</span><span class="nx">NoLevelHook</span><span class="p">.</span><span class="nf">Run</span><span class="p">(</span><span class="nx">e</span><span class="p">,</span> <span class="nx">level</span><span class="p">,</span> <span class="nx">message</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// NewLevelHook 创建一个 LevelHook
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="nf">NewLevelHook</span><span class="p">()</span> <span class="nx">LevelHook</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="nx">LevelHook</span><span class="p">{}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><strong>在源码中是如何使用的?</strong></p>
+<p>定义 <strong>PrintMsgHook</strong> 结构体并实现 <strong>Hook</strong> 接口，作为参数传递给 <strong>log.Hook</strong> 函数，<strong>Logger</strong> 内部的 <strong>hooks</strong> 参数用来保存对象。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// 使用案例
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>
+</span></span><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">PrintMsgHook</span> <span class="kd">struct</span><span class="p">{}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// 实现 Hook 接口，用来向控制台输出 msg
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">p</span> <span class="nx">PrintMsgHook</span><span class="p">)</span> <span class="nf">Run</span><span class="p">(</span><span class="nx">e</span> <span class="o">*</span><span class="nx">zerolog</span><span class="p">.</span><span class="nx">Event</span><span class="p">,</span> <span class="nx">l</span> <span class="nx">zerolog</span><span class="p">.</span><span class="nx">Level</span><span class="p">,</span> <span class="nx">msg</span> <span class="kt">string</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">fmt</span><span class="p">.</span><span class="nf">Println</span><span class="p">(</span><span class="nx">msg</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">TestContextualLogger</span><span class="p">(</span><span class="nx">t</span> <span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">log</span> <span class="o">:=</span> <span class="nx">zerolog</span><span class="p">.</span><span class="nf">New</span><span class="p">(</span><span class="nx">os</span><span class="p">.</span><span class="nx">Stdout</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">log</span> <span class="p">=</span> <span class="nx">log</span><span class="p">.</span><span class="nf">Hook</span><span class="p">(</span><span class="nx">PrintMsgHook</span><span class="p">{})</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">log</span><span class="p">.</span><span class="nf">Info</span><span class="p">().</span><span class="nf">Msg</span><span class="p">(</span><span class="s">&#34;TestContextualLogger&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>添加 hook 源码如下</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// ============ log.go ===
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>
+</span></span><span class="line"><span class="cl"><span class="c1">// Hook 返回一个带有 hook 的 Logger
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">l</span> <span class="nx">Logger</span><span class="p">)</span> <span class="nf">Hook</span><span class="p">(</span><span class="nx">h</span> <span class="nx">Hook</span><span class="p">)</span> <span class="nx">Logger</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">l</span><span class="p">.</span><span class="nx">hooks</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">l</span><span class="p">.</span><span class="nx">hooks</span><span class="p">,</span> <span class="nx">h</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="nx">l</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>输出日志必须调用 <strong>msg</strong> 函数，<strong>hook</strong> 将在此函数的开头执行。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// ============ event.go ===
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>
+</span></span><span class="line"><span class="cl"><span class="c1">// msg 函数用来运行 hook
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">e</span> <span class="o">*</span><span class="nx">Event</span><span class="p">)</span> <span class="nf">msg</span><span class="p">(</span><span class="nx">msg</span> <span class="kt">string</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">hook</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">e</span><span class="p">.</span><span class="nx">ch</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">hook</span><span class="p">.</span><span class="nf">Run</span><span class="p">(</span><span class="nx">e</span><span class="p">,</span> <span class="nx">e</span><span class="p">.</span><span class="nx">level</span><span class="p">,</span> <span class="nx">msg</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// .......
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">// 写入日志，此函数上面已经介绍过，此处省略
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">// .......
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="学习如何得到调用者函数名">学习如何得到调用者函数名</h3>
+<p>在看 zerolog 源码之前，需要知道一些关于 <strong>runtime.Caller</strong> 函数的前置知识，</p>
+<ul>
+<li>
+<p><strong>runtime.Caller</strong> 可以获取相关调用 goroutine 堆栈上的函数调用的文件和行号信息。</p>
+</li>
+<li>
+<p>参数<strong>skip</strong> 是堆栈帧的数量，当 skip=0 时，输出当前函数信息; 当 skip=1 时，输出调用栈上一帧，即调用函数者的信息。</p>
+</li>
+<li>
+<p><strong>返回值</strong>为 程序计数器，文件位置，行号，是否能恢复信息</p>
+</li>
+</ul>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// ============ go@1.16.5 runtime/extern.go ===
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">Caller</span><span class="p">(</span><span class="nx">skip</span> <span class="kt">int</span><span class="p">)</span> <span class="p">(</span><span class="nx">pc</span> <span class="kt">uintptr</span><span class="p">,</span> <span class="nx">file</span> <span class="kt">string</span><span class="p">,</span> <span class="nx">line</span> <span class="kt">int</span><span class="p">,</span> <span class="nx">ok</span> <span class="kt">bool</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">rpc</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">([]</span><span class="kt">uintptr</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">n</span> <span class="o">:=</span> <span class="nf">callers</span><span class="p">(</span><span class="nx">skip</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="nx">rpc</span><span class="p">[:])</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="nx">n</span> <span class="p">&lt;</span> <span class="mi">1</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">frame</span><span class="p">,</span> <span class="nx">_</span> <span class="o">:=</span> <span class="nf">CallersFrames</span><span class="p">(</span><span class="nx">rpc</span><span class="p">).</span><span class="nf">Next</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="nx">frame</span><span class="p">.</span><span class="nx">PC</span><span class="p">,</span> <span class="nx">frame</span><span class="p">.</span><span class="nx">File</span><span class="p">,</span> <span class="nx">frame</span><span class="p">.</span><span class="nx">Line</span><span class="p">,</span> <span class="nx">frame</span><span class="p">.</span><span class="nx">PC</span> <span class="o">!=</span> <span class="mi">0</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>再看 zerolog 源码，定义 <strong>callerHook</strong> 结构体并实现了 <strong>Hook</strong> 接口，实现函数中调用了参数 *<strong>Event</strong> 提供的 <strong>caller</strong> 函数。</p>
+<p>其中入参为预定义参数 <strong>CallerSkipFrameCount</strong> 和 <strong>contextCallerSkipFrameCount</strong> ，值都为 2。</p>
+<p><img src="http://img.golang.space/shot-1623985412242.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="zerolog caller 调用示意图"
+	
+	
+></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// ============ context.go ===
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">type</span> <span class="nx">callerHook</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">callerSkipFrameCount</span> <span class="kt">int</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">newCallerHook</span><span class="p">(</span><span class="nx">skipFrameCount</span> <span class="kt">int</span><span class="p">)</span> <span class="nx">callerHook</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="nx">callerHook</span><span class="p">{</span><span class="nx">callerSkipFrameCount</span><span class="p">:</span> <span class="nx">skipFrameCount</span><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">ch</span> <span class="nx">callerHook</span><span class="p">)</span> <span class="nf">Run</span><span class="p">(</span><span class="nx">e</span> <span class="o">*</span><span class="nx">Event</span><span class="p">,</span> <span class="nx">level</span> <span class="nx">Level</span><span class="p">,</span> <span class="nx">msg</span> <span class="kt">string</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">switch</span> <span class="nx">ch</span><span class="p">.</span><span class="nx">callerSkipFrameCount</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// useGlobalSkipFrameCount 是 int32 类型最小值
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="k">case</span> <span class="nx">useGlobalSkipFrameCount</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// CallerSkipFrameCount 预定义全局变量，值为 2
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="c1">// contextCallerSkipFrameCount 预定义变量，值为 2
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="nx">e</span><span class="p">.</span><span class="nf">caller</span><span class="p">(</span><span class="nx">CallerSkipFrameCount</span> <span class="o">+</span> <span class="nx">contextCallerSkipFrameCount</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="k">default</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">e</span><span class="p">.</span><span class="nf">caller</span><span class="p">(</span><span class="nx">ch</span><span class="p">.</span><span class="nx">callerSkipFrameCount</span> <span class="o">+</span> <span class="nx">contextCallerSkipFrameCount</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// useGlobalSkipFrameCount 值:-2147483648
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">const</span> <span class="nx">useGlobalSkipFrameCount</span> <span class="p">=</span> <span class="nx">math</span><span class="p">.</span><span class="nx">MinInt32</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// 创建默认 callerHook 
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">var</span> <span class="nx">ch</span> <span class="p">=</span> <span class="nf">newCallerHook</span><span class="p">(</span><span class="nx">useGlobalSkipFrameCount</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// Caller 为 Logger 添加 hook ，该 hook 用于记录函数调用者的 file:line 
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">c</span> <span class="nx">Context</span><span class="p">)</span> <span class="nf">Caller</span><span class="p">()</span> <span class="nx">Context</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">c</span><span class="p">.</span><span class="nx">l</span> <span class="p">=</span> <span class="nx">c</span><span class="p">.</span><span class="nx">l</span><span class="p">.</span><span class="nf">Hook</span><span class="p">(</span><span class="nx">ch</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="nx">c</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// ============ event.go ===
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">e</span> <span class="o">*</span><span class="nx">Event</span><span class="p">)</span> <span class="nf">caller</span><span class="p">(</span><span class="nx">skip</span> <span class="kt">int</span><span class="p">)</span> <span class="o">*</span><span class="nx">Event</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="nx">e</span> <span class="o">==</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="nx">e</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">_</span><span class="p">,</span> <span class="nx">file</span><span class="p">,</span> <span class="nx">line</span><span class="p">,</span> <span class="nx">ok</span> <span class="o">:=</span> <span class="nx">runtime</span><span class="p">.</span><span class="nf">Caller</span><span class="p">(</span><span class="nx">skip</span> <span class="o">+</span> <span class="nx">e</span><span class="p">.</span><span class="nx">skipFrame</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">!</span><span class="nx">ok</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="nx">e</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// CallerFieldName是默认的 key 名
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">// CallerMarshalFunc 函数用于拼接  file:line
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">e</span><span class="p">.</span><span class="nx">buf</span> <span class="p">=</span> <span class="nx">enc</span><span class="p">.</span><span class="nf">AppendString</span><span class="p">(</span><span class="nx">enc</span><span class="p">.</span><span class="nf">AppendKey</span><span class="p">(</span><span class="nx">e</span><span class="p">.</span><span class="nx">buf</span><span class="p">,</span> <span class="nx">CallerFieldName</span><span class="p">),</span> <span class="nf">CallerMarshalFunc</span><span class="p">(</span><span class="nx">file</span><span class="p">,</span> <span class="nx">line</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="nx">e</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="从日志采样中学习-atomic">从日志采样中学习 atomic</h3>
+<p>这个使用案例中，<strong>TestSample</strong> 每秒允许 记录5 条消息，超过则每 20 条仅记录一条</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">TestSample</span><span class="p">(</span><span class="nx">t</span> <span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">sampled</span> <span class="o">:=</span> <span class="nx">log</span><span class="p">.</span><span class="nf">Sample</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">zerolog</span><span class="p">.</span><span class="nx">BurstSampler</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">Burst</span><span class="p">:</span>       <span class="mi">5</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">Period</span><span class="p">:</span>      <span class="mi">1</span> <span class="o">*</span> <span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">NextSampler</span><span class="p">:</span> <span class="o">&amp;</span><span class="nx">zerolog</span><span class="p">.</span><span class="nx">BasicSampler</span><span class="p">{</span><span class="nx">N</span><span class="p">:</span> <span class="mi">20</span><span class="p">},</span>
+</span></span><span class="line"><span class="cl">	<span class="p">})</span>
+</span></span><span class="line"><span class="cl">	<span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="mi">0</span><span class="p">;</span> <span class="nx">i</span> <span class="o">&lt;=</span> <span class="mi">50</span><span class="p">;</span> <span class="nx">i</span><span class="o">++</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">sampled</span><span class="p">.</span><span class="nf">Info</span><span class="p">().</span><span class="nf">Msgf</span><span class="p">(</span><span class="s">&#34;logged messages : %2d &#34;</span><span class="p">,</span> <span class="nx">i</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><strong>输出结果</strong>本来应该输出 50 条日志，使用了采样，在一秒内输出最大 5 条日志，当大于 5 条后，每 20 条日志输出一次。</p>
+<p><img src="http://img.golang.space/shot-1623987997133.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20210618114636900"
+	
+	
+></p>
+<p>采样的流程示意图如下</p>
+<p><img src="http://img.golang.space/shot-1624031011403.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="zerolog 采样函数说明图"
+	
+	
+></p>
+<p>下方是定义采样接口及实现函数的源码。</p>
+<p>在 <strong>inc</strong> 函数中，使用 <strong>atomic</strong> 包将竞争的接收器对象的参数变成局部变量，是学习 <strong>atomic</strong> 很好的实例。函数说明都写在注释里。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span><span class="lnt">51
+</span><span class="lnt">52
+</span><span class="lnt">53
+</span><span class="lnt">54
+</span><span class="lnt">55
+</span><span class="lnt">56
+</span><span class="lnt">57
+</span><span class="lnt">58
+</span><span class="lnt">59
+</span><span class="lnt">60
+</span><span class="lnt">61
+</span><span class="lnt">62
+</span><span class="lnt">63
+</span><span class="lnt">64
+</span><span class="lnt">65
+</span><span class="lnt">66
+</span><span class="lnt">67
+</span><span class="lnt">68
+</span><span class="lnt">69
+</span><span class="lnt">70
+</span><span class="lnt">71
+</span><span class="lnt">72
+</span><span class="lnt">73
+</span><span class="lnt">74
+</span><span class="lnt">75
+</span><span class="lnt">76
+</span><span class="lnt">77
+</span><span class="lnt">78
+</span><span class="lnt">79
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// =========== sampler.go ===
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>
+</span></span><span class="line"><span class="cl"><span class="c1">// 采样器接口
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">type</span> <span class="nx">Sampler</span> <span class="kd">interface</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 如果事件是样本的一部分返回 true
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nf">Sample</span><span class="p">(</span><span class="nx">lvl</span> <span class="nx">Level</span><span class="p">)</span> <span class="kt">bool</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// BasicSampler 基本采样器
+</span></span></span><span class="line"><span class="cl"><span class="c1">// 每 N 个事件发送一次，不考虑日志级别
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">type</span> <span class="nx">BasicSampler</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">N</span>       
+</span></span><span class="line"><span class="cl">	<span class="nx">counter</span> <span class="kt">uint32</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="c1">// 实现采样器接口
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">s</span> <span class="o">*</span><span class="nx">BasicSampler</span><span class="p">)</span> <span class="nf">Sample</span><span class="p">(</span><span class="nx">lvl</span> <span class="nx">Level</span><span class="p">)</span> <span class="kt">bool</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">n</span> <span class="o">:=</span> <span class="nx">s</span><span class="p">.</span><span class="nx">N</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="nx">n</span> <span class="o">==</span> <span class="mi">1</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="kc">true</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">c</span> <span class="o">:=</span> <span class="nx">atomic</span><span class="p">.</span><span class="nf">AddUint32</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">s</span><span class="p">.</span><span class="nx">counter</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="nx">c</span><span class="o">%</span><span class="nx">n</span> <span class="o">==</span> <span class="mi">1</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">BurstSampler</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// 调用 NextSampler 之前每个时间段(Period)调用的最大事件数量
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">Burst</span> <span class="kt">uint32</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 如果为 0，则始终调用 NextSampler
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">Period</span> <span class="nx">time</span><span class="p">.</span><span class="nx">Duration</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// 采样器
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">NextSampler</span> <span class="nx">Sampler</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// 用于计数在一定时间内(Period)的调用数量
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">counter</span> <span class="kt">uint32</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// 时间段的结束时间(纳秒)，即 当前时间+Period
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">resetAt</span> <span class="kt">int64</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// 实现 Sampler 接口
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">s</span> <span class="o">*</span><span class="nx">BurstSampler</span><span class="p">)</span> <span class="nf">Sample</span><span class="p">(</span><span class="nx">lvl</span> <span class="nx">Level</span><span class="p">)</span> <span class="kt">bool</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// 当设置了 Burst 和 Period，大于零时限制 一定时间内的最大事件数量
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="k">if</span> <span class="nx">s</span><span class="p">.</span><span class="nx">Burst</span> <span class="p">&gt;</span> <span class="mi">0</span> <span class="o">&amp;&amp;</span> <span class="nx">s</span><span class="p">.</span><span class="nx">Period</span> <span class="p">&gt;</span> <span class="mi">0</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="nx">s</span><span class="p">.</span><span class="nf">inc</span><span class="p">()</span> <span class="o">&lt;=</span> <span class="nx">s</span><span class="p">.</span><span class="nx">Burst</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="k">return</span> <span class="kc">true</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// 没有采样器，结束
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="k">if</span> <span class="nx">s</span><span class="p">.</span><span class="nx">NextSampler</span> <span class="o">==</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="kc">false</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// 调用采样器
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="k">return</span> <span class="nx">s</span><span class="p">.</span><span class="nx">NextSampler</span><span class="p">.</span><span class="nf">Sample</span><span class="p">(</span><span class="nx">lvl</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">s</span> <span class="o">*</span><span class="nx">BurstSampler</span><span class="p">)</span> <span class="nf">inc</span><span class="p">()</span> <span class="kt">uint32</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// 当前时间 (纳秒)
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">now</span> <span class="o">:=</span> <span class="nx">time</span><span class="p">.</span><span class="nf">Now</span><span class="p">().</span><span class="nf">UnixNano</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// 重置时间 (纳秒)
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">resetAt</span> <span class="o">:=</span> <span class="nx">atomic</span><span class="p">.</span><span class="nf">LoadInt64</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">s</span><span class="p">.</span><span class="nx">resetAt</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="kd">var</span> <span class="nx">c</span> <span class="kt">uint32</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// 当前时间 &gt; 重置时间
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="k">if</span> <span class="nx">now</span> <span class="p">&gt;</span> <span class="nx">resetAt</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">c</span> <span class="p">=</span> <span class="mi">1</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 重置 s.counter 为 1
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="nx">atomic</span><span class="p">.</span><span class="nf">StoreUint32</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">s</span><span class="p">.</span><span class="nx">counter</span><span class="p">,</span> <span class="nx">c</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 计算下一次的重置时间
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="nx">newResetAt</span> <span class="o">:=</span> <span class="nx">now</span> <span class="o">+</span> <span class="nx">s</span><span class="p">.</span><span class="nx">Period</span><span class="p">.</span><span class="nf">Nanoseconds</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 比较函数开头获取的重置时间与存储的时间是否相等
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="c1">// 相等时，将下一次的重置时间存储到 s.resetAt，并返回 true
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="nx">reset</span> <span class="o">:=</span> <span class="nx">atomic</span><span class="p">.</span><span class="nf">CompareAndSwapInt64</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">s</span><span class="p">.</span><span class="nx">resetAt</span><span class="p">,</span> <span class="nx">resetAt</span><span class="p">,</span> <span class="nx">newResetAt</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="p">!</span><span class="nx">reset</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="c1">// 在上面比较赋值那一步没有抢到的 goroutine 计数器+1
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>			<span class="nx">c</span> <span class="p">=</span> <span class="nx">atomic</span><span class="p">.</span><span class="nf">AddUint32</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">s</span><span class="p">.</span><span class="nx">counter</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">c</span> <span class="p">=</span> <span class="nx">atomic</span><span class="p">.</span><span class="nf">AddUint32</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">s</span><span class="p">.</span><span class="nx">counter</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="nx">c</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>在代码中如何调用的呢?</p>
+<p><strong>Info</strong> 函数及其他级别函数都会调用 <strong>newEvent</strong>，在该函数的开头， <strong>should</strong> 函数用来判断是否需要记录的日志级别和采样。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// ============ log.go ===
+</span></span></span><span class="line"><span class="cl"><span class="c1">// should 如果应该被记录，则返回 true
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">l</span> <span class="o">*</span><span class="nx">Logger</span><span class="p">)</span> <span class="nf">should</span><span class="p">(</span><span class="nx">lvl</span> <span class="nx">Level</span><span class="p">)</span> <span class="kt">bool</span> <span class="p">{</span>  
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">lvl</span> <span class="p">&lt;</span> <span class="nx">l</span><span class="p">.</span><span class="nx">level</span> <span class="o">||</span> <span class="nx">lvl</span> <span class="p">&lt;</span> <span class="nf">GlobalLevel</span><span class="p">()</span> <span class="p">{</span>    
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="kc">false</span>  
+</span></span><span class="line"><span class="cl">  <span class="p">}</span> 
+</span></span><span class="line"><span class="cl">  <span class="c1">// 如果使用了采样，则调用采样函数，判断本次事件是否记录
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="k">if</span> <span class="nx">l</span><span class="p">.</span><span class="nx">sampler</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="o">&amp;&amp;</span> <span class="p">!</span><span class="nf">samplingDisabled</span><span class="p">()</span> <span class="p">{</span>    
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="nx">l</span><span class="p">.</span><span class="nx">sampler</span><span class="p">.</span><span class="nf">Sample</span><span class="p">(</span><span class="nx">lvl</span><span class="p">)</span>  
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>  
+</span></span><span class="line"><span class="cl">  <span class="k">return</span> <span class="kc">true</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h2 id="doc">Doc</h2>
+<p>关于更多zerolog的使用可以参考 <a class="link" href="https://pkg.go.dev/github.com/rs/zerolog"  target="_blank" rel="noopener"
+    >https://pkg.go.dev/github.com/rs/zerolog</a></p>
+<h2 id="比较">比较</h2>
+<blockquote>
+<p>说明 : 以下资料来源于 zerolog 官方。从性能分析上zerolog比zap和其他logger库更胜一筹，关于zerolog和zap的使用，gopher可根据实际业务场景具体考量。</p>
+</blockquote>
+<p>记录 10 个 KV 字段的消息 :</p>
+<div class="table-wrapper"><table>
+<thead>
+<tr>
+<th>Library</th>
+<th>Time</th>
+<th>Bytes Allocated</th>
+<th>Objects Allocated</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>zerolog</td>
+<td>767 ns/op</td>
+<td>552 B/op</td>
+<td>6 allocs/op</td>
+</tr>
+<tr>
+<td>⚡ zap</td>
+<td>848 ns/op</td>
+<td>704 B/op</td>
+<td>2 allocs/op</td>
+</tr>
+<tr>
+<td>⚡ zap (sugared)</td>
+<td>1363 ns/op</td>
+<td>1610 B/op</td>
+<td>20 allocs/op</td>
+</tr>
+<tr>
+<td>go-kit</td>
+<td>3614 ns/op</td>
+<td>2895 B/op</td>
+<td>66 allocs/op</td>
+</tr>
+<tr>
+<td>lion</td>
+<td>5392 ns/op</td>
+<td>5807 B/op</td>
+<td>63 allocs/op</td>
+</tr>
+<tr>
+<td>logrus</td>
+<td>5661 ns/op</td>
+<td>6092 B/op</td>
+<td>78 allocs/op</td>
+</tr>
+<tr>
+<td>apex/log</td>
+<td>15332 ns/op</td>
+<td>3832 B/op</td>
+<td>65 allocs/op</td>
+</tr>
+<tr>
+<td>log15</td>
+<td>20657 ns/op</td>
+<td>5632 B/op</td>
+<td>93 allocs/op</td>
+</tr>
+</tbody>
+</table></div>
+<p>使用一个已经有 10 个 KV 字段的 logger 记录一条消息 :</p>
+<div class="table-wrapper"><table>
+<thead>
+<tr>
+<th>Library</th>
+<th>Time</th>
+<th>Bytes Allocated</th>
+<th>Objects Allocated</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>zerolog</td>
+<td>52 ns/op</td>
+<td>0 B/op</td>
+<td>0 allocs/op</td>
+</tr>
+<tr>
+<td>⚡ zap</td>
+<td>283 ns/op</td>
+<td>0 B/op</td>
+<td>0 allocs/op</td>
+</tr>
+<tr>
+<td>⚡ zap (sugared)</td>
+<td>337 ns/op</td>
+<td>80 B/op</td>
+<td>2 allocs/op</td>
+</tr>
+<tr>
+<td>lion</td>
+<td>2702 ns/op</td>
+<td>4074 B/op</td>
+<td>38 allocs/op</td>
+</tr>
+<tr>
+<td>go-kit</td>
+<td>3378 ns/op</td>
+<td>3046 B/op</td>
+<td>52 allocs/op</td>
+</tr>
+<tr>
+<td>logrus</td>
+<td>4309 ns/op</td>
+<td>4564 B/op</td>
+<td>63 allocs/op</td>
+</tr>
+<tr>
+<td>apex/log</td>
+<td>13456 ns/op</td>
+<td>2898 B/op</td>
+<td>51 allocs/op</td>
+</tr>
+<tr>
+<td>log15</td>
+<td>14179 ns/op</td>
+<td>2642 B/op</td>
+<td>44 allocs/op</td>
+</tr>
+</tbody>
+</table></div>
+<p>记录一个字符串，没有字段或 <code>printf</code> 风格的模板 :</p>
+<div class="table-wrapper"><table>
+<thead>
+<tr>
+<th>Library</th>
+<th>Time</th>
+<th>Bytes Allocated</th>
+<th>Objects Allocated</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>zerolog</td>
+<td>50 ns/op</td>
+<td>0 B/op</td>
+<td>0 allocs/op</td>
+</tr>
+<tr>
+<td>⚡ zap</td>
+<td>236 ns/op</td>
+<td>0 B/op</td>
+<td>0 allocs/op</td>
+</tr>
+<tr>
+<td>standard library</td>
+<td>453 ns/op</td>
+<td>80 B/op</td>
+<td>2 allocs/op</td>
+</tr>
+<tr>
+<td>⚡ zap (sugared)</td>
+<td>337 ns/op</td>
+<td>80 B/op</td>
+<td>2 allocs/op</td>
+</tr>
+<tr>
+<td>go-kit</td>
+<td>508 ns/op</td>
+<td>656 B/op</td>
+<td>13 allocs/op</td>
+</tr>
+<tr>
+<td>lion</td>
+<td>771 ns/op</td>
+<td>1224 B/op</td>
+<td>10 allocs/op</td>
+</tr>
+<tr>
+<td>logrus</td>
+<td>1244 ns/op</td>
+<td>1505 B/op</td>
+<td>27 allocs/op</td>
+</tr>
+<tr>
+<td>apex/log</td>
+<td>2751 ns/op</td>
+<td>584 B/op</td>
+<td>11 allocs/op</td>
+</tr>
+<tr>
+<td>log15</td>
+<td>5181 ns/op</td>
+<td>1592 B/op</td>
+<td>26 allocs/op</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="相似的库">相似的库</h3>
+<p><a class="link" href="https://github.com/sirupsen/logrus"  target="_blank" rel="noopener"
+    >logrus</a>  功能强大</p>
+<p><a class="link" href="https://github.com/uber-go/zap"  target="_blank" rel="noopener"
+    >zap</a> 非常快速，结构化，分级</p>
+<h2 id="参考资料">参考资料</h2>
+<p><a class="link" href="https://pkg.go.dev/github.com/rs/zerolog"  target="_blank" rel="noopener"
+    >zerolog 官方文档</a></p>
+
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/%E6%97%A5%E5%BF%97/">日志</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+     
+    
+        
+    <script src="https://utteranc.es/client.js" 
+        repo="ixugo/ixugo.github.io"
+        issue-term="pathname"
+        
+        crossorigin="anonymous"
+        async
+        >
+</script>
+
+<style>
+    .utterances {
+        max-width: unset;
+    }
+</style>
+
+<script>
+    function setUtterancesTheme(theme) {
+        let utterances = document.querySelector('.utterances iframe');
+        if (utterances) {
+            utterances.contentWindow.postMessage(
+                {
+                    type: 'set-theme',
+                    theme: `github-${theme}`
+                },
+                'https://utteranc.es'
+            );
+        }
+    }
+
+    addEventListener('message', event => {
+        if (event.origin !== 'https://utteranc.es') return;
+        setUtterancesTheme(document.documentElement.dataset.scheme)
+    });
+
+    window.addEventListener('onColorSchemeChange', (e) => {
+        setUtterancesTheme(e.detail)
+    })
+</script>
+
+
+    
+
+    <footer class="site-footer">
+  <section class="copyright">
+    &copy;
+    
+    2018 -
+    
+    2023 ixugo
+  </section>
+  <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+  <section class="powerby">
+
+    
+    <span id="busuanzi_container_page_pv">本文阅读量
+      <span style="font-size: 14px" id="busuanzi_value_page_pv"></span>
+      次，</span>
+    <span id="busuanzi_container_site_pv">总访问量
+      <span style="font-size: 14px" id="busuanzi_value_site_pv"></span>
+      次 </span>，总访客数
+    <span style="font-size: 14px" id="busuanzi_value_site_uv"></span> 人
+    <br />
+
+
+    Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> .&nbsp;&nbsp;
+    Theme <a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener"
+      data-version="3.16.0">Stack</a> designed by <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a>
+  </section>
+
+
+
+
+  <script>
+    function count() {
+      let href = window.location.href;
+      let regexp = /^https?:\/\/blog.golang.space\/?(page\/[\d]+\/?)?$/;
+      if (regexp.test(href)) {
+        let e = document.getElementById("busuanzi_container_page_pv");
+        e.innerText = "";
+      }
+    }
+    window.onload = count;
+  </script>
+</footer>
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

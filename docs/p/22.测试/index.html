@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='测试 在包目录内，所有以_test.go为后缀名的源文件在执行go build时不会被构建成包的一部分，它们是go test测试的一部分。
+测试文件可以放其它源文件同一个目录。
+如果测试针对的是未导出的 API，那么测试文件和其它源代码文件放在同一个包 package exam 如果测试是用户使用这套 API 的方式，可以对测试文件的包名加后缀 package exam_test 在*_test.go文件中，有三种类型的函数
+测试函数 (Test) 基准测试函数（Bench） 示例函数 (Example) 测试函数 用于测试程序的一些逻辑行为是否正确，go test 命令会调用这些测试函数并报告测试结果。
+1 2 3 import &amp;#34;testing&amp;#34; func TestFuncName(t *testing.T) { } 参考上面的格式， 以 Test 为函数名前缀，后面的FuncName首字母必须大写，参数类型必须是 *testing.T。
+1 2 3 4 5 6 7 8 9 10 11 12 # 测试全部文件 go test -v # 测试单个文件 go test -v cal_test.go cal.go # 测试单个方法 go test -v &amp;lt;file_name.go&amp;gt; -run TestAddUpper # 测试以 French 和 Canal 为前缀的函数 go test -v -run=&amp;#34;French|Canal&amp;#34; # === RUN TestFrenchPalindrome # === RUN TestCanalPalindrome # 测试所有子目录 go test -v .'>
+<title>22.测试</title>
+
+<link rel='canonical' href='https://blog.golang.space/p/22.%E6%B5%8B%E8%AF%95/'>
+
+<link rel="stylesheet" href="/scss/style.min.8191399262444ab68b72a18c97392f5349be20a1615d77445be51e974c144cff.css"><meta property='og:title' content='22.测试'>
+<meta property='og:description' content='测试 在包目录内，所有以_test.go为后缀名的源文件在执行go build时不会被构建成包的一部分，它们是go test测试的一部分。
+测试文件可以放其它源文件同一个目录。
+如果测试针对的是未导出的 API，那么测试文件和其它源代码文件放在同一个包 package exam 如果测试是用户使用这套 API 的方式，可以对测试文件的包名加后缀 package exam_test 在*_test.go文件中，有三种类型的函数
+测试函数 (Test) 基准测试函数（Bench） 示例函数 (Example) 测试函数 用于测试程序的一些逻辑行为是否正确，go test 命令会调用这些测试函数并报告测试结果。
+1 2 3 import &amp;#34;testing&amp;#34; func TestFuncName(t *testing.T) { } 参考上面的格式， 以 Test 为函数名前缀，后面的FuncName首字母必须大写，参数类型必须是 *testing.T。
+1 2 3 4 5 6 7 8 9 10 11 12 # 测试全部文件 go test -v # 测试单个文件 go test -v cal_test.go cal.go # 测试单个方法 go test -v &amp;lt;file_name.go&amp;gt; -run TestAddUpper # 测试以 French 和 Canal 为前缀的函数 go test -v -run=&amp;#34;French|Canal&amp;#34; # === RUN TestFrenchPalindrome # === RUN TestCanalPalindrome # 测试所有子目录 go test -v .'>
+<meta property='og:url' content='https://blog.golang.space/p/22.%E6%B5%8B%E8%AF%95/'>
+<meta property='og:site_name' content='ixugo'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='Go' /><meta property='article:published_time' content='2021-11-25T15:00:00&#43;00:00'/><meta property='article:modified_time' content='2021-11-25T15:00:00&#43;00:00'/>
+<meta name="twitter:title" content="22.测试">
+<meta name="twitter:description" content="测试 在包目录内，所有以_test.go为后缀名的源文件在执行go build时不会被构建成包的一部分，它们是go test测试的一部分。
+测试文件可以放其它源文件同一个目录。
+如果测试针对的是未导出的 API，那么测试文件和其它源代码文件放在同一个包 package exam 如果测试是用户使用这套 API 的方式，可以对测试文件的包名加后缀 package exam_test 在*_test.go文件中，有三种类型的函数
+测试函数 (Test) 基准测试函数（Bench） 示例函数 (Example) 测试函数 用于测试程序的一些逻辑行为是否正确，go test 命令会调用这些测试函数并报告测试结果。
+1 2 3 import &amp;#34;testing&amp;#34; func TestFuncName(t *testing.T) { } 参考上面的格式， 以 Test 为函数名前缀，后面的FuncName首字母必须大写，参数类型必须是 *testing.T。
+1 2 3 4 5 6 7 8 9 10 11 12 # 测试全部文件 go test -v # 测试单个文件 go test -v cal_test.go cal.go # 测试单个方法 go test -v &amp;lt;file_name.go&amp;gt; -run TestAddUpper # 测试以 French 和 Canal 为前缀的函数 go test -v -run=&amp;#34;French|Canal&amp;#34; # === RUN TestFrenchPalindrome # === RUN TestCanalPalindrome # 测试所有子目录 go test -v .">
+    <link rel="shortcut icon" href="img/favicon.ico" />
+
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+	(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+	m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+	})(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+	ga('create', 'UA-192125643-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="Toggle Menu">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu0b04ba6d7249c9f90c92db974439eb8c_208246_300x0_resize_box_3.png" width="300"
+                            height="321" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🧐</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">ixugo</a></h1>
+            <h2 class="site-description">走出舒适区</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/ixugo'
+                        target="_blank"
+                        title="GitHub"
+                        rel="me"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>Home</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/about/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>About</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>Archives</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>Search</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>Dark Mode</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">Table of contents</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#测试">测试</a>
+      <ol>
+        <li><a href="#测试函数">测试函数</a>
+          <ol>
+            <li><a href="#表格测试">表格测试</a></li>
+            <li><a href="#模拟-webserver-应答">模拟 webserver 应答</a></li>
+          </ol>
+        </li>
+        <li><a href="#示例函数">示例函数</a>
+          <ol>
+            <li><a href="#子测试及平行执行">子测试及平行执行</a></li>
+          </ol>
+        </li>
+        <li><a href="#基准测试">基准测试</a>
+          <ol>
+            <li><a href="#验证测评结果">验证测评结果</a></li>
+          </ol>
+        </li>
+        <li><a href="#测试驱动开发">测试驱动开发</a></li>
+      </ol>
+    </li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+            <main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+    <header class="article-category">
+        
+            <a href="/categories/golang/" >
+                Golang
+            </a>
+        
+    </header>
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/22.%E6%B5%8B%E8%AF%95/">22.测试</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    
+    
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Nov 25, 2021</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    3 minute read
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+
+</header>
+
+    <section class="article-content">
+    
+    
+    <h2 id="测试">测试</h2>
+<p>在包目录内，所有以<code>_test.go</code>为后缀名的源文件在执行<code>go build</code>时不会被构建成包的一部分，它们是<code>go test</code>测试的一部分。</p>
+<p>测试文件可以放其它源文件同一个目录。</p>
+<ul>
+<li>如果测试针对的是未导出的 API，那么测试文件和其它源代码文件放在同一个包 <code>package exam</code></li>
+<li>如果测试是用户使用这套 API 的方式，可以对测试文件的包名加后缀 <code>package exam_test</code></li>
+</ul>
+<p>在<code>*_test.go</code>文件中，有三种类型的函数</p>
+<ul>
+<li>测试函数 (Test)</li>
+<li>基准测试函数（Bench）</li>
+<li>示例函数 (Example)</li>
+</ul>
+<h3 id="测试函数">测试函数</h3>
+<p>用于测试程序的一些逻辑行为是否正确，<code>go test</code> 命令会调用这些测试函数并报告测试结果。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kn">import</span> <span class="s">&#34;testing&#34;</span>
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">TestFuncName</span><span class="p">(</span><span class="nx">t</span> <span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>参考上面的格式， 以 <code>Test</code> 为函数名前缀，后面的<code>FuncName</code>首字母必须大写，参数类型必须是 <code>*testing.T</code>。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="c1"># 测试全部文件</span>
+</span></span><span class="line"><span class="cl">go <span class="nb">test</span> -v
+</span></span><span class="line"><span class="cl"><span class="c1"># 测试单个文件</span>
+</span></span><span class="line"><span class="cl">go <span class="nb">test</span> -v cal_test.go cal.go
+</span></span><span class="line"><span class="cl"><span class="c1"># 测试单个方法</span>
+</span></span><span class="line"><span class="cl">go <span class="nb">test</span> -v &lt;file_name.go&gt; -run TestAddUpper
+</span></span><span class="line"><span class="cl"><span class="c1"># 测试以 French 和 Canal 为前缀的函数</span>
+</span></span><span class="line"><span class="cl">go <span class="nb">test</span> -v -run<span class="o">=</span><span class="s2">&#34;French|Canal&#34;</span> 
+</span></span><span class="line"><span class="cl"><span class="c1"># === RUN TestFrenchPalindrome</span>
+</span></span><span class="line"><span class="cl"><span class="c1"># === RUN TestCanalPalindrome</span>
+</span></span><span class="line"><span class="cl"><span class="c1"># 测试所有子目录</span>
+</span></span><span class="line"><span class="cl">go <span class="nb">test</span> -v ./...
+</span></span></code></pre></td></tr></table>
+</div>
+</div><ul>
+<li><code>-v</code> 用于打印每个测试函数的名字和运行时间</li>
+<li><code>-run</code>对应一个正则表达式，只有测试函数名被它正确匹配的测试函数才会执行</li>
+<li><code>-cover</code> 覆盖率</li>
+<li><code>-coverprofile</code> 生成覆盖详情</li>
+</ul>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="k">go</span> <span class="nx">test</span> <span class="o">-</span><span class="nx">coverprofile</span> <span class="nx">c</span><span class="p">.</span><span class="nx">out</span>
+</span></span><span class="line"><span class="cl"><span class="k">go</span> <span class="nx">tool</span> <span class="nx">cover</span> <span class="o">-</span><span class="nx">html</span> <span class="nx">c</span><span class="p">.</span><span class="nx">out</span> 
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><img src="http://img.golang.space/shot-1650767812196.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20220424103652008"
+	
+	
+></p>
+<p>[命令行工具参考官网文档][https://pkg.go.dev/cmd/go]</p>
+<h4 id="表格测试">表格测试</h4>
+<p>将输入和输出写成表格。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">TestIsPalindrome</span><span class="p">(</span><span class="nx">t</span> <span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kd">var</span> <span class="nx">tests</span> <span class="p">=</span> <span class="p">[]</span><span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">input</span> <span class="kt">string</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">want</span>  <span class="kt">bool</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}{</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span><span class="s">&#34;&#34;</span><span class="p">,</span> <span class="kc">true</span><span class="p">},</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span><span class="s">&#34;a&#34;</span><span class="p">,</span> <span class="kc">true</span><span class="p">},</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span><span class="s">&#34;aa&#34;</span><span class="p">,</span> <span class="kc">true</span><span class="p">},</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span><span class="s">&#34;ab&#34;</span><span class="p">,</span> <span class="kc">false</span><span class="p">},</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span><span class="s">&#34;kayak&#34;</span><span class="p">,</span> <span class="kc">true</span><span class="p">},</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span><span class="s">&#34;detartrated&#34;</span><span class="p">,</span> <span class="kc">true</span><span class="p">},</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span><span class="s">&#34;A man, a plan, a canal: Panama&#34;</span><span class="p">,</span> <span class="kc">true</span><span class="p">},</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span><span class="s">&#34;Evil I did dwell; lewd did I live.&#34;</span><span class="p">,</span> <span class="kc">true</span><span class="p">},</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span><span class="s">&#34;Able was I ere I saw Elba&#34;</span><span class="p">,</span> <span class="kc">true</span><span class="p">},</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span><span class="s">&#34;été&#34;</span><span class="p">,</span> <span class="kc">true</span><span class="p">},</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span><span class="s">&#34;Et se resservir, ivresse reste.&#34;</span><span class="p">,</span> <span class="kc">true</span><span class="p">},</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span><span class="s">&#34;palindrome&#34;</span><span class="p">,</span> <span class="kc">false</span><span class="p">},</span> <span class="c1">// non-palindrome
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>        <span class="p">{</span><span class="s">&#34;desserts&#34;</span><span class="p">,</span> <span class="kc">false</span><span class="p">},</span>   <span class="c1">// semi-palindrome
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">test</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">tests</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="nx">got</span> <span class="o">:=</span> <span class="nf">IsPalindrome</span><span class="p">(</span><span class="nx">test</span><span class="p">.</span><span class="nx">input</span><span class="p">);</span> <span class="nx">got</span> <span class="o">!=</span> <span class="nx">test</span><span class="p">.</span><span class="nx">want</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="nx">t</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;IsPalindrome(%q) = %v&#34;</span><span class="p">,</span> <span class="nx">test</span><span class="p">.</span><span class="nx">input</span><span class="p">,</span> <span class="nx">got</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">IsPalindrome</span><span class="p">(</span><span class="nx">str</span> <span class="kt">string</span><span class="p">)</span> <span class="kt">bool</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// ...
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h4 id="模拟-webserver-应答">模拟 webserver 应答</h4>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// mockServer 模拟服务器
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="nf">mockServer</span><span class="p">()</span> <span class="o">*</span><span class="nx">httptest</span><span class="p">.</span><span class="nx">Server</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="kd">var</span> <span class="nx">f</span> <span class="nx">http</span><span class="p">.</span><span class="nx">HandlerFunc</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">f</span> <span class="p">=</span> <span class="kd">func</span><span class="p">(</span><span class="nx">w</span> <span class="nx">http</span><span class="p">.</span><span class="nx">ResponseWriter</span><span class="p">,</span> <span class="nx">r</span> <span class="o">*</span><span class="nx">http</span><span class="p">.</span><span class="nx">Request</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">w</span><span class="p">.</span><span class="nf">WriteHeader</span><span class="p">(</span><span class="mi">200</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">w</span><span class="p">.</span><span class="nf">Header</span><span class="p">().</span><span class="nf">Set</span><span class="p">(</span><span class="s">&#34;Content-Type&#34;</span><span class="p">,</span> <span class="s">&#34;application/json&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">fmt</span><span class="p">.</span><span class="nf">Fprint</span><span class="p">(</span><span class="nx">w</span><span class="p">,</span> <span class="s">&#34;welcome&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="nx">httptest</span><span class="p">.</span><span class="nf">NewServer</span><span class="p">(</span><span class="nx">f</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// TestNewRequest 模拟发起请求
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="nf">TestNewRequest</span><span class="p">(</span><span class="nx">t</span> <span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">server</span> <span class="o">:=</span> <span class="nf">mockServer</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">	<span class="k">defer</span> <span class="nx">server</span><span class="p">.</span><span class="nf">Close</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="nx">req</span> <span class="o">:=</span> <span class="nx">httptest</span><span class="p">.</span><span class="nf">NewRequest</span><span class="p">(</span><span class="s">&#34;GET&#34;</span><span class="p">,</span> <span class="nx">server</span><span class="p">.</span><span class="nx">URL</span><span class="p">,</span> <span class="kc">nil</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">w</span> <span class="o">:=</span> <span class="nx">httptest</span><span class="p">.</span><span class="nf">NewRecorder</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="nx">server</span><span class="p">.</span><span class="nx">Config</span><span class="p">.</span><span class="nx">Handler</span><span class="p">.</span><span class="nf">ServeHTTP</span><span class="p">(</span><span class="nx">w</span><span class="p">,</span> <span class="nx">req</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">require</span><span class="p">.</span><span class="nf">EqualValues</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span> <span class="nx">w</span><span class="p">.</span><span class="nf">Result</span><span class="p">().</span><span class="nx">StatusCode</span><span class="p">,</span> <span class="nx">http</span><span class="p">.</span><span class="nx">StatusOK</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">require</span><span class="p">.</span><span class="nf">EqualValues</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span> <span class="s">&#34;welcome&#34;</span><span class="p">,</span> <span class="nx">w</span><span class="p">.</span><span class="nx">Body</span><span class="p">.</span><span class="nf">String</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="示例函数">示例函数</h3>
+<p>属于通过 <code>godoc</code> 生成文档的一部分。</p>
+<p>以Example为函数名前缀的函数，提供一个由编译器保证正确性的示例文档。和普通测试的区别，示例函数没有函数参数和返回值。</p>
+<p>示例函数有三个用处。</p>
+<ol>
+<li>作为文档, 根据示例函数的后缀名部分，godoc这个web文档服务器会将示例函数关联到某个具体函数或包本身</li>
+<li>在<code>go test</code>执行测试的时候也会运行示例函数测试。如果示例函数内含有类似上面例子中的<code>// Output:</code>格式的注释，那么测试工具会执行这个示例函数，然后检查示例函数的标准输出与注释是否匹配。</li>
+<li>提供一个真实的演练场, 在线编辑和运行示例函数</li>
+</ol>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">ExampleIsPalindrome</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">fmt</span><span class="p">.</span><span class="nf">Println</span><span class="p">(</span><span class="nf">IsPalindrome</span><span class="p">(</span><span class="s">&#34;A man, a plan, a canal: Panama&#34;</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">fmt</span><span class="p">.</span><span class="nf">Println</span><span class="p">(</span><span class="nf">IsPalindrome</span><span class="p">(</span><span class="s">&#34;palindrome&#34;</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// Output:
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="c1">// true
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="c1">// false
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="c1"># 安装文档</span>
+</span></span><span class="line"><span class="cl">go get -u golang.org/x/tools/cmd/godoc
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h4 id="子测试及平行执行">子测试及平行执行</h4>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">TestSubTest</span><span class="p">(</span><span class="nx">t</span> <span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">data</span> <span class="o">:=</span> <span class="p">[]</span><span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">name</span>   <span class="kt">string</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">result</span> <span class="kt">bool</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}{</span>
+</span></span><span class="line"><span class="cl">		<span class="p">{</span><span class="s">&#34;123&#34;</span><span class="p">,</span> <span class="kc">true</span><span class="p">},</span>
+</span></span><span class="line"><span class="cl">		<span class="p">{</span><span class="s">&#34;246&#34;</span><span class="p">,</span> <span class="kc">false</span><span class="p">},</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">v</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">data</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">tf</span> <span class="o">:=</span> <span class="kd">func</span><span class="p">(</span><span class="nx">t</span> <span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="nx">t</span><span class="p">.</span><span class="nf">Parallel</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">			<span class="nx">t</span><span class="p">.</span><span class="nf">Log</span><span class="p">(</span><span class="nx">v</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">t</span><span class="p">.</span><span class="nf">Run</span><span class="p">(</span><span class="nx">v</span><span class="p">.</span><span class="nx">name</span><span class="p">,</span> <span class="nx">tf</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="c1"># 仅仅想执行名为 246 的子测试</span>
+</span></span><span class="line"><span class="cl">go <span class="nb">test</span> -v -run SubTest/246
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>默认情况下，<code>go test</code> 在不同包之间是并行执行，在每个包内部是串行执行。使用 <code>t.Parallel()</code>让当前函数开启并行。</p>
+<h3 id="基准测试">基准测试</h3>
+<blockquote>
+<p>fmt.Sprint 和 fmt.Sprintf 哪个性能更佳呢?</p>
+</blockquote>
+<p>为了保证测试结果准确，必须保证电脑没有执行其它事务。如果要执行长时间的测试，一定不要打开浏览器上网，或去看在线视频。</p>
+<p>Go 语言做 benchmark 的时候，会让编译器重新编译代码，编译器会把没有用处的死代码拿掉。也就是说，如果编译器发现某个函数并没有修改任何内容，或虽然返回了某个值，却没有保存起来，编译器就会认证没必要浪费时间去调用这个函数，因为它对程序的结果不会产生任何影响。</p>
+<p>通过下面的命令执行测试， <code>-run</code>可以是正则表达式，这里写 <code>none</code> 表示不执行任何 Test 函数，仅执行 benchmark 函数。<code>-bench</code> 标志的正则表达式写出 <code>.</code> 表示匹配所有。通过<code>-benchtime</code> 设置测试时间为 3 秒。</p>
+<p>benchmark 也有子测试，子测试的主要意义并不在于并行，而在于可以更加细致地测评。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="c1"># none 没有特殊的意义，仅仅用来确保没有任何函数与它匹配</span>
+</span></span><span class="line"><span class="cl">go <span class="nb">test</span> -run none -bench . -benchtime 3s -banchmem
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>测试结果大概长这样，分别表示</p>
+<ul>
+<li>测试函数名-CPU 核心数</li>
+<li>执行次数</li>
+<li>执行时间(纳秒)，看图中，将小数点左移6 位，该测试大概 245 毫秒一次</li>
+<li>内存</li>
+<li>分配次数</li>
+</ul>
+<p><img src="http://img.golang.space/shot-1649523342924.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20220410005542697"
+	
+	
+></p>
+<h4 id="验证测评结果">验证测评结果</h4>
+<p>测评的结果，总是应该在自己所能理解的范围之内，如果跟自己想的差太远，那一定要把其中的道理弄清楚。这并不意味着代码写错了，但还是应该尽量想办法拿到准确的测评结果。</p>
+<h3 id="测试驱动开发">测试驱动开发</h3>
+<p>测试驱动开发需要你做一些小步骤，每一个实现都会感觉微不足道。真正的价值不在于步骤本身，而在于最终产品，即使做了一个微不足道的更改，这肯定会起作用。</p>
+<p>三个步骤</p>
+<ul>
+<li>红色，通常终端会红色提示错误。先编写测试代码，然后实现业务函数，期间可能无法通过测试。</li>
+<li>绿色，通过终端会绿色表示成功。当业务函数通过测试代码。</li>
+<li>重构，再不添加任何功能的情况下改进其结构，如果没有这一步，您的代码将很快退化为经过充分测试但难以理解的混乱。
+<ul>
+<li>如何在不改变功能的情况下使这段代码更好地表达其意图 ( 可理解性 ) ？</li>
+<li>许多重构不仅涉及被测代码，还涉及测试本身。您需要花费更多的时间来修复测试而不是改进代码。</li>
+<li>如果您的被测单元提供多个分支，则值得考虑拆分成多个单元。</li>
+</ul>
+</li>
+</ul>
+<p>go test命令会遍历所有的<code>*_test.go</code>文件中符合上述命名规则的函数，生成一个临时的main包用于调用相应的测试函数，接着构建并运行、报告测试结果，最后清理测试中生成的临时文件。</p>
+<p>避免脆弱测试代码的方法是只检测你真正关心的属性。保持测试代码的简洁和内部结构的稳定。特别是对断言部分要有所选择。不要对字符串进行全字匹配，而是针对那些在项目的发展中是比较稳定不变的子串。很多时候值得花力气来编写一个从复杂输出中提取用于断言的必要信息的函数，虽然这可能会带来很多前期的工作，但是它可以帮助迅速及时修复因为项目演化而导致的不合逻辑的失败测试。</p>
+
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/go/">Go</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">Related content</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/json-%E7%BB%86%E8%8A%82/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">JSON 细节</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/25.%E6%B3%9B%E5%9E%8B/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">25.泛型</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/go-%E7%BC%96%E7%A0%81%E8%A7%84%E8%8C%83/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Go 编码规范</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/go-module/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Go Module</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/nginx-%E5%85%A5%E9%97%A8/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">nginx 入门</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script src="https://utteranc.es/client.js" 
+        repo="ixugo/ixugo.github.io"
+        issue-term="pathname"
+        
+        crossorigin="anonymous"
+        async
+        >
+</script>
+
+<style>
+    .utterances {
+        max-width: unset;
+    }
+</style>
+
+<script>
+    function setUtterancesTheme(theme) {
+        let utterances = document.querySelector('.utterances iframe');
+        if (utterances) {
+            utterances.contentWindow.postMessage(
+                {
+                    type: 'set-theme',
+                    theme: `github-${theme}`
+                },
+                'https://utteranc.es'
+            );
+        }
+    }
+
+    addEventListener('message', event => {
+        if (event.origin !== 'https://utteranc.es') return;
+        setUtterancesTheme(document.documentElement.dataset.scheme)
+    });
+
+    window.addEventListener('onColorSchemeChange', (e) => {
+        setUtterancesTheme(e.detail)
+    })
+</script>
+
+
+    
+
+    <footer class="site-footer">
+  <section class="copyright">
+    &copy;
+    
+    2018 -
+    
+    2023 ixugo
+  </section>
+  <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+  <section class="powerby">
+
+    
+    <span id="busuanzi_container_page_pv">本文阅读量
+      <span style="font-size: 14px" id="busuanzi_value_page_pv"></span>
+      次，</span>
+    <span id="busuanzi_container_site_pv">总访问量
+      <span style="font-size: 14px" id="busuanzi_value_site_pv"></span>
+      次 </span>，总访客数
+    <span style="font-size: 14px" id="busuanzi_value_site_uv"></span> 人
+    <br />
+
+
+    Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> .&nbsp;&nbsp;
+    Theme <a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener"
+      data-version="3.16.0">Stack</a> designed by <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a>
+  </section>
+
+
+
+
+  <script>
+    function count() {
+      let href = window.location.href;
+      let regexp = /^https?:\/\/blog.golang.space\/?(page\/[\d]+\/?)?$/;
+      if (regexp.test(href)) {
+        let e = document.getElementById("busuanzi_container_page_pv");
+        e.innerText = "";
+      }
+    }
+    window.onload = count;
+  </script>
+</footer>
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

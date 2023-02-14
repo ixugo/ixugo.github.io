@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='栈帧 GMP 中的 G 和 M 非常像，也有一个内存栈。( M 的内存栈是操作系统层面的，大小是 1M )
+一个 G 的栈大小是 2KB，goroutine 进行函数调用，它会从栈中取出一些内存，我们称为栈帧内存。
+1 2 3 4 5 6 7 8 9 10 func main{ a := 10 incr(a) fmt.Println(a) } func incr(i int) int { i&#43;&#43; return i } goroutine 只对它所操作的栈帧的内存有直接的访问权，意味者所有的数据都必须在这里，比如声明一个 int 类型的变量，会有 4 个字节的内存就在这个栈帧内。它必须在这个栈帧内，否则 goroutine 就不能访问它。这个栈帧一个非常重要的目的，它在创造一个沙盒，一个隔离层。
+参考上面的代码进行一次函数调用，我想让你想到的是，每当进行一次函数调用，真正在做的是跨域了一个程序边界。跨域这个程序边界，意味着将离开当前的栈帧并进入一个新的栈帧，我们需要在新的栈帧内获取数据，如上面程序将变量 a 的值传递给 incr 函数，因为 Go 中的一切都是通过值传递，所以要在数据穿过程序边界时复制一个数据的副本。
+你会听到三个术语
+数据，这是我们工作的对象，数据包含两种类型 值，比如变量 a 的整数值 10 值地址，指针 在函数 incr 中做出的改变，并没有影响到 main 函数的变量 a，这是函数的隔离性。'>
+<title>栈帧与逃逸</title>
+
+<link rel='canonical' href='https://blog.golang.space/p/%E6%A0%88%E5%B8%A7%E4%B8%8E%E9%80%83%E9%80%B8/'>
+
+<link rel="stylesheet" href="/scss/style.min.8191399262444ab68b72a18c97392f5349be20a1615d77445be51e974c144cff.css"><meta property='og:title' content='栈帧与逃逸'>
+<meta property='og:description' content='栈帧 GMP 中的 G 和 M 非常像，也有一个内存栈。( M 的内存栈是操作系统层面的，大小是 1M )
+一个 G 的栈大小是 2KB，goroutine 进行函数调用，它会从栈中取出一些内存，我们称为栈帧内存。
+1 2 3 4 5 6 7 8 9 10 func main{ a := 10 incr(a) fmt.Println(a) } func incr(i int) int { i&#43;&#43; return i } goroutine 只对它所操作的栈帧的内存有直接的访问权，意味者所有的数据都必须在这里，比如声明一个 int 类型的变量，会有 4 个字节的内存就在这个栈帧内。它必须在这个栈帧内，否则 goroutine 就不能访问它。这个栈帧一个非常重要的目的，它在创造一个沙盒，一个隔离层。
+参考上面的代码进行一次函数调用，我想让你想到的是，每当进行一次函数调用，真正在做的是跨域了一个程序边界。跨域这个程序边界，意味着将离开当前的栈帧并进入一个新的栈帧，我们需要在新的栈帧内获取数据，如上面程序将变量 a 的值传递给 incr 函数，因为 Go 中的一切都是通过值传递，所以要在数据穿过程序边界时复制一个数据的副本。
+你会听到三个术语
+数据，这是我们工作的对象，数据包含两种类型 值，比如变量 a 的整数值 10 值地址，指针 在函数 incr 中做出的改变，并没有影响到 main 函数的变量 a，这是函数的隔离性。'>
+<meta property='og:url' content='https://blog.golang.space/p/%E6%A0%88%E5%B8%A7%E4%B8%8E%E9%80%83%E9%80%B8/'>
+<meta property='og:site_name' content='ixugo'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='Go进阶' /><meta property='article:published_time' content='2021-08-05T00:00:00&#43;00:00'/><meta property='article:modified_time' content='2021-08-05T00:00:00&#43;00:00'/>
+<meta name="twitter:title" content="栈帧与逃逸">
+<meta name="twitter:description" content="栈帧 GMP 中的 G 和 M 非常像，也有一个内存栈。( M 的内存栈是操作系统层面的，大小是 1M )
+一个 G 的栈大小是 2KB，goroutine 进行函数调用，它会从栈中取出一些内存，我们称为栈帧内存。
+1 2 3 4 5 6 7 8 9 10 func main{ a := 10 incr(a) fmt.Println(a) } func incr(i int) int { i&#43;&#43; return i } goroutine 只对它所操作的栈帧的内存有直接的访问权，意味者所有的数据都必须在这里，比如声明一个 int 类型的变量，会有 4 个字节的内存就在这个栈帧内。它必须在这个栈帧内，否则 goroutine 就不能访问它。这个栈帧一个非常重要的目的，它在创造一个沙盒，一个隔离层。
+参考上面的代码进行一次函数调用，我想让你想到的是，每当进行一次函数调用，真正在做的是跨域了一个程序边界。跨域这个程序边界，意味着将离开当前的栈帧并进入一个新的栈帧，我们需要在新的栈帧内获取数据，如上面程序将变量 a 的值传递给 incr 函数，因为 Go 中的一切都是通过值传递，所以要在数据穿过程序边界时复制一个数据的副本。
+你会听到三个术语
+数据，这是我们工作的对象，数据包含两种类型 值，比如变量 a 的整数值 10 值地址，指针 在函数 incr 中做出的改变，并没有影响到 main 函数的变量 a，这是函数的隔离性。">
+    <link rel="shortcut icon" href="img/favicon.ico" />
+
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+	(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+	m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+	})(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+	ga('create', 'UA-192125643-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="Toggle Menu">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu0b04ba6d7249c9f90c92db974439eb8c_208246_300x0_resize_box_3.png" width="300"
+                            height="321" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🧐</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">ixugo</a></h1>
+            <h2 class="site-description">走出舒适区</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/ixugo'
+                        target="_blank"
+                        title="GitHub"
+                        rel="me"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>Home</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/about/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>About</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>Archives</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>Search</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>Dark Mode</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">Table of contents</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#栈帧">栈帧</a></li>
+    <li><a href="#逃逸">逃逸</a>
+      <ol>
+        <li><a href="#生成逃逸分析报告">生成逃逸分析报告</a></li>
+      </ol>
+    </li>
+    <li><a href="#内存分配">内存分配</a></li>
+    <li><a href="#垃圾处理器">垃圾处理器</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+            <main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+    <header class="article-category">
+        
+            <a href="/categories/golang/" >
+                Golang
+            </a>
+        
+    </header>
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/%E6%A0%88%E5%B8%A7%E4%B8%8E%E9%80%83%E9%80%B8/">栈帧与逃逸</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    
+    
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Aug 05, 2021</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    1 minute read
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+
+</header>
+
+    <section class="article-content">
+    
+    
+    <h2 id="栈帧">栈帧</h2>
+<p>GMP 中的 G 和 M 非常像，也有一个内存栈。( M 的内存栈是操作系统层面的，大小是 1M )</p>
+<p>一个 G 的栈大小是 2KB，goroutine 进行函数调用，它会从栈中取出一些内存，我们称为栈帧内存。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nx">main</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">a</span> <span class="o">:=</span> <span class="mi">10</span>
+</span></span><span class="line"><span class="cl">  <span class="nf">incr</span><span class="p">(</span><span class="nx">a</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">fmt</span><span class="p">.</span><span class="nf">Println</span><span class="p">(</span><span class="nx">a</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">incr</span><span class="p">(</span><span class="nx">i</span> <span class="kt">int</span><span class="p">)</span> <span class="kt">int</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">i</span><span class="o">++</span>
+</span></span><span class="line"><span class="cl">  <span class="k">return</span> <span class="nx">i</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>goroutine 只对它所操作的栈帧的内存有直接的访问权，意味者所有的数据都必须在这里，比如声明一个 int 类型的变量，会有 4 个字节的内存就在这个栈帧内。它必须在这个栈帧内，否则 goroutine 就不能访问它。这个栈帧一个非常重要的目的，它在创造一个沙盒，一个隔离层。</p>
+<p>参考上面的代码进行一次函数调用，我想让你想到的是，每当进行一次函数调用，真正在做的是跨域了一个程序边界。跨域这个程序边界，意味着将离开当前的栈帧并进入一个新的栈帧，我们需要在新的栈帧内获取数据，如上面程序将变量 a 的值传递给 incr 函数，因为 Go 中的一切都是通过值传递，所以要在数据穿过程序边界时复制一个数据的副本。</p>
+<p>你会听到三个术语</p>
+<ul>
+<li>数据，这是我们工作的对象，数据包含两种类型
+<ul>
+<li>值，比如变量 a 的整数值 10</li>
+<li>值地址，指针</li>
+</ul>
+</li>
+</ul>
+<p>在函数 incr 中做出的改变，并没有影响到 main 函数的变量 a，这是函数的隔离性。</p>
+<p>优点是不会产生副作用，变量在&quot;&ldquo;沙盒&quot;中改变，不影响执行环境之外的任何东西，这非常重要!</p>
+<p>缺点是在程序中有多个数据副本，值传递是没有效率的，可能会导致代码更加复杂，甚至性能问题。</p>
+<p><img src="http://img.golang.space/shot-1648835539919.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20220402015219821"
+	
+	
+></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="nf">incr</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">a</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">incr</span><span class="p">(</span><span class="nx">a</span> <span class="o">*</span><span class="kt">int</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// ...
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>记住这句话，在 Go 中一切都是值传递。有人说上面的代码是引用传递，其实不是的。</p>
+<p>按值传递意味着跨域程序边界时，会对数据进行复制。在上面的代码中，我们正在复制和传递的数据，不是一个值，而是一个地址。为了让程序能够访问&quot;沙盒&quot;之外的东西，它必须执行对地址的读取。goroutine 只有对栈帧的直接内存访问，如果你想让 goroutine 能够访问其它内存，必须将该内存位置的地址分享给它。</p>
+<p>如果多个 goroutine 同时通过指针去访问/修改变量 a，会造成数据竞争。函数式编程试图通过完全不给你指针语义来减少副作用，但是值语义的代价是数据的低效率。后面<strong>我们将讨论什么时候使用指针语义，什么时候使用值语义。</strong></p>
+<p>优点是解决了效率问题，每个人都可以改变它。代价是副作用和更多的工作 ，需要确保我们没有破坏数据，或者事情不会在幕后被改变。</p>
+<p>我们要充分利用语言的各个方面，有助于减轻内存管理的认知负担。</p>
+<p><img src="http://img.golang.space/shot-1648838451520.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20220402024051420"
+	
+	
+></p>
+<blockquote>
+<p>注意 : 当 main 函数进行另一个函数调用时，会发生什么? 它需要另一个栈帧，它会清理掉活动帧以下的内存，重复使用。</p>
+</blockquote>
+<p><img src="http://img.golang.space/shot-1648838681257.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20220402024441177"
+	
+	
+></p>
+<h2 id="逃逸">逃逸</h2>
+<p>我们通常会有一些工厂函数，用来创建结构体对象。注意，在 Go 中没有构造函数，它隐藏了成本，我们所拥有的是我称之为工厂函数的东西，工厂函数是一个可以创建一个值的函数。初始化它，并返回给调用者。这对于可读性来说是很好的，它没有隐藏成本。我们可以读懂它，并且在结构上有助于简化。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">createUseV1</span><span class="p">()</span> <span class="nx">User</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">u</span> <span class="o">:=</span> <span class="nx">user</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">name</span><span class="p">:</span><span class="s">&#34;Bill&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  
+</span></span><span class="line"><span class="cl">  <span class="k">return</span> <span class="nx">u</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">createUserV2</span><span class="p">()</span> <span class="o">*</span><span class="nx">User</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">   <span class="nx">u</span> <span class="o">:=</span> <span class="nx">user</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">name</span><span class="p">:</span><span class="s">&#34;Bill&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  
+</span></span><span class="line"><span class="cl">  <span class="k">return</span> <span class="o">&amp;</span><span class="nx">u</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>在上面的示例中，有两个版本的创建用户，注意它们的返回类型。</p>
+<p>createUseV1 是值语义的，它返回数据的副本，不会有任何副作用。</p>
+<p>createUserV2 是指针语义的，这次不是在制作一个值的副本，要做的是拷贝值的地址。要知道栈帧是复用的，这块内存用完就会丢掉。我们好像引用了一个会被销毁的地址，这非常可怕。但实际上，编译器非常强大，它能够进行静态代码分析，将确定一个值是否被放在栈上，还是逃逸到堆中。</p>
+<p>充分利用栈是非常非常快的，栈是自我清洁的。这意味着，垃圾处理器甚至不会介入，直到一个值逃出栈，并在堆上结束。</p>
+<p>为什么栈是自我清洁的? 参考上面绘图，从栈帧返回到上面时，内存会被单独留在栈中，并在下行时进行清理，所以垃圾处理器并不需要参与。栈可以为我们提供大量的性能，因为内存是已经分配好的，而且它可以自我清理。</p>
+<p>我们应该尽力利用值语义，并将值保留在栈中，不仅仅是因为隔离和不变性的带来减少副作用的好处，而且在很多情况下还能带来更好的性能，因为一旦有东西被分配到堆上，垃圾处理器就必须参与进来。</p>
+<p><strong>另外，指针在可读性上，有一个指导原则。</strong></p>
+<p>在构造过程中使用指针语义，现在我们使这段代码更难读了。在构造过程中，不要使用指针语义，希望你在构造过程中使用值语义，仅在调用处使用指针语义。除非你想直接返回(<code>return &amp;user{}</code>)。</p>
+<p>再次提醒，如果你将一个变量的生命作为一个指针开始，你就会失去可读性。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">createUserV2</span><span class="p">()</span> <span class="o">*</span><span class="nx">User</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">   <span class="nx">u</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="nx">user</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">name</span><span class="p">:</span><span class="s">&#34;Bill&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  
+</span></span><span class="line"><span class="cl">  <span class="k">return</span> <span class="nx">u</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="生成逃逸分析报告">生成逃逸分析报告</h3>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">go build -gcflags <span class="s2">&#34;-m -m&#34;</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>当你在 <code>go build</code> 中使用 <code>gcflags</code> 时，你将得到的不是一个二进制文件，而是逃逸分析报告。</p>
+<p><img src="http://img.golang.space/shot-1648842241117.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20220402034401010"
+	
+	
+></p>
+<h2 id="内存分配">内存分配</h2>
+<p>如果在编译时，编译器不知道一个值的大小，它必须立即在堆上构建，因为栈帧不是动态的，都是在编译时确定尺寸，所以编译时不知道值的大小，就不能放在栈里。</p>
+<p>我们知道 Go 中的栈是非常非常小的，操作系统的栈大约是 1MB，而 Go 栈是 2KB。如果有一个 goroutine 进行大量的函数调用，并最终耗尽了栈空间，会发生什么呢? Go 所做的是它有连续栈，它会分配一个更大的栈，比原来的栈大 25%，然后，把所有的栈帧复过来。</p>
+<h2 id="垃圾处理器">垃圾处理器</h2>
+<p>一旦在堆上进行了内存分配，它就会停留在那里，直到被回收。</p>
+<blockquote>
+<p>我们想要的是最小的堆，减少内存使用。那么怎样才能得到最小的堆?</p>
+</blockquote>
+
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/go%E8%BF%9B%E9%98%B6/">Go进阶</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">Related content</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/%E5%88%86%E6%9E%90%E4%B8%8E%E8%BF%BD%E8%B8%AA/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">分析与追踪</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/%E5%BA%94%E8%AF%A5%E6%9C%89%E7%9A%84-go-%E8%AF%AD%E8%A8%80%E6%80%9D%E7%BB%B4/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">应该有的 Go 语言思维</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/%E8%BD%BB%E9%87%8F%E7%BA%A7%E5%8E%8B%E6%B5%8B%E5%B7%A5%E5%85%B7/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">轻量级压测工具</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/channels-%E6%A8%A1%E5%BC%8F/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Channels 模式</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/go-%E5%86%85%E5%AD%98%E6%A8%A1%E5%9E%8B/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Go 内存模型</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script src="https://utteranc.es/client.js" 
+        repo="ixugo/ixugo.github.io"
+        issue-term="pathname"
+        
+        crossorigin="anonymous"
+        async
+        >
+</script>
+
+<style>
+    .utterances {
+        max-width: unset;
+    }
+</style>
+
+<script>
+    function setUtterancesTheme(theme) {
+        let utterances = document.querySelector('.utterances iframe');
+        if (utterances) {
+            utterances.contentWindow.postMessage(
+                {
+                    type: 'set-theme',
+                    theme: `github-${theme}`
+                },
+                'https://utteranc.es'
+            );
+        }
+    }
+
+    addEventListener('message', event => {
+        if (event.origin !== 'https://utteranc.es') return;
+        setUtterancesTheme(document.documentElement.dataset.scheme)
+    });
+
+    window.addEventListener('onColorSchemeChange', (e) => {
+        setUtterancesTheme(e.detail)
+    })
+</script>
+
+
+    
+
+    <footer class="site-footer">
+  <section class="copyright">
+    &copy;
+    
+    2018 -
+    
+    2023 ixugo
+  </section>
+  <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+  <section class="powerby">
+
+    
+    <span id="busuanzi_container_page_pv">本文阅读量
+      <span style="font-size: 14px" id="busuanzi_value_page_pv"></span>
+      次，</span>
+    <span id="busuanzi_container_site_pv">总访问量
+      <span style="font-size: 14px" id="busuanzi_value_site_pv"></span>
+      次 </span>，总访客数
+    <span style="font-size: 14px" id="busuanzi_value_site_uv"></span> 人
+    <br />
+
+
+    Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> .&nbsp;&nbsp;
+    Theme <a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener"
+      data-version="3.16.0">Stack</a> designed by <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a>
+  </section>
+
+
+
+
+  <script>
+    function count() {
+      let href = window.location.href;
+      let regexp = /^https?:\/\/blog.golang.space\/?(page\/[\d]+\/?)?$/;
+      if (regexp.test(href)) {
+        let e = document.getElementById("busuanzi_container_page_pv");
+        e.innerText = "";
+      }
+    }
+    window.onload = count;
+  </script>
+</footer>
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

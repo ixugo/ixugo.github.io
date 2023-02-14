@@ -1,0 +1,1080 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='本文翻译自 https://github.com/evrone/go-clean-template，由于本人翻译水平有限，翻译不当之处烦请指出。
+Go 整洁架构模板。 概括 模板的作用 :
+如何组织项目并防止它变成一坨意大利面条式的代码。 在哪里存放业务逻辑，使其保持独立，整洁和可扩展。 如何在微服务扩展时不失控 模版使用了 Robert Martin ( 也叫 Bob 叔叔 ) 的原则。
+Go-clean-template 此仓库由 Evrone 创建及维护。
+目录内容 快速开始 项目结构 依赖注入 整洁架构之道 快速开始 本地开发
+1 2 3 4 # Postgres, RabbitMQ $ make compose-up # Run app with migrations $ make run 集成测试 ( 可以在 CI 中运行 )
+1 2 # DB, app &#43; migrations, integration tests $ make compose-up-integration-test 项目结构 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 ├── cmd │ └── app │ └── main.'>
+<title>go clean template</title>
+
+<link rel='canonical' href='https://blog.golang.space/p/go-clean-template/'>
+
+<link rel="stylesheet" href="/scss/style.min.8191399262444ab68b72a18c97392f5349be20a1615d77445be51e974c144cff.css"><meta property='og:title' content='go clean template'>
+<meta property='og:description' content='本文翻译自 https://github.com/evrone/go-clean-template，由于本人翻译水平有限，翻译不当之处烦请指出。
+Go 整洁架构模板。 概括 模板的作用 :
+如何组织项目并防止它变成一坨意大利面条式的代码。 在哪里存放业务逻辑，使其保持独立，整洁和可扩展。 如何在微服务扩展时不失控 模版使用了 Robert Martin ( 也叫 Bob 叔叔 ) 的原则。
+Go-clean-template 此仓库由 Evrone 创建及维护。
+目录内容 快速开始 项目结构 依赖注入 整洁架构之道 快速开始 本地开发
+1 2 3 4 # Postgres, RabbitMQ $ make compose-up # Run app with migrations $ make run 集成测试 ( 可以在 CI 中运行 )
+1 2 # DB, app &#43; migrations, integration tests $ make compose-up-integration-test 项目结构 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 ├── cmd │ └── app │ └── main.'>
+<meta property='og:url' content='https://blog.golang.space/p/go-clean-template/'>
+<meta property='og:site_name' content='ixugo'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:published_time' content='2021-02-01T12:00:00&#43;00:00'/><meta property='article:modified_time' content='2021-02-01T12:00:00&#43;00:00'/><meta property='og:image' content='http://img.golang.space/shot-1629111300629.svg' />
+<meta name="twitter:title" content="go clean template">
+<meta name="twitter:description" content="本文翻译自 https://github.com/evrone/go-clean-template，由于本人翻译水平有限，翻译不当之处烦请指出。
+Go 整洁架构模板。 概括 模板的作用 :
+如何组织项目并防止它变成一坨意大利面条式的代码。 在哪里存放业务逻辑，使其保持独立，整洁和可扩展。 如何在微服务扩展时不失控 模版使用了 Robert Martin ( 也叫 Bob 叔叔 ) 的原则。
+Go-clean-template 此仓库由 Evrone 创建及维护。
+目录内容 快速开始 项目结构 依赖注入 整洁架构之道 快速开始 本地开发
+1 2 3 4 # Postgres, RabbitMQ $ make compose-up # Run app with migrations $ make run 集成测试 ( 可以在 CI 中运行 )
+1 2 # DB, app &#43; migrations, integration tests $ make compose-up-integration-test 项目结构 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 ├── cmd │ └── app │ └── main."><meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:image" content='http://img.golang.space/shot-1629111300629.svg' />
+    <link rel="shortcut icon" href="img/favicon.ico" />
+
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+	(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+	m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+	})(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+	ga('create', 'UA-192125643-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="Toggle Menu">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu0b04ba6d7249c9f90c92db974439eb8c_208246_300x0_resize_box_3.png" width="300"
+                            height="321" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🧐</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">ixugo</a></h1>
+            <h2 class="site-description">走出舒适区</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/ixugo'
+                        target="_blank"
+                        title="GitHub"
+                        rel="me"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>Home</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/about/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>About</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>Archives</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>Search</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>Dark Mode</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">Table of contents</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#概括">概括</a></li>
+    <li><a href="#目录内容">目录内容</a>
+      <ol>
+        <li><a href="#快速开始">快速开始</a></li>
+      </ol>
+    </li>
+    <li><a href="#项目结构">项目结构</a>
+      <ol>
+        <li><a href="#cmdappmaingo"><code>cmd/app/main.go</code></a></li>
+        <li><a href="#config"><code>config</code></a></li>
+        <li><a href="#docs"><code>docs</code></a></li>
+        <li><a href="#integration-test"><code>integration-test</code></a></li>
+        <li><a href="#internalapp"><code>internal/app</code></a></li>
+        <li><a href="#internaldelivery"><code>internal/delivery</code></a>
+          <ol>
+            <li><a href="#internaldeliveryhttp"><code>internal/delivery/http</code></a></li>
+          </ol>
+        </li>
+        <li><a href="#internaldomain"><code>internal/domain</code></a></li>
+        <li><a href="#internalservice"><code>internal/service</code></a>
+          <ol>
+            <li><a href="#internalservicerepo"><code>internal/service/repo</code></a></li>
+            <li><a href="#internalservicewebapi"><code>internal/service/webapi</code></a></li>
+          </ol>
+        </li>
+        <li><a href="#pkgrabbitmq"><code>pkg/rabbitmq</code></a></li>
+      </ol>
+    </li>
+    <li><a href="#依赖注入">依赖注入</a></li>
+    <li><a href="#整洁架构之道">整洁架构之道</a>
+      <ol>
+        <li><a href="#关键点">关键点</a></li>
+        <li><a href="#主要原则">主要原则</a></li>
+        <li><a href="#层级">层级</a></li>
+        <li><a href="#附加层">附加层</a></li>
+        <li><a href="#替代方法">替代方法</a></li>
+      </ol>
+    </li>
+    <li><a href="#类似的项目">类似的项目</a></li>
+    <li><a href="#扩展阅读链接">扩展阅读链接</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+            <main class="main full-width">
+    <article class="has-image main-article">
+    <header class="article-header">
+        <div class="article-image">
+            <a href="/p/go-clean-template/">
+                
+                    <img src="http://img.golang.space/shot-1629111300629.svg" loading="lazy" alt="Featured image of post go clean template" />
+                
+            </a>
+        </div>
+    
+
+    <div class="article-details">
+    
+    <header class="article-category">
+        
+            <a href="/categories/%E8%AF%91%E6%96%87/" >
+                译文
+            </a>
+        
+    </header>
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/go-clean-template/">go clean template</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    
+    
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Feb 01, 2021</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    4 minute read
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+
+</header>
+
+    <section class="article-content">
+    
+    
+    <p>本文翻译自 <a class="link" href="https://github.com/evrone/go-clean-template"  target="_blank" rel="noopener"
+    >https://github.com/evrone/go-clean-template</a>，由于本人翻译水平有限，翻译不当之处烦请指出。</p>
+<h1 id="go-整洁架构模板">Go 整洁架构模板。</h1>
+<h2 id="概括">概括</h2>
+<p>模板的作用 :</p>
+<ul>
+<li>如何组织项目并防止它变成一坨意大利面条式的代码。</li>
+<li>在哪里存放业务逻辑，使其保持独立，整洁和可扩展。</li>
+<li>如何在微服务扩展时不失控</li>
+</ul>
+<p>模版使用了 Robert Martin ( 也叫 Bob 叔叔 ) 的<a class="link" href="https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html"  target="_blank" rel="noopener"
+    >原则</a>。</p>
+<p><a class="link" href="https://evrone.com/go-clean-template?utm_source=github&amp;utm_campaign=go-clean-template"  target="_blank" rel="noopener"
+    >Go-clean-template</a> 此仓库由 <a class="link" href="https://evrone.com/?utm_source=github&amp;utm_campaign=go-clean-template"  target="_blank" rel="noopener"
+    >Evrone</a> 创建及维护。</p>
+<h2 id="目录内容">目录内容</h2>
+<ul>
+<li>快速开始</li>
+<li>项目结构</li>
+<li>依赖注入</li>
+<li>整洁架构之道</li>
+</ul>
+<h3 id="快速开始">快速开始</h3>
+<p>本地开发</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="c1"># Postgres, RabbitMQ</span>
+</span></span><span class="line"><span class="cl">$ make compose-up
+</span></span><span class="line"><span class="cl"><span class="c1"># Run app with migrations</span>
+</span></span><span class="line"><span class="cl">$ make run
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>集成测试 ( 可以在 CI 中运行 )</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="c1"># DB, app + migrations, integration tests</span>
+</span></span><span class="line"><span class="cl">$ make compose-up-integration-test
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h2 id="项目结构">项目结构</h2>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span><span class="lnt">51
+</span><span class="lnt">52
+</span><span class="lnt">53
+</span><span class="lnt">54
+</span><span class="lnt">55
+</span><span class="lnt">56
+</span><span class="lnt">57
+</span><span class="lnt">58
+</span><span class="lnt">59
+</span><span class="lnt">60
+</span><span class="lnt">61
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">├── cmd
+</span></span><span class="line"><span class="cl">│   └── app
+</span></span><span class="line"><span class="cl">│       └── main.go
+</span></span><span class="line"><span class="cl">├── config
+</span></span><span class="line"><span class="cl">│   ├── config.go
+</span></span><span class="line"><span class="cl">│   └── config.yml
+</span></span><span class="line"><span class="cl">├── docs
+</span></span><span class="line"><span class="cl">│   ├── docs.go
+</span></span><span class="line"><span class="cl">│   ├── swagger.json
+</span></span><span class="line"><span class="cl">│   └── swagger.yaml
+</span></span><span class="line"><span class="cl">├── go.mod
+</span></span><span class="line"><span class="cl">├── go.sum
+</span></span><span class="line"><span class="cl">├── integration-test
+</span></span><span class="line"><span class="cl">│   ├── Dockerfile
+</span></span><span class="line"><span class="cl">│   └── integration_test.go
+</span></span><span class="line"><span class="cl">├── internal
+</span></span><span class="line"><span class="cl">│   ├── app
+</span></span><span class="line"><span class="cl">│   │   ├── app.go
+</span></span><span class="line"><span class="cl">│   │   └── migrate.go
+</span></span><span class="line"><span class="cl">│   ├── delivery
+</span></span><span class="line"><span class="cl">│   │   ├── amqp_rpc
+</span></span><span class="line"><span class="cl">│   │   │   ├── router.go
+</span></span><span class="line"><span class="cl">│   │   │   └── translation.go
+</span></span><span class="line"><span class="cl">│   │   └── http
+</span></span><span class="line"><span class="cl">│   │       └── v1
+</span></span><span class="line"><span class="cl">│   │           ├── error.go
+</span></span><span class="line"><span class="cl">│   │           ├── router.go
+</span></span><span class="line"><span class="cl">│   │           └── translation.go
+</span></span><span class="line"><span class="cl">│   ├── domain
+</span></span><span class="line"><span class="cl">│   │   └── translation.go
+</span></span><span class="line"><span class="cl">│   └── service
+</span></span><span class="line"><span class="cl">│       ├── interfaces.go
+</span></span><span class="line"><span class="cl">│       ├── repo
+</span></span><span class="line"><span class="cl">│       │   └── translation_postgres.go
+</span></span><span class="line"><span class="cl">│       ├── translation.go
+</span></span><span class="line"><span class="cl">│       └── webapi
+</span></span><span class="line"><span class="cl">│           └── translation_google.go
+</span></span><span class="line"><span class="cl">├── migrations
+</span></span><span class="line"><span class="cl">│   ├── 20210221023242_migrate_name.down.sql
+</span></span><span class="line"><span class="cl">│   └── 20210221023242_migrate_name.up.sql
+</span></span><span class="line"><span class="cl">└── pkg
+</span></span><span class="line"><span class="cl">    ├── httpserver
+</span></span><span class="line"><span class="cl">    │   ├── options.go
+</span></span><span class="line"><span class="cl">    │   └── server.go
+</span></span><span class="line"><span class="cl">    ├── logger
+</span></span><span class="line"><span class="cl">    │   ├── interface.go
+</span></span><span class="line"><span class="cl">    │   ├── logger.go
+</span></span><span class="line"><span class="cl">    │   └── zap.go
+</span></span><span class="line"><span class="cl">    ├── postgres
+</span></span><span class="line"><span class="cl">    │   ├── options.go
+</span></span><span class="line"><span class="cl">    │   └── postgres.go
+</span></span><span class="line"><span class="cl">    └── rabbitmq
+</span></span><span class="line"><span class="cl">        └── rmq_rpc
+</span></span><span class="line"><span class="cl">            ├── client
+</span></span><span class="line"><span class="cl">            │   ├── client.go
+</span></span><span class="line"><span class="cl">            │   └── options.go
+</span></span><span class="line"><span class="cl">            ├── connection.go
+</span></span><span class="line"><span class="cl">            ├── errors.go
+</span></span><span class="line"><span class="cl">            └── server
+</span></span><span class="line"><span class="cl">                ├── options.go
+</span></span><span class="line"><span class="cl">                └── server.go
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="cmdappmaingo"><code>cmd/app/main.go</code></h3>
+<p><strong>配置和日志实例的初始化</strong>，<code>main</code> 函数中调用<code>internal/app/app.go</code> 文件中 的 Run 函数，main 函数将会在此 &ldquo;延续&rdquo;。</p>
+<h3 id="config"><code>config</code></h3>
+<p><strong>配置</strong>。首先读取 <code>config.yml</code>，然后用环境变量覆盖相匹配的 yaml 配置。配置的结构体在 <code>config.go</code> 文件中。<code>env-required: true</code> 结构体标签强制您指定一个值 ( 在 yaml 或在环境变量中 )。</p>
+<p>对于配置读取，我们选择 <a class="link" href="https://github.com/ilyakaznacheev/cleanenv"  target="_blank" rel="noopener"
+    >cleanenv</a> 库。它在 GitHub 上没有很多 star，但很简单且满足所有的需求。</p>
+<p>从 yaml 中读取配置违背了12 要素，但在实践中，它比从环境变量中读取整个配置更方便。假设默认值定义在 yaml 中，敏感的变量定义在环境变量中。</p>
+<h3 id="docs"><code>docs</code></h3>
+<p><strong>Swagger 文档</strong>。可以由 <a class="link" href="https://github.com/swaggo/swag"  target="_blank" rel="noopener"
+    >swag</a> 库自动生成。而你不需要自己改正任何事情。</p>
+<h3 id="integration-test"><code>integration-test</code></h3>
+<p><strong>集成测试</strong>。它们作为单独的容器启动，紧挨着应用程序容器。使用 <a class="link" href="https://github.com/Eun/go-hit"  target="_blank" rel="noopener"
+    >go-hit</a> 测试 REST API 非常方便。</p>
+<h3 id="internalapp"><code>internal/app</code></h3>
+<p>在 <code>app.go</code> 文件中一般会有一个 Run 函数，它“延续”了main函数。</p>
+<p>这是创建所有主要对象的地方。依赖注入通过“ New&hellip;”构造函数 ( 参见依赖注入 ) 。这种技术允许我们使用依赖注入原则对应用程序进行分层，使得业务逻辑独立于其他层。</p>
+<p>接下来，为了优雅的完成，我们启动服务并在select中等待特定的信号。如果 <code>app.go</code> 代码越来越多，可以将其拆分为多个文件。</p>
+<p>对于大量的注入，可以使用 <a class="link" href="https://github.com/google/wire"  target="_blank" rel="noopener"
+    >wire</a> 库 ( wire 是一个代码生成工具，它使用依赖注入自动连接组件)。</p>
+<p><code>migrate.go</code> 文件用于数据库自动迁移。如果指定了 migrate 标签的参数，则会包含它。例如 :</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">$ go run -tags migrate ./cmd/app
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="internaldelivery"><code>internal/delivery</code></h3>
+<p><strong>服务的handler层</strong> ( MVC 控制器 )。模板展示了两个服务:</p>
+<ul>
+<li>RPC (  RabbitMQ 用于传递消息 )</li>
+<li>REST HTTP ( GIN 框架 )</li>
+</ul>
+<p>服务的路由也以同样的风格编写 :</p>
+<ul>
+<li>Handlers按照应用领域分组 ( 按公共基础 )</li>
+<li>对于每个组，都创建自己的路由结构，以及处理接口路径的方法</li>
+<li>业务逻辑的结构被注入到路由结构中，由handlers处理调用</li>
+</ul>
+<h4 id="internaldeliveryhttp"><code>internal/delivery/http</code></h4>
+<p><strong>简单的 REST 版本控制</strong>。对于 v2，我们需要添加具有相同内容的 <code>http/v2</code> 文件夹。在 <code>internal/app</code> 程序文件中添加以下行 :</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="nx">handler</span> <span class="o">:=</span> <span class="nx">gin</span><span class="p">.</span><span class="nf">New</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="nx">v1</span><span class="p">.</span><span class="nf">NewRouter</span><span class="p">(</span><span class="nx">handler</span><span class="p">,</span> <span class="nx">translationService</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="nx">v2</span><span class="p">.</span><span class="nf">NewRouter</span><span class="p">(</span><span class="nx">handler</span><span class="p">,</span> <span class="nx">translationService</span><span class="p">)</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>你可以使用任何其他的 HTTP 框架甚至是标准的 net/http 库来代替 Gin。</p>
+<p>在 <code>v1/router.go</code> 和上面的 handler 方法中，有一些注释是用 swag库来生成 swagger 文档的。</p>
+<h3 id="internaldomain"><code>internal/domain</code></h3>
+<p><strong>业务逻辑的实体</strong> ( 模型 ) 可以在任何层中使用。也可以有方法，例如，用于验证。</p>
+<h3 id="internalservice"><code>internal/service</code></h3>
+<p><strong>业务逻辑</strong></p>
+<ul>
+<li>方法按应用领域分组 ( 在公共的基础上 )</li>
+<li>每个组都有自己的结构</li>
+<li>一个文件一个结构</li>
+</ul>
+<p>Repositories、 webapi、 rpc 和其他业务逻辑结构被注入到业务逻辑结构中 ( 见依赖注入 )。</p>
+<h4 id="internalservicerepo"><code>internal/service/repo</code></h4>
+<p>repository 是业务逻辑使用的<strong>抽象存储</strong> ( 数据库 )。</p>
+<h4 id="internalservicewebapi"><code>internal/service/webapi</code></h4>
+<p>它是业务逻辑使用的<strong>抽象 web API</strong>。例如，它可能是业务逻辑通过 REST API 访问的另一个微服务。包的名称根据用途而变化。</p>
+<h3 id="pkgrabbitmq"><code>pkg/rabbitmq</code></h3>
+<p>RabbitMQ RPC 模式 :</p>
+<ul>
+<li>RabbitMQ 内部没有路由</li>
+<li>使用Exchange fanout 广播模式，将1 个独立队列绑定到其中，这是最高效的配置。</li>
+<li>重新连接断开丢失的连接</li>
+</ul>
+<h2 id="依赖注入">依赖注入</h2>
+<p>为了消除业务逻辑对外部包的依赖，使用了依赖注入。</p>
+<p>例如，通过 NewService 构造函数，我们将依赖注入到业务逻辑的结构中。这使得业务逻辑独立 ( 便于移植 )。我们可以重写接口的实现，而不需要对 <code>service</code> 包进行更改。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kn">package</span> <span class="nx">service</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kn">import</span> <span class="p">(</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// Nothing!
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">Repository</span> <span class="kd">interface</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nf">Get</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">Service</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">repo</span> <span class="nx">Repository</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">NewService</span><span class="p">(</span><span class="nx">r</span> <span class="nx">Repository</span><span class="p">)</span> <span class="o">*</span><span class="nx">Service</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="o">&amp;</span><span class="nx">Service</span><span class="p">{</span><span class="nx">r</span><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">s</span> <span class="o">*</span><span class="nx">Service</span><span class="p">)</span> <span class="nf">Do</span><span class="p">()</span>  <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">s</span><span class="p">.</span><span class="nx">repo</span><span class="p">.</span><span class="nf">Get</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>它还允许我们自动生成模拟参数 ( 例如使用 <a class="link" href="https://github.com/vektra/mockery"  target="_blank" rel="noopener"
+    >mockery</a> ) 和轻松地编写单元测试。</p>
+<blockquote>
+<p>我们可以不受特定实现的约束，来将一个组件更改为另一个组件。如果新组件实现了该接口，则业务逻辑中不需要进行任何更改。</p>
+</blockquote>
+<h2 id="整洁架构之道">整洁架构之道</h2>
+<h3 id="关键点">关键点</h3>
+<p>程序员在编写了大量代码后才意识到应用程序的最佳架构。</p>
+<blockquote>
+<p>一个好的架构允许尽可能推迟决策。</p>
+</blockquote>
+<h3 id="主要原则">主要原则</h3>
+<p>Dependency Inversion ( 与 SOLID 相同  ) 是依赖倒置的原则。依赖关系的方向是从外层到内层。由于这个原因，业务逻辑和实体仍然独立于系统的其他部分。</p>
+<p>因此，应用程序分为内部和外部两个层次 :</p>
+<ul>
+<li><strong>业务逻辑</strong> ( 使用 Go 标准库 )</li>
+<li><strong>工具</strong> ( 数据库、其他服务、消息代理、任何其他包和框架 )</li>
+</ul>
+<p><img src="http://img.golang.space/shot-1629076288722.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="Clean Architecture"
+	
+	
+></p>
+<p><strong>业务逻辑的内层</strong>应该是整洁的，它应该 :</p>
+<ul>
+<li>没有从外层导入的包</li>
+<li>只使用标准库的功能</li>
+<li>通过接口调用外层 !</li>
+</ul>
+<p>业务逻辑对 Postgres 或详细的 web API 一无所知。业务逻辑应该具有一个用于处理抽象数据库或抽象 web API 的接口。</p>
+<p><strong>外层</strong>还有其他限制 :</p>
+<ul>
+<li>这一层的所有组成部分都不知道彼此的存在。如何从一个工具调用另一个工具？不是直接，而是只能通过内层的业务逻辑来调用。</li>
+<li>对内层的所有调用都是通过接口来完成的</li>
+<li>数据以便于业务逻辑的格式传输 ( <code>internal/domain</code> )</li>
+</ul>
+<p>例如，你需要从 HTTP ( 控制器 ) 访问数据库。HTTP 和数据库都在外层，这意味着它们对彼此一无所知。它们之间的通信是通过 <code>service </code> ( 业务逻辑 ) 进行的 :</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">    HTTP &gt; service
+</span></span><span class="line"><span class="cl">           service &gt; repository <span class="o">(</span>Postgres<span class="o">)</span>
+</span></span><span class="line"><span class="cl">           service &lt; repository <span class="o">(</span>Postgres<span class="o">)</span>
+</span></span><span class="line"><span class="cl">    HTTP &lt; service
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>符号 &gt; 和 &lt; 通过接口显示层与层边界的交集，如图所示 :</p>
+<p><img src="http://img.golang.space/shot-1629110764044.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="Example"
+	
+	
+></p>
+<p>或者更复杂的业务逻辑 :</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">    HTTP &gt; service
+</span></span><span class="line"><span class="cl">           service &gt; repository
+</span></span><span class="line"><span class="cl">           service &lt; repository
+</span></span><span class="line"><span class="cl">           service &gt; webapi
+</span></span><span class="line"><span class="cl">           service &lt; webapi
+</span></span><span class="line"><span class="cl">           service &gt; RPC
+</span></span><span class="line"><span class="cl">           service &lt; RPC
+</span></span><span class="line"><span class="cl">           service &gt; repository
+</span></span><span class="line"><span class="cl">           service &lt; repository
+</span></span><span class="line"><span class="cl">    HTTP &lt; service
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="层级">层级</h3>
+<p><img src="http://img.golang.space/shot-1629110769248.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="Example"
+	
+	
+></p>
+<p>整洁架构的术语</p>
+<ul>
+<li><strong>实体是业务逻辑操作的结构</strong>。它们位于 <code>internal/domain</code> 文件夹中。Domain 暗示我们坚持 DDD ( 领域驱动设计 ) 的原则，这在一定程度上是正确的。在 MVC 术语中，实体就是模型。</li>
+<li><strong>用例</strong>是位于 <code>internal/service</code> 中的业务逻辑。从整洁架构的角度来看，调用业务逻辑使用 <code>service</code> 一词不是习惯的用法，但是对于一个包名称来说，使用一个单词 ( service ) 比使用两个单词 ( use case ) 更方便。</li>
+</ul>
+<p>业务逻辑直接交互的层通常称为基础设施层。它们可以是存储库 <code>internal/service/repo</code>、web API <code>internal/service/webapi</code>、任何pkg，以及其他微服务。在模板中，_ infrastructure 包位于 <code>internal/service</code> 中。</p>
+<p>你可以根据需要去选择如何调用入口点。选项如下 :</p>
+<ul>
+<li>delivery (in our case)</li>
+<li>controllers</li>
+<li>transport</li>
+<li>gateways</li>
+<li>entrypoints</li>
+<li>primary</li>
+<li>input</li>
+</ul>
+<h3 id="附加层">附加层</h3>
+<p>经典版本的 <a class="link" href="https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html"  target="_blank" rel="noopener"
+    >整洁架构之道</a> 是为构建大型单体应用程序而设计的，它有4层。</p>
+<p>在最初的版本中，外层被分为两个以上的层，两层之间也存在相互依赖关系倒置 ( 定向内部 )，并通过接口进行通信。</p>
+<p>在逻辑复杂的情况下，内层也分为两个( 接口分离 )。</p>
+<p>复杂的工具可以被划分成更多的附加层，但你应该在确实需要时再添加层。</p>
+<h3 id="替代方法">替代方法</h3>
+<p>除了整洁架构之道，洋葱架构和六边形架构 ( 端口适配器模式 ) 是类似的。两者都是基于依赖倒置的原则。端口和适配器模式非常接近于整洁架构之道，差异主要在术语上。</p>
+<h2 id="类似的项目">类似的项目</h2>
+<ul>
+<li><a class="link" href="https://github.com/bxcodec/go-clean-arch"  target="_blank" rel="noopener"
+    >https://github.com/bxcodec/go-clean-arch</a></li>
+<li><a class="link" href="https://github.com/zhashkevych/courses-backend"  target="_blank" rel="noopener"
+    >https://github.com/zhashkevych/courses-backend</a></li>
+</ul>
+<h2 id="扩展阅读链接">扩展阅读链接</h2>
+<ul>
+<li><a class="link" href="https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html"  target="_blank" rel="noopener"
+    >整洁架构之道</a></li>
+<li><a class="link" href="https://12factor.net/ru/"  target="_blank" rel="noopener"
+    >12 要素</a></li>
+</ul>
+
+</section>
+
+
+    <footer class="article-footer">
+    
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">Related content</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="has-image">
+    <a href="/p/circuit-breakers-in-golang/">
+        
+        
+            <div class="article-image">
+                
+                    <img src="http://img.golang.space/shot-1626770277464.png" loading="lazy" data-key="" data-hash="http://img.golang.space/shot-1626770277464.png"/>
+                
+            </div>
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Circuit Breakers in Golang</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script src="https://utteranc.es/client.js" 
+        repo="ixugo/ixugo.github.io"
+        issue-term="pathname"
+        
+        crossorigin="anonymous"
+        async
+        >
+</script>
+
+<style>
+    .utterances {
+        max-width: unset;
+    }
+</style>
+
+<script>
+    function setUtterancesTheme(theme) {
+        let utterances = document.querySelector('.utterances iframe');
+        if (utterances) {
+            utterances.contentWindow.postMessage(
+                {
+                    type: 'set-theme',
+                    theme: `github-${theme}`
+                },
+                'https://utteranc.es'
+            );
+        }
+    }
+
+    addEventListener('message', event => {
+        if (event.origin !== 'https://utteranc.es') return;
+        setUtterancesTheme(document.documentElement.dataset.scheme)
+    });
+
+    window.addEventListener('onColorSchemeChange', (e) => {
+        setUtterancesTheme(e.detail)
+    })
+</script>
+
+
+    
+
+    <footer class="site-footer">
+  <section class="copyright">
+    &copy;
+    
+    2018 -
+    
+    2023 ixugo
+  </section>
+  <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+  <section class="powerby">
+
+    
+    <span id="busuanzi_container_page_pv">本文阅读量
+      <span style="font-size: 14px" id="busuanzi_value_page_pv"></span>
+      次，</span>
+    <span id="busuanzi_container_site_pv">总访问量
+      <span style="font-size: 14px" id="busuanzi_value_site_pv"></span>
+      次 </span>，总访客数
+    <span style="font-size: 14px" id="busuanzi_value_site_uv"></span> 人
+    <br />
+
+
+    Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> .&nbsp;&nbsp;
+    Theme <a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener"
+      data-version="3.16.0">Stack</a> designed by <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a>
+  </section>
+
+
+
+
+  <script>
+    function count() {
+      let href = window.location.href;
+      let regexp = /^https?:\/\/blog.golang.space\/?(page\/[\d]+\/?)?$/;
+      if (regexp.test(href)) {
+        let e = document.getElementById("busuanzi_container_page_pv");
+        e.innerText = "";
+      }
+    }
+    window.onload = count;
+  </script>
+</footer>
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

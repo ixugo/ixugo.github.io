@@ -1,0 +1,1696 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='Redis 参考文档 :　http://redisdoc.com/
+[toc]
+一 linux 的环境软件安装 1 2 3 4 5 6 # 安装 服务器端 sudo apt-get install redis-server # 检查服务器系统进程 ps -agx | grep redis # 通过命令行访问 redis-cli 尝试操作
+解决中文乱码, 启动时加参数 --raw
+1 redis-cli --raw # 可解决部分交互环境中出现的中文乱码问题 redis 安装完毕, 默认有 16 个数据库, 初始默认使用 0 号库, 编号 0,1,2&amp;hellip;15
+1 2 3 4 5 6 7 8 9 10 # 小试牛刀 set key1 value # 增加一条记录 # 如果 value 是数字类型,可以自增 INCR key1 # 即&#43;1操作 get key1 # 获取对应的值 select 1 # 切换数据库 keys * # 查看当前库所有 key dbsize # 查看当前 key-val 数量 flushdb # 清空当前数据库的key-val flushall # 清空所有数据库的key-val 2.'>
+<title>Redis 基础</title>
+
+<link rel='canonical' href='https://blog.golang.space/p/redis-%E5%9F%BA%E7%A1%80/'>
+
+<link rel="stylesheet" href="/scss/style.min.8191399262444ab68b72a18c97392f5349be20a1615d77445be51e974c144cff.css"><meta property='og:title' content='Redis 基础'>
+<meta property='og:description' content='Redis 参考文档 :　http://redisdoc.com/
+[toc]
+一 linux 的环境软件安装 1 2 3 4 5 6 # 安装 服务器端 sudo apt-get install redis-server # 检查服务器系统进程 ps -agx | grep redis # 通过命令行访问 redis-cli 尝试操作
+解决中文乱码, 启动时加参数 --raw
+1 redis-cli --raw # 可解决部分交互环境中出现的中文乱码问题 redis 安装完毕, 默认有 16 个数据库, 初始默认使用 0 号库, 编号 0,1,2&amp;hellip;15
+1 2 3 4 5 6 7 8 9 10 # 小试牛刀 set key1 value # 增加一条记录 # 如果 value 是数字类型,可以自增 INCR key1 # 即&#43;1操作 get key1 # 获取对应的值 select 1 # 切换数据库 keys * # 查看当前库所有 key dbsize # 查看当前 key-val 数量 flushdb # 清空当前数据库的key-val flushall # 清空所有数据库的key-val 2.'>
+<meta property='og:url' content='https://blog.golang.space/p/redis-%E5%9F%BA%E7%A1%80/'>
+<meta property='og:site_name' content='ixugo'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='Redis' /><meta property='article:published_time' content='2020-05-15T00:00:00&#43;00:00'/><meta property='article:modified_time' content='2020-05-15T00:00:00&#43;00:00'/>
+<meta name="twitter:title" content="Redis 基础">
+<meta name="twitter:description" content="Redis 参考文档 :　http://redisdoc.com/
+[toc]
+一 linux 的环境软件安装 1 2 3 4 5 6 # 安装 服务器端 sudo apt-get install redis-server # 检查服务器系统进程 ps -agx | grep redis # 通过命令行访问 redis-cli 尝试操作
+解决中文乱码, 启动时加参数 --raw
+1 redis-cli --raw # 可解决部分交互环境中出现的中文乱码问题 redis 安装完毕, 默认有 16 个数据库, 初始默认使用 0 号库, 编号 0,1,2&amp;hellip;15
+1 2 3 4 5 6 7 8 9 10 # 小试牛刀 set key1 value # 增加一条记录 # 如果 value 是数字类型,可以自增 INCR key1 # 即&#43;1操作 get key1 # 获取对应的值 select 1 # 切换数据库 keys * # 查看当前库所有 key dbsize # 查看当前 key-val 数量 flushdb # 清空当前数据库的key-val flushall # 清空所有数据库的key-val 2.">
+    <link rel="shortcut icon" href="img/favicon.ico" />
+
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+	(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+	m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+	})(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+	ga('create', 'UA-192125643-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="Toggle Menu">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu0b04ba6d7249c9f90c92db974439eb8c_208246_300x0_resize_box_3.png" width="300"
+                            height="321" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🧐</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">ixugo</a></h1>
+            <h2 class="site-description">走出舒适区</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/ixugo'
+                        target="_blank"
+                        title="GitHub"
+                        rel="me"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>Home</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/about/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>About</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>Archives</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>Search</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>Dark Mode</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">Table of contents</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#一-linux-的环境软件安装">一 linux 的环境软件安装</a></li>
+    <li><a href="#2-基础知识">2. 基础知识</a>
+      <ol>
+        <li><a href="#21-使用-help-了解命令">2.1. 使用 help 了解命令</a></li>
+        <li><a href="#22-string-类型">2.2. string 类型</a></li>
+        <li><a href="#23--hash-类型">2.3.  hash 类型</a></li>
+        <li><a href="#3-list-类型">3 list 类型</a></li>
+        <li><a href="#4-set-类型">4 set 类型</a></li>
+        <li><a href="#5-有序集合--sorted_set-">5 有序集合 ( sorted_set )</a></li>
+        <li><a href="#通用命令">通用命令</a></li>
+        <li><a href="#持久化">持久化</a></li>
+      </ol>
+    </li>
+  </ol>
+
+  <ol>
+    <li><a href="#一-连接池">一 连接池</a></li>
+    <li><a href="#二-字符串-setget">二 字符串 set/get</a></li>
+    <li><a href="#incr-计数器">incr 计数器</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+            <main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+    <header class="article-category">
+        
+            <a href="/categories/%E6%95%B0%E6%8D%AE%E5%BA%93/" >
+                数据库
+            </a>
+        
+    </header>
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/redis-%E5%9F%BA%E7%A1%80/">Redis 基础</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    
+    
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">May 15, 2020</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    7 minute read
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+
+</header>
+
+    <section class="article-content">
+    
+    
+    <h1 id="redis">Redis</h1>
+<p>参考文档 :　http://redisdoc.com/</p>
+<p>[toc]</p>
+<h2 id="一-linux-的环境软件安装">一 linux 的环境软件安装</h2>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="c1"># 安装 服务器端</span>
+</span></span><span class="line"><span class="cl">sudo apt-get install redis-server
+</span></span><span class="line"><span class="cl"><span class="c1"># 检查服务器系统进程</span>
+</span></span><span class="line"><span class="cl">ps -agx <span class="p">|</span> grep redis
+</span></span><span class="line"><span class="cl"><span class="c1"># 通过命令行访问</span>
+</span></span><span class="line"><span class="cl">redis-cli
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>尝试操作</p>
+<blockquote>
+<p>解决中文乱码, 启动时加参数 <code>--raw</code></p>
+</blockquote>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">redis-cli --raw    <span class="c1"># 可解决部分交互环境中出现的中文乱码问题</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>redis 安装完毕, 默认有 16 个数据库, 初始默认使用 0 号库, 编号 0,1,2&hellip;15</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="c1"># 小试牛刀</span>
+</span></span><span class="line"><span class="cl"><span class="nb">set</span> key1 value  <span class="c1"># 增加一条记录</span>
+</span></span><span class="line"><span class="cl"><span class="c1"># 如果 value 是数字类型,可以自增</span>
+</span></span><span class="line"><span class="cl">INCR key1   <span class="c1"># 即+1操作</span>
+</span></span><span class="line"><span class="cl">get key1   <span class="c1"># 获取对应的值</span>
+</span></span><span class="line"><span class="cl"><span class="k">select</span> <span class="m">1</span>  <span class="c1"># 切换数据库</span>
+</span></span><span class="line"><span class="cl">keys *   <span class="c1"># 查看当前库所有 key</span>
+</span></span><span class="line"><span class="cl">dbsize   <span class="c1"># 查看当前 key-val 数量</span>
+</span></span><span class="line"><span class="cl">flushdb  <span class="c1"># 清空当前数据库的key-val</span>
+</span></span><span class="line"><span class="cl">flushall <span class="c1"># 清空所有数据库的key-val</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h2 id="2-基础知识">2. 基础知识</h2>
+<p>一般电商场景解决方案</p>
+<p><img src="http://img.golang.space/shot-1624328555140.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20210622102234872"
+	
+	
+></p>
+<p>适用场景</p>
+<p><img src="http://img.golang.space/shot-1624328799167.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20210622102638951"
+	
+	
+></p>
+<p>redis 存储的是 key,value 格式数据</p>
+<p>其中的 key  都是字符串, value 有 ==5== 大数据类型</p>
+<ol>
+<li>
+<p>字符串类型</p>
+</li>
+<li>
+<p>哈希类型   hash:map</p>
+</li>
+<li>
+<p>列表类型  list: linkedlist格式,支持重复元素</p>
+</li>
+<li>
+<p>集合类型  set : 不允许重复元素且无序</p>
+</li>
+<li>
+<p>有序集合类型  sortedset: 不允许重复元素,且元素有序</p>
+</li>
+</ol>
+<h3 id="21-使用-help-了解命令">2.1. 使用 help 了解命令</h3>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="nb">help</span> incr
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><img src="http://img.golang.space/shot-1624328734880.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20210622102534680"
+	
+	
+></p>
+<h3 id="22-string-类型">2.2. string 类型</h3>
+<p><strong>单个操作</strong></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="nb">set</span> key value  <span class="c1"># set 如果key存在则修改, 不在则添加</span>
+</span></span><span class="line"><span class="cl">get key  			 <span class="c1"># get 获取</span>
+</span></span><span class="line"><span class="cl">del key 			 <span class="c1"># del 删除</span>
+</span></span><span class="line"><span class="cl">strlen key     <span class="c1"># 获取字符串长度</span>
+</span></span><span class="line"><span class="cl">append key value  <span class="c1"># 存储则追加，否则新建，返回追加后的长度</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><strong>多个操作</strong></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">mset mess1 北京 mess2 天安门  <span class="c1"># mset 同时设置一个或多个 key-value</span>
+</span></span><span class="line"><span class="cl">mget mess1 mess2  					<span class="c1"># mget 同时获取多个值</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><strong>扩展操作</strong></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="c1"># 增</span>
+</span></span><span class="line"><span class="cl">incr key										<span class="c1"># +1，返回+1 后的值</span>
+</span></span><span class="line"><span class="cl">incrby key increment				<span class="c1"># +increment </span>
+</span></span><span class="line"><span class="cl">incrbyfloat key increment		<span class="c1"># 浮点操作</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1"># 减</span>
+</span></span><span class="line"><span class="cl">decr key										<span class="c1"># -1</span>
+</span></span><span class="line"><span class="cl">decrby key increment				<span class="c1"># -increment</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1"># 有效时间</span>
+</span></span><span class="line"><span class="cl">setex message <span class="m">10</span> 北京天安门 <span class="c1"># setex(set with expire) 设置有效时间为 10 秒</span>
+</span></span><span class="line"><span class="cl">psetex key <span class="m">10</span> 故宫         <span class="c1"># 设置有效期 10 毫秒</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1"># 仅当值不存在时，写入</span>
+</span></span><span class="line"><span class="cl">setnx key <span class="m">13</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><img src="http://img.golang.space/shot-1624329111510.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20210622103151314"
+	
+	
+></p>
+<p><strong>操作注意事项</strong></p>
+<p><img src="http://img.golang.space/shot-1624329241396.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20210622103401218"
+	
+	
+></p>
+<p><strong>应用场景</strong></p>
+<p><img src="http://img.golang.space/shot-1624330048662.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20210622104728443"
+	
+	
+></p>
+<p><img src="http://img.golang.space/shot-1624330057696.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20210622104737529"
+	
+	
+></p>
+<h3 id="23--hash-类型">2.3.  hash 类型</h3>
+<ul>
+<li>对一系列数据编组，方便管理，典型应用存储对象信息</li>
+<li>底层使用 哈希表结构实现数据存储</li>
+</ul>
+<p><strong>单个操作</strong></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">hset key age <span class="m">15</span>    <span class="c1"># json 是这样表示  { &#34;mess&#34;: { &#34;age&#34;:15 } }</span>
+</span></span><span class="line"><span class="cl">hset key name lucy <span class="c1"># json 是这样表示  { &#34;mess&#34;: { &#34;age&#34;:&#34;15&#34;, &#34;name&#34;:&#34;locy&#34; } }</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">hget key field  				 <span class="c1"># 获取</span>
+</span></span><span class="line"><span class="cl">hdel key field1 <span class="o">[</span>field2<span class="o">]</span> <span class="c1"># 删除</span>
+</span></span><span class="line"><span class="cl">hgetall key  						 <span class="c1"># 获取所有的键值对</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><strong>多个操作</strong></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="c1"># 添加/修改</span>
+</span></span><span class="line"><span class="cl">hmset key field1 value1 field2 value2  
+</span></span><span class="line"><span class="cl"><span class="c1"># 获取</span>
+</span></span><span class="line"><span class="cl">hmget key field1 field2
+</span></span><span class="line"><span class="cl"><span class="c1"># 获取表中字段数量</span>
+</span></span><span class="line"><span class="cl">hlen key
+</span></span><span class="line"><span class="cl"><span class="c1"># 是否存在指定的字段</span>
+</span></span><span class="line"><span class="cl">hexists key field
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><strong>扩展操作</strong></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="c1"># 获取所有 key 或 value</span>
+</span></span><span class="line"><span class="cl">hkeys key
+</span></span><span class="line"><span class="cl">hvals key
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1"># 设置指定字段的数值增加指定范围的值</span>
+</span></span><span class="line"><span class="cl">hincrby key field increment
+</span></span><span class="line"><span class="cl">hincrbyfloat key field increment
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1"># 仅仅当字段不存在时设置该值</span>
+</span></span><span class="line"><span class="cl">hsetnx key age <span class="m">11</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><strong>注意事项</strong></p>
+<p><img src="http://img.golang.space/shot-1624350132727.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20210622162212465"
+	
+	
+></p>
+<p><strong>应用场景</strong></p>
+<p><img src="http://img.golang.space/shot-1624350157495.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20210622162237279"
+	
+	
+></p>
+<p><img src="http://img.golang.space/shot-1624350215171.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20210622162334966"
+	
+	
+></p>
+<h3 id="3-list-类型">3 list 类型</h3>
+<p>redis 列表是简单的字符串列表, 按照插入顺序排序, 可以添加元素到头部或者尾部 (即 队列)</p>
+<p>该类型底层实现是双向链表</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="c1"># 添加</span>
+</span></span><span class="line"><span class="cl">lpush key value  <span class="c1"># 左边添加</span>
+</span></span><span class="line"><span class="cl">rpush key value  <span class="c1"># 右边添加</span>
+</span></span><span class="line"><span class="cl"><span class="c1"># 获取</span>
+</span></span><span class="line"><span class="cl">lrange key start end  <span class="c1"># 范围获取</span>
+</span></span><span class="line"><span class="cl">lrange key <span class="m">0</span> -1       <span class="c1"># 获取所有元素</span>
+</span></span><span class="line"><span class="cl"><span class="c1"># 删除</span>
+</span></span><span class="line"><span class="cl">lpop key  <span class="c1"># 弹出列表左边一个元素并返回</span>
+</span></span><span class="line"><span class="cl">rpop key  <span class="c1"># 弹出列表左边一个元素并返回</span>
+</span></span><span class="line"><span class="cl">brpop key <span class="m">5</span> <span class="c1"># 弹出元素, 若是没有,最多等待5秒</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><strong>扩展操作</strong></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="c1"># 规定时间内获取并移除元素</span>
+</span></span><span class="line"><span class="cl"><span class="c1"># 阻塞从链表获取数据，当链表为空时。等待最大时间内，入值就取出来</span>
+</span></span><span class="line"><span class="cl">blpop key1 <span class="o">[</span>key2<span class="o">]</span> timeout   
+</span></span><span class="line"><span class="cl">brpop key1 <span class="o">[</span>key2<span class="o">]</span> timeout
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1"># 移除指定数据</span>
+</span></span><span class="line"><span class="cl">lrem key count value
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><strong>应用场景</strong></p>
+<p><img src="http://img.golang.space/shot-1624427928396.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20210623135848083"
+	
+	
+></p>
+<p><img src="http://img.golang.space/shot-1624427939479.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20210623135859264"
+	
+	
+></p>
+<h3 id="4-set-类型">4 set 类型</h3>
+<p><img src="http://img.golang.space/shot-1624427960948.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20210623135920728"
+	
+	
+></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="c1"># 存储</span>
+</span></span><span class="line"><span class="cl">sadd key member1 <span class="o">[</span>member2<span class="o">]</span>
+</span></span><span class="line"><span class="cl"><span class="c1"># 获取</span>
+</span></span><span class="line"><span class="cl">SMEMBERS key  <span class="c1"># 获取 set 集合中所有元素</span>
+</span></span><span class="line"><span class="cl"><span class="c1"># 删除</span>
+</span></span><span class="line"><span class="cl">SREM key member1 <span class="o">[</span>member2<span class="o">]</span> <span class="c1"># 删除 set 集合中的某个元素</span>
+</span></span><span class="line"><span class="cl"><span class="c1"># 获取集合数据总量</span>
+</span></span><span class="line"><span class="cl">scard key
+</span></span><span class="line"><span class="cl"><span class="c1"># 判断集合中是否包含指定数据</span>
+</span></span><span class="line"><span class="cl">sismember key member
+</span></span><span class="line"><span class="cl"><span class="c1"># 随机获取集合中指定的数量的数据</span>
+</span></span><span class="line"><span class="cl">srandmember key <span class="o">[</span>count<span class="o">]</span>
+</span></span><span class="line"><span class="cl"><span class="c1"># 随机将数据移除集合</span>
+</span></span><span class="line"><span class="cl">spop key
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>适合应用于随机推荐类信息检索，热点歌单推荐/热点新闻推荐/热卖商品/大 V 推荐/</p>
+<p><img src="http://img.golang.space/shot-1624506591157.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20210624114950774"
+	
+	
+></p>
+<p><img src="http://img.golang.space/shot-1624506619008.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20210624115018748"
+	
+	
+></p>
+<p><img src="http://img.golang.space/shot-1625028339037.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20210630124538714"
+	
+	
+></p>
+<p><strong>注意事项</strong></p>
+<ul>
+<li>set 类型不允许数据重复，如果添加的数据在 set 中已存在，将只保留一份</li>
+<li>set 虽然与 hash 的存储结构相同，但是无法启用 hash 中存储值的空间</li>
+</ul>
+<p><strong>应用场景</strong></p>
+<ul>
+<li>依赖 set 集合数据不重复的特征</li>
+<li>根据用户 ID 获取用户所有角色</li>
+<li>根据用户所有角色获取用户所有操作权限</li>
+<li>根据用户所有角色获取用户的所有数据</li>
+</ul>
+<p><img src="http://img.golang.space/shot-1625028458982.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20210630124738779"
+	
+	
+></p>
+<p><img src="http://img.golang.space/shot-1625028472415.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20210630124752214"
+	
+	
+></p>
+<p><img src="http://img.golang.space/shot-1625028502342.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20210630124822151"
+	
+	
+></p>
+<p><img src="http://img.golang.space/shot-1625028530607.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20210630124850404"
+	
+	
+></p>
+<h3 id="5-有序集合--sorted_set-">5 有序集合 ( sorted_set )</h3>
+<p><img src="http://img.golang.space/shot-1625028558590.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20210630124918408"
+	
+	
+></p>
+<p>有序/不允许重复/String类型</p>
+<p>每个元素都关联一个 double 类型的数, 根据此数排序</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="c1"># 添加</span>
+</span></span><span class="line"><span class="cl">ZADD key score value <span class="o">[</span>score2 value2<span class="o">]</span>
+</span></span><span class="line"><span class="cl"><span class="c1"># 获取</span>
+</span></span><span class="line"><span class="cl">zrange key start end
+</span></span><span class="line"><span class="cl">zrange key <span class="m">0</span> -1 withscores <span class="c1"># 显示数据同时显示分数</span>
+</span></span><span class="line"><span class="cl">zrange key <span class="m">0</span> -1  <span class="c1"># 获取全部数据</span>
+</span></span><span class="line"><span class="cl">zrevrange key start stop <span class="c1"># 倒序</span>
+</span></span><span class="line"><span class="cl"><span class="c1"># 删除</span>
+</span></span><span class="line"><span class="cl">zrem key value
+</span></span><span class="line"><span class="cl"><span class="c1"># 按条件获取数据</span>
+</span></span><span class="line"><span class="cl">zrangebyscore key min max <span class="o">[</span>withscores<span class="o">]</span> <span class="o">[</span>limit<span class="o">]</span>
+</span></span><span class="line"><span class="cl">zrevrangebyscore key max min <span class="o">[</span>withscores<span class="o">]</span>
+</span></span><span class="line"><span class="cl"><span class="c1"># 按条件删除数据</span>
+</span></span><span class="line"><span class="cl">zremrangebyrank key start stop
+</span></span><span class="line"><span class="cl">zremrangebyscore key min max
+</span></span><span class="line"><span class="cl"><span class="c1"># 获取集合数据总量</span>
+</span></span><span class="line"><span class="cl">zcard key
+</span></span><span class="line"><span class="cl">zcount key min max
+</span></span><span class="line"><span class="cl"><span class="c1"># 集合交/并操作</span>
+</span></span><span class="line"><span class="cl">zinterstore destination numkeys key <span class="o">[</span>key ...<span class="o">]</span>
+</span></span><span class="line"><span class="cl">zunionstore destination numkeys key <span class="o">[</span>key ...<span class="o">]</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1"># 适合做动态排行榜</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>注意:</p>
+<ul>
+<li>min 与 max 用于限定搜索查询的条件</li>
+<li>start 与 stop 用于限定查询范围，作用于索引，表示开始和结束索引</li>
+<li>offset 与 count 用于限定查询范围，作用于查询结果，表示开始位置和数据总量</li>
+</ul>
+<h3 id="通用命令">通用命令</h3>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">keys *    <span class="c1"># 查询所有的键(可匹配正则)</span>
+</span></span><span class="line"><span class="cl"><span class="nb">type</span> key  <span class="c1"># 查询值的类型</span>
+</span></span><span class="line"><span class="cl">del key   <span class="c1"># 删除指定的 key and value</span>
+</span></span><span class="line"><span class="cl">EXPIRE mess <span class="m">10</span>  // 设置 键为 mess 的元素 有效时间为 <span class="m">10</span> 秒
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="持久化">持久化</h3>
+<p>redis 是一个内存数据库, 当 redis 服务器重启, 或者电脑重启, 数据会丢失, 可以将内存中的数据持久化保存到硬盘上</p>
+<p>redis 持久化机制( 分别以 reb 和 aof 结尾 ):</p>
+<ul>
+<li>RDB 默认方式, 不需要进行配置
+<ul>
+<li>在一定间隔时间中,检测 key 的变化情况, 然后持久化数据( 见图1 图2)</li>
+</ul>
+</li>
+<li>AOF 日志记录的方式, 可以记录每一条命令的操作, 可以每一次命令操作好持久化数据 ( 图3 图4)
+<ul>
+<li>即每一次操作都写入文件</li>
+</ul>
+</li>
+</ul>
+<h1 id="go-使用-redis">Go 使用 Redis</h1>
+<p>导入第三方包 :  	<code>&quot;github.com/garyburd/redigo/redis&quot;</code></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">  1
+</span><span class="lnt">  2
+</span><span class="lnt">  3
+</span><span class="lnt">  4
+</span><span class="lnt">  5
+</span><span class="lnt">  6
+</span><span class="lnt">  7
+</span><span class="lnt">  8
+</span><span class="lnt">  9
+</span><span class="lnt"> 10
+</span><span class="lnt"> 11
+</span><span class="lnt"> 12
+</span><span class="lnt"> 13
+</span><span class="lnt"> 14
+</span><span class="lnt"> 15
+</span><span class="lnt"> 16
+</span><span class="lnt"> 17
+</span><span class="lnt"> 18
+</span><span class="lnt"> 19
+</span><span class="lnt"> 20
+</span><span class="lnt"> 21
+</span><span class="lnt"> 22
+</span><span class="lnt"> 23
+</span><span class="lnt"> 24
+</span><span class="lnt"> 25
+</span><span class="lnt"> 26
+</span><span class="lnt"> 27
+</span><span class="lnt"> 28
+</span><span class="lnt"> 29
+</span><span class="lnt"> 30
+</span><span class="lnt"> 31
+</span><span class="lnt"> 32
+</span><span class="lnt"> 33
+</span><span class="lnt"> 34
+</span><span class="lnt"> 35
+</span><span class="lnt"> 36
+</span><span class="lnt"> 37
+</span><span class="lnt"> 38
+</span><span class="lnt"> 39
+</span><span class="lnt"> 40
+</span><span class="lnt"> 41
+</span><span class="lnt"> 42
+</span><span class="lnt"> 43
+</span><span class="lnt"> 44
+</span><span class="lnt"> 45
+</span><span class="lnt"> 46
+</span><span class="lnt"> 47
+</span><span class="lnt"> 48
+</span><span class="lnt"> 49
+</span><span class="lnt"> 50
+</span><span class="lnt"> 51
+</span><span class="lnt"> 52
+</span><span class="lnt"> 53
+</span><span class="lnt"> 54
+</span><span class="lnt"> 55
+</span><span class="lnt"> 56
+</span><span class="lnt"> 57
+</span><span class="lnt"> 58
+</span><span class="lnt"> 59
+</span><span class="lnt"> 60
+</span><span class="lnt"> 61
+</span><span class="lnt"> 62
+</span><span class="lnt"> 63
+</span><span class="lnt"> 64
+</span><span class="lnt"> 65
+</span><span class="lnt"> 66
+</span><span class="lnt"> 67
+</span><span class="lnt"> 68
+</span><span class="lnt"> 69
+</span><span class="lnt"> 70
+</span><span class="lnt"> 71
+</span><span class="lnt"> 72
+</span><span class="lnt"> 73
+</span><span class="lnt"> 74
+</span><span class="lnt"> 75
+</span><span class="lnt"> 76
+</span><span class="lnt"> 77
+</span><span class="lnt"> 78
+</span><span class="lnt"> 79
+</span><span class="lnt"> 80
+</span><span class="lnt"> 81
+</span><span class="lnt"> 82
+</span><span class="lnt"> 83
+</span><span class="lnt"> 84
+</span><span class="lnt"> 85
+</span><span class="lnt"> 86
+</span><span class="lnt"> 87
+</span><span class="lnt"> 88
+</span><span class="lnt"> 89
+</span><span class="lnt"> 90
+</span><span class="lnt"> 91
+</span><span class="lnt"> 92
+</span><span class="lnt"> 93
+</span><span class="lnt"> 94
+</span><span class="lnt"> 95
+</span><span class="lnt"> 96
+</span><span class="lnt"> 97
+</span><span class="lnt"> 98
+</span><span class="lnt"> 99
+</span><span class="lnt">100
+</span><span class="lnt">101
+</span><span class="lnt">102
+</span><span class="lnt">103
+</span><span class="lnt">104
+</span><span class="lnt">105
+</span><span class="lnt">106
+</span><span class="lnt">107
+</span><span class="lnt">108
+</span><span class="lnt">109
+</span><span class="lnt">110
+</span><span class="lnt">111
+</span><span class="lnt">112
+</span><span class="lnt">113
+</span><span class="lnt">114
+</span><span class="lnt">115
+</span><span class="lnt">116
+</span><span class="lnt">117
+</span><span class="lnt">118
+</span><span class="lnt">119
+</span><span class="lnt">120
+</span><span class="lnt">121
+</span><span class="lnt">122
+</span><span class="lnt">123
+</span><span class="lnt">124
+</span><span class="lnt">125
+</span><span class="lnt">126
+</span><span class="lnt">127
+</span><span class="lnt">128
+</span><span class="lnt">129
+</span><span class="lnt">130
+</span><span class="lnt">131
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">//
+</span></span></span><span class="line"><span class="cl"><span class="c1">// Author: leafsoar
+</span></span></span><span class="line"><span class="cl"><span class="c1">// Date: 2017-05-04 16:29:03
+</span></span></span><span class="line"><span class="cl"><span class="c1">//
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>
+</span></span><span class="line"><span class="cl"><span class="kn">package</span> <span class="nx">redic</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kn">import</span> <span class="p">(</span>
+</span></span><span class="line"><span class="cl">	<span class="s">&#34;time&#34;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="s">&#34;github.com/garyburd/redigo/redis&#34;</span>
+</span></span><span class="line"><span class="cl"><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// Client 客户端
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">type</span> <span class="nx">Client</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">pool</span> <span class="o">*</span><span class="nx">redis</span><span class="p">.</span><span class="nx">Pool</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// NewRedisClient 创建客户端
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="nf">NewRedisClient</span><span class="p">(</span><span class="nx">addr</span> <span class="kt">string</span><span class="p">)</span> <span class="o">*</span><span class="nx">Client</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">ret</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="nx">Client</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">pool</span><span class="p">:</span> <span class="o">&amp;</span><span class="nx">redis</span><span class="p">.</span><span class="nx">Pool</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="nx">MaxIdle</span><span class="p">:</span>     <span class="mi">3</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">			<span class="nx">MaxActive</span><span class="p">:</span>   <span class="mi">1000</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">			<span class="nx">IdleTimeout</span><span class="p">:</span> <span class="nx">time</span><span class="p">.</span><span class="nx">Second</span> <span class="o">*</span> <span class="mi">180</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">			<span class="nx">Dial</span><span class="p">:</span> <span class="kd">func</span><span class="p">()</span> <span class="p">(</span><span class="nx">redis</span><span class="p">.</span><span class="nx">Conn</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">				<span class="c1">// fmt.Println(&#34;new redis conn ...&#34;)
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>				<span class="nx">c</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">redis</span><span class="p">.</span><span class="nf">Dial</span><span class="p">(</span><span class="s">&#34;tcp&#34;</span><span class="p">,</span> <span class="nx">addr</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">				<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">					<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl">				<span class="p">}</span>
+</span></span><span class="line"><span class="cl">				<span class="nx">_</span><span class="p">,</span> <span class="nx">_</span> <span class="p">=</span> <span class="nx">c</span><span class="p">.</span><span class="nf">Do</span><span class="p">(</span><span class="s">&#34;select&#34;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">				<span class="k">return</span> <span class="nx">c</span><span class="p">,</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl">			<span class="p">},</span>
+</span></span><span class="line"><span class="cl">		<span class="p">},</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="nx">ret</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// Close 关闭所有链接
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">c</span> <span class="o">*</span><span class="nx">Client</span><span class="p">)</span> <span class="nf">Close</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">c</span><span class="p">.</span><span class="nx">pool</span><span class="p">.</span><span class="nf">Close</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">c</span> <span class="o">*</span><span class="nx">Client</span><span class="p">)</span> <span class="nf">do</span><span class="p">(</span><span class="nx">commandName</span> <span class="kt">string</span><span class="p">,</span> <span class="nx">args</span> <span class="o">...</span><span class="kd">interface</span><span class="p">{})</span> <span class="p">(</span><span class="nx">reply</span> <span class="kd">interface</span><span class="p">{},</span> <span class="nx">err</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">rc</span> <span class="o">:=</span> <span class="nx">c</span><span class="p">.</span><span class="nx">pool</span><span class="p">.</span><span class="nf">Get</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">reply</span><span class="p">,</span> <span class="nx">err</span> <span class="p">=</span> <span class="nx">rc</span><span class="p">.</span><span class="nf">Do</span><span class="p">(</span><span class="nx">commandName</span><span class="p">,</span> <span class="nx">args</span><span class="o">...</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">_</span> <span class="p">=</span> <span class="nx">rc</span><span class="p">.</span><span class="nf">Close</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// Do 操作
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">c</span> <span class="o">*</span><span class="nx">Client</span><span class="p">)</span> <span class="nf">Do</span><span class="p">(</span><span class="nx">commandName</span> <span class="kt">string</span><span class="p">,</span> <span class="nx">args</span> <span class="o">...</span><span class="kd">interface</span><span class="p">{})</span> <span class="p">(</span><span class="nx">reply</span> <span class="kd">interface</span><span class="p">{},</span> <span class="nx">err</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="nx">c</span><span class="p">.</span><span class="nf">do</span><span class="p">(</span><span class="nx">commandName</span><span class="p">,</span> <span class="nx">args</span><span class="o">...</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// Set 设置值
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">c</span> <span class="o">*</span><span class="nx">Client</span><span class="p">)</span> <span class="nf">Set</span><span class="p">(</span><span class="nx">key</span><span class="p">,</span> <span class="nx">value</span> <span class="kt">string</span><span class="p">)</span> <span class="p">(</span><span class="nx">err</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">_</span><span class="p">,</span> <span class="nx">err</span> <span class="p">=</span> <span class="nx">c</span><span class="p">.</span><span class="nf">do</span><span class="p">(</span><span class="s">&#34;SET&#34;</span><span class="p">,</span> <span class="nx">key</span><span class="p">,</span> <span class="nx">value</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// Expire 失效
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">c</span> <span class="o">*</span><span class="nx">Client</span><span class="p">)</span> <span class="nf">Expire</span><span class="p">(</span><span class="nx">key</span> <span class="kt">string</span><span class="p">,</span> <span class="nx">second</span> <span class="kt">int</span><span class="p">)</span> <span class="p">(</span><span class="nx">err</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">_</span><span class="p">,</span> <span class="nx">err</span> <span class="p">=</span> <span class="nx">c</span><span class="p">.</span><span class="nf">do</span><span class="p">(</span><span class="s">&#34;EXPIRE&#34;</span><span class="p">,</span> <span class="nx">key</span><span class="p">,</span> <span class="nx">second</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// Get 获取值
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">c</span> <span class="o">*</span><span class="nx">Client</span><span class="p">)</span> <span class="nf">Get</span><span class="p">(</span><span class="nx">key</span> <span class="kt">string</span><span class="p">)</span> <span class="p">(</span><span class="kt">string</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="nx">redis</span><span class="p">.</span><span class="nf">String</span><span class="p">(</span><span class="nx">c</span><span class="p">.</span><span class="nf">do</span><span class="p">(</span><span class="s">&#34;GET&#34;</span><span class="p">,</span> <span class="nx">key</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// Del 删除
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">c</span> <span class="o">*</span><span class="nx">Client</span><span class="p">)</span> <span class="nf">Del</span><span class="p">(</span><span class="nx">key</span> <span class="kt">string</span><span class="p">)</span> <span class="p">(</span><span class="nx">err</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">_</span><span class="p">,</span> <span class="nx">err</span> <span class="p">=</span> <span class="nx">c</span><span class="p">.</span><span class="nf">do</span><span class="p">(</span><span class="s">&#34;DEL&#34;</span><span class="p">,</span> <span class="nx">key</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// Push 队列
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">c</span> <span class="o">*</span><span class="nx">Client</span><span class="p">)</span> <span class="nf">Push</span><span class="p">(</span><span class="nx">key</span> <span class="kt">string</span><span class="p">,</span> <span class="nx">value</span> <span class="kd">interface</span><span class="p">{})</span> <span class="p">(</span><span class="nx">err</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">_</span><span class="p">,</span> <span class="nx">err</span> <span class="p">=</span> <span class="nx">c</span><span class="p">.</span><span class="nf">do</span><span class="p">(</span><span class="s">&#34;lpush&#34;</span><span class="p">,</span> <span class="nx">key</span><span class="p">,</span> <span class="nx">value</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// Pop 默认为 list 的 brpop 操作
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">c</span> <span class="o">*</span><span class="nx">Client</span><span class="p">)</span> <span class="nf">Pop</span><span class="p">(</span><span class="nx">key</span> <span class="kt">string</span><span class="p">,</span> <span class="nx">fn</span> <span class="kd">func</span><span class="p">(</span><span class="kt">string</span><span class="p">,</span> <span class="kt">error</span><span class="p">))</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">for</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="kd">func</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="nx">time</span><span class="p">.</span><span class="nf">Sleep</span><span class="p">(</span><span class="nx">time</span><span class="p">.</span><span class="nx">Millisecond</span> <span class="o">*</span> <span class="mi">800</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">			<span class="nx">rc</span> <span class="o">:=</span> <span class="nx">c</span><span class="p">.</span><span class="nx">pool</span><span class="p">.</span><span class="nf">Get</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">			<span class="k">defer</span> <span class="kd">func</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">				<span class="nx">_</span> <span class="p">=</span> <span class="nx">rc</span><span class="p">.</span><span class="nf">Close</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">			<span class="p">}()</span>
+</span></span><span class="line"><span class="cl">			<span class="k">for</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">				<span class="nx">ret</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">redis</span><span class="p">.</span><span class="nf">Strings</span><span class="p">(</span><span class="nx">rc</span><span class="p">.</span><span class="nf">Do</span><span class="p">(</span><span class="s">&#34;brpop&#34;</span><span class="p">,</span> <span class="nx">key</span><span class="p">,</span> <span class="mi">5</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">				<span class="k">if</span> <span class="nx">err</span> <span class="o">==</span> <span class="nx">redis</span><span class="p">.</span><span class="nx">ErrNil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">					<span class="k">return</span>
+</span></span><span class="line"><span class="cl">				<span class="p">}</span> <span class="k">else</span> <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">					<span class="nf">fn</span><span class="p">(</span><span class="s">&#34;&#34;</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">					<span class="k">return</span>
+</span></span><span class="line"><span class="cl">				<span class="p">}</span>
+</span></span><span class="line"><span class="cl">				<span class="nf">fn</span><span class="p">(</span><span class="nx">ret</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="kc">nil</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">			<span class="p">}</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}()</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// PopByte 默认为 list 的 brpop 操作
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">c</span> <span class="o">*</span><span class="nx">Client</span><span class="p">)</span> <span class="nf">PopByte</span><span class="p">(</span><span class="nx">key</span> <span class="kt">string</span><span class="p">,</span> <span class="nx">fn</span> <span class="kd">func</span><span class="p">([]</span><span class="kt">byte</span><span class="p">,</span> <span class="kt">error</span><span class="p">))</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">for</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="kd">func</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="nx">time</span><span class="p">.</span><span class="nf">Sleep</span><span class="p">(</span><span class="nx">time</span><span class="p">.</span><span class="nx">Millisecond</span> <span class="o">*</span> <span class="mi">800</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">			<span class="nx">rc</span> <span class="o">:=</span> <span class="nx">c</span><span class="p">.</span><span class="nx">pool</span><span class="p">.</span><span class="nf">Get</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">			<span class="k">defer</span> <span class="kd">func</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">				<span class="nx">_</span> <span class="p">=</span> <span class="nx">rc</span><span class="p">.</span><span class="nf">Close</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">			<span class="p">}()</span>
+</span></span><span class="line"><span class="cl">			<span class="k">for</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">				<span class="nx">ret</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">redis</span><span class="p">.</span><span class="nf">ByteSlices</span><span class="p">(</span><span class="nx">rc</span><span class="p">.</span><span class="nf">Do</span><span class="p">(</span><span class="s">&#34;brpop&#34;</span><span class="p">,</span> <span class="nx">key</span><span class="p">,</span> <span class="mi">5</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">				<span class="k">if</span> <span class="nx">err</span> <span class="o">==</span> <span class="nx">redis</span><span class="p">.</span><span class="nx">ErrNil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">					<span class="k">return</span>
+</span></span><span class="line"><span class="cl">				<span class="p">}</span> <span class="k">else</span> <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">					<span class="nf">fn</span><span class="p">(</span><span class="kc">nil</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">					<span class="k">return</span>
+</span></span><span class="line"><span class="cl">				<span class="p">}</span>
+</span></span><span class="line"><span class="cl">				<span class="nf">fn</span><span class="p">(</span><span class="nx">ret</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="kc">nil</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">			<span class="p">}</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}()</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h2 id="一-连接池">一 连接池</h2>
+<p><img src="http://img.golang.space/PicGo/20200213165147.jpg"
+	
+	
+	
+	loading="lazy"
+	
+	
+></p>
+<p><img src="http://img.golang.space/PicGo/20200213165311.jpg"
+	
+	
+	
+	loading="lazy"
+	
+	
+></p>
+<h2 id="二-字符串-setget">二 字符串 set/get</h2>
+<p><img src="http://img.golang.space/PicGo/20200213164955.jpg"
+	
+	
+	
+	loading="lazy"
+	
+	
+></p>
+<h2 id="incr-计数器">incr 计数器</h2>
+<p>用于防止表单重复提交等问题</p>
+<p>类似效果的有 <code>singleFight</code> ，其间隔时间为执行完当前函数</p>
+<p>计数器可以通过设置过期时间，来延长提交间隔，一般 1 / 2 即可</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl">	<span class="nx">r</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">uc</span><span class="p">.</span><span class="nf">Do</span><span class="p">(</span><span class="s">&#34;incr&#34;</span><span class="p">,</span> <span class="s">&#34;123&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">fmt</span><span class="p">.</span><span class="nf">Println</span><span class="p">(</span><span class="nx">err</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">k</span><span class="p">,</span> <span class="nx">_</span> <span class="o">:=</span> <span class="nx">r</span><span class="p">.</span><span class="nf">Result</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 业务
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="k">if</span> <span class="nx">k</span><span class="p">.(</span><span class="kt">int64</span><span class="p">)</span> <span class="p">&gt;</span> <span class="mi">1</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">uc</span><span class="p">.</span><span class="nf">Do</span><span class="p">(</span><span class="s">&#34;EXPIRE&#34;</span><span class="p">,</span> <span class="s">&#34;123&#34;</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">fmt</span><span class="p">.</span><span class="nf">Println</span><span class="p">(</span><span class="s">&#34;开始业务&#34;</span><span class="p">,</span> <span class="nx">id</span><span class="p">)</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>封装计数器</p>
+<p>此封装并未实现幂等，</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">Incr</span><span class="p">(</span><span class="nx">k</span> <span class="kt">string</span><span class="p">,</span> <span class="nx">s</span> <span class="kt">int</span><span class="p">,</span> <span class="nx">fn</span> <span class="kd">func</span><span class="p">()</span> <span class="p">(</span><span class="kd">interface</span><span class="p">{},</span> <span class="kt">error</span><span class="p">))</span> <span class="p">(</span><span class="kd">interface</span><span class="p">{},</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">r</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">uc</span><span class="p">.</span><span class="nf">Do</span><span class="p">(</span><span class="s">&#34;incr&#34;</span><span class="p">,</span> <span class="nx">k</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">count</span><span class="p">,</span> <span class="nx">_</span> <span class="o">:=</span> <span class="nx">r</span><span class="p">.</span><span class="nf">Result</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="nx">count</span><span class="p">.(</span><span class="kt">int64</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">_</span><span class="p">,</span> <span class="nx">err</span> <span class="p">=</span> <span class="nx">uc</span><span class="p">.</span><span class="nf">Do</span><span class="p">(</span><span class="s">&#34;expire&#34;</span><span class="p">,</span> <span class="nx">s</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="nf">fn</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>测试</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">TestDemo</span><span class="p">(</span><span class="nx">t</span> <span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="nx">uc</span> <span class="o">==</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="kd">var</span> <span class="nx">wg</span> <span class="nx">sync</span><span class="p">.</span><span class="nx">WaitGroup</span>
+</span></span><span class="line"><span class="cl">	<span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="mi">0</span><span class="p">;</span> <span class="nx">i</span> <span class="p">&lt;</span> <span class="mi">1000</span><span class="p">;</span> <span class="nx">i</span><span class="o">++</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">wg</span><span class="p">.</span><span class="nf">Add</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="k">go</span> <span class="kd">func</span><span class="p">(</span><span class="nx">i</span> <span class="kt">int</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="k">defer</span> <span class="nx">wg</span><span class="p">.</span><span class="nf">Done</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">			<span class="nf">Incr</span><span class="p">(</span><span class="s">&#34;123&#34;</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="kd">func</span><span class="p">()</span> <span class="p">(</span><span class="kd">interface</span><span class="p">{},</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">				<span class="nx">fmt</span><span class="p">.</span><span class="nf">Println</span><span class="p">(</span><span class="s">&#34;123&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">				<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl">			<span class="p">})</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="p">}(</span><span class="nx">i</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">wg</span><span class="p">.</span><span class="nf">Wait</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div>
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/redis/">Redis</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">Related content</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="has-image">
+    <a href="/p/%E5%9F%BA%E4%BA%8E-docker-compose-%E6%A8%A1%E6%8B%9F-postgresql-12.2-%E4%B8%BB%E4%BB%8E/">
+        
+        
+            <div class="article-image">
+                
+                    <img src="http://img.golang.space/img-1669079318266.png" loading="lazy" data-key="" data-hash="http://img.golang.space/img-1669079318266.png"/>
+                
+            </div>
+        
+
+        <div class="article-details">
+            <h2 class="article-title">基于 docker-compose 模拟 PostgreSQL 12.2 主从</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/%E8%A1%A8%E5%88%86%E5%8C%BA/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">表分区</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/%E5%BA%8F%E5%88%97%E8%87%AA%E5%A2%9E%E6%AD%A5%E9%95%BF/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">序列自增步长</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/postgresql-%E5%9F%BA%E7%A1%80/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">PostgreSQL 基础</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script src="https://utteranc.es/client.js" 
+        repo="ixugo/ixugo.github.io"
+        issue-term="pathname"
+        
+        crossorigin="anonymous"
+        async
+        >
+</script>
+
+<style>
+    .utterances {
+        max-width: unset;
+    }
+</style>
+
+<script>
+    function setUtterancesTheme(theme) {
+        let utterances = document.querySelector('.utterances iframe');
+        if (utterances) {
+            utterances.contentWindow.postMessage(
+                {
+                    type: 'set-theme',
+                    theme: `github-${theme}`
+                },
+                'https://utteranc.es'
+            );
+        }
+    }
+
+    addEventListener('message', event => {
+        if (event.origin !== 'https://utteranc.es') return;
+        setUtterancesTheme(document.documentElement.dataset.scheme)
+    });
+
+    window.addEventListener('onColorSchemeChange', (e) => {
+        setUtterancesTheme(e.detail)
+    })
+</script>
+
+
+    
+
+    <footer class="site-footer">
+  <section class="copyright">
+    &copy;
+    
+    2018 -
+    
+    2023 ixugo
+  </section>
+  <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+  <section class="powerby">
+
+    
+    <span id="busuanzi_container_page_pv">本文阅读量
+      <span style="font-size: 14px" id="busuanzi_value_page_pv"></span>
+      次，</span>
+    <span id="busuanzi_container_site_pv">总访问量
+      <span style="font-size: 14px" id="busuanzi_value_site_pv"></span>
+      次 </span>，总访客数
+    <span style="font-size: 14px" id="busuanzi_value_site_uv"></span> 人
+    <br />
+
+
+    Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> .&nbsp;&nbsp;
+    Theme <a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener"
+      data-version="3.16.0">Stack</a> designed by <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a>
+  </section>
+
+
+
+
+  <script>
+    function count() {
+      let href = window.location.href;
+      let regexp = /^https?:\/\/blog.golang.space\/?(page\/[\d]+\/?)?$/;
+      if (regexp.test(href)) {
+        let e = document.getElementById("busuanzi_container_page_pv");
+        e.innerText = "";
+      }
+    }
+    window.onload = count;
+  </script>
+</footer>
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>
