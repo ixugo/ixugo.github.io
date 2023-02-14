@@ -1,6 +1,6 @@
 ---
 title: Kubernetes 开发认证(CKAD)考试心得
-description: 
+description: 通过CKAD考试后，持证者即被认可能够为Kubernetes设计、构建、配置和部署云原生应用，在Kubernetes中能够定义应用程序资源，使用核心功能构建、监控和诊断可伸缩的应用程序。
 date: 2022-07-04 
 slug: 
 image: http://img.golang.space/shot-1656933075470.png
