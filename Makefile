@@ -12,5 +12,5 @@ push:
 	git commit -m $(m) >> build.log
 	echo "正在发送到服务器..."
 	git push 
-	@echo -e "任务完成"
+	@echo "OK"
 

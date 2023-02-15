@@ -528,19 +528,12 @@ if (!doNotTrack) {
 <div class="highlight"><div class="chroma">
 <table class="lntable"><tr><td class="lntd">
 <pre tabindex="0" class="chroma"><code><span class="lnt">1
-</span><span class="lnt">2
-</span><span class="lnt">3
-</span><span class="lnt">4
 </span></code></pre></td>
 <td class="lntd">
-<pre tabindex="0" class="chroma"><code class="language-sh" data-lang="sh"><span class="line"><span class="cl">touch auto.sh			 <span class="c1"># 创建文件</span>
-</span></span><span class="line"><span class="cl">chmod +x auto.sh   <span class="c1"># 添加可执行权限</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl">vim auto.sh        <span class="c1"># 编辑文件</span>
+<pre tabindex="0" class="chroma"><code class="language-sh" data-lang="sh"><span class="line"><span class="cl">vim Makefile
 </span></span></code></pre></td></tr></table>
 </div>
-</div><p>文件内容如下，我不在意博文的改动，所以每次推送都会强制覆盖旧的提交点.</p>
-<div class="highlight"><div class="chroma">
+</div><div class="highlight"><div class="chroma">
 <table class="lntable"><tr><td class="lntd">
 <pre tabindex="0" class="chroma"><code><span class="lnt"> 1
 </span><span class="lnt"> 2
@@ -555,37 +548,30 @@ if (!doNotTrack) {
 </span><span class="lnt">11
 </span><span class="lnt">12
 </span><span class="lnt">13
-</span><span class="lnt">14
-</span><span class="lnt">15
-</span><span class="lnt">16
-</span><span class="lnt">17
-</span><span class="lnt">18
-</span><span class="lnt">19
-</span><span class="lnt">20
-</span><span class="lnt">21
 </span></code></pre></td>
 <td class="lntd">
-<pre tabindex="0" class="chroma"><code class="language-sh" data-lang="sh"><span class="line"><span class="cl"><span class="cp">#!/bin/bash
-</span></span></span><span class="line"><span class="cl"><span class="cp"></span>
-</span></span><span class="line"><span class="cl"><span class="nb">set</span> -e
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl"><span class="c1"># 删除旧打包文件</span>
-</span></span><span class="line"><span class="cl">rm -rf public
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl"><span class="c1"># 打包</span>
-</span></span><span class="line"><span class="cl">hugo
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl"><span class="nb">cd</span> public
-</span></span><span class="line"><span class="cl"><span class="c1"># 自定义域名</span>
-</span></span><span class="line"><span class="cl"><span class="nb">echo</span> <span class="s2">&#34;blog.golang.space&#34;</span> &gt; CNAME
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl"><span class="c1"># 提交到 git 仓库</span>
-</span></span><span class="line"><span class="cl">git init
-</span></span><span class="line"><span class="cl">git add .
-</span></span><span class="line"><span class="cl">git commit -m <span class="s2">&#34;blog&#34;</span>
-</span></span><span class="line"><span class="cl">git remote add origin git@github.com:ixugo/ixugo.github.io.git
-</span></span><span class="line"><span class="cl"><span class="c1"># 强制覆盖旧的提交</span>
-</span></span><span class="line"><span class="cl">git push --set-upstream origin master -f
+<pre tabindex="0" class="chroma"><code class="language-makefile" data-lang="makefile"><span class="line"><span class="cl"><span class="nf">build</span><span class="o">:</span>
+</span></span><span class="line"><span class="cl">	rm -rf ./docs
+</span></span><span class="line"><span class="cl">	./hugo -d docs &gt;&gt; build.log
+</span></span><span class="line"><span class="cl">	@cp ./googlec03aeb90afb546ce.html ./docs
+</span></span><span class="line"><span class="cl">	@echo <span class="s2">&#34;blog.golang.space&#34;</span> &gt; ./docs/CNAME
+</span></span><span class="line"><span class="cl">	@echo -e <span class="s2">&#34;打包完成&#34;</span>
+</span></span><span class="line"><span class="cl">	
+</span></span><span class="line"><span class="cl"><span class="nf">push</span><span class="o">:</span>
+</span></span><span class="line"><span class="cl">	git add .
+</span></span><span class="line"><span class="cl">	git commit -m <span class="k">$(</span>m<span class="k">)</span> &gt;&gt; build.log
+</span></span><span class="line"><span class="cl">	@echo <span class="s2">&#34;正在发送到服务器...&#34;</span>
+</span></span><span class="line"><span class="cl">	git push
+</span></span><span class="line"><span class="cl">	@echo <span class="s2">&#34;OK&#34;</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>执行</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">make build push <span class="nv">m</span><span class="o">=</span>初始化博客
 </span></span></code></pre></td></tr></table>
 </div>
 </div><h2 id="添加评论功能">添加评论功能</h2>
