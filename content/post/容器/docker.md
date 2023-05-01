@@ -293,12 +293,10 @@ docker build -f /mydocker/dockerfile -t breeze/centos .
 + 指令从上到下, 顺序执行
 + 每条指令都会创建一个新的镜像层, 并对镜像进行提交
 
-
-
 > 指令
 
 + FROM    基础镜像, 当前镜像基于哪个镜像
-+ MAINTAINER  镜像维护者的姓名和邮箱
++ MAINTAINER  镜像维护者的姓名和邮箱 `iXugo xx@golang.space`
 + RUN   容器构建时需要运行的命令
 + EXPOSE 当前容器对外暴露出的端口
 + WORKDIR   制定创建容器后, 终端默认登录的工作目录
