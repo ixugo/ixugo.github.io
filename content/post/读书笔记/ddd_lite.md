@@ -1,7 +1,7 @@
 ---
 title: Go 项目的思考与架构设计
 description: 知道自己正在做什么，搞清楚为什么这样做，这样做的道理和效果，这样可以做出更好的设计决策。
-date: 2023-05-16 12:31:29
+date: 2023-05-15
 slug: 
 image: 
 draft: false
@@ -10,6 +10,10 @@ categories:
 tags:
     - 读书思考
 ---
+
+
+
+# Go 项目的思考与架构设计
 
 读完《Domain-Driven Design with Golang》这本书后，我有了一些感悟。
 

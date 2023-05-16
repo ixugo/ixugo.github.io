@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='知道自己正在做什么，搞清楚为什么这样做，这样做的道理和效果，这样可以做出更好的设计决策。'>
+<title>Go 项目的思考与架构设计</title>
+
+<link rel='canonical' href='https://blog.golang.space/p/go-%E9%A1%B9%E7%9B%AE%E7%9A%84%E6%80%9D%E8%80%83%E4%B8%8E%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1/'>
+
+<link rel="stylesheet" href="/scss/style.min.8191399262444ab68b72a18c97392f5349be20a1615d77445be51e974c144cff.css"><meta property='og:title' content='Go 项目的思考与架构设计'>
+<meta property='og:description' content='知道自己正在做什么，搞清楚为什么这样做，这样做的道理和效果，这样可以做出更好的设计决策。'>
+<meta property='og:url' content='https://blog.golang.space/p/go-%E9%A1%B9%E7%9B%AE%E7%9A%84%E6%80%9D%E8%80%83%E4%B8%8E%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1/'>
+<meta property='og:site_name' content='ixugo'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='读书思考' /><meta property='article:published_time' content='2023-05-15T00:00:00&#43;00:00'/><meta property='article:modified_time' content='2023-05-15T00:00:00&#43;00:00'/>
+<meta name="twitter:title" content="Go 项目的思考与架构设计">
+<meta name="twitter:description" content="知道自己正在做什么，搞清楚为什么这样做，这样做的道理和效果，这样可以做出更好的设计决策。">
+    <link rel="shortcut icon" href="img/favicon.ico" />
+
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+	(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+	m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+	})(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+	ga('create', 'UA-192125643-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="Toggle Menu">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu0b04ba6d7249c9f90c92db974439eb8c_208246_300x0_resize_box_3.png" width="300"
+                            height="321" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🧐</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">ixugo</a></h1>
+            <h2 class="site-description">走出舒适区</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/ixugo'
+                        target="_blank"
+                        title="GitHub"
+                        rel="me"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>Home</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/about/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>About</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>Archives</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>Search</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>Dark Mode</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">Table of contents</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li>
+      <ol>
+        <li><a href="#从分层架构到分模型架构">从分层架构到分模型架构</a></li>
+      </ol>
+    </li>
+    <li><a href="#ddd-lite">DDD lite</a>
+      <ol>
+        <li><a href="#通用语言">通用语言</a></li>
+        <li><a href="#依赖倒置">依赖倒置</a></li>
+        <li><a href="#实战-rest-ful">实战 REST ful</a></li>
+        <li><a href="#实战-grpc">实战 gRPC</a></li>
+      </ol>
+    </li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+            <main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+    <header class="article-category">
+        
+            <a href="/categories/%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1/" >
+                架构设计
+            </a>
+        
+    </header>
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/go-%E9%A1%B9%E7%9B%AE%E7%9A%84%E6%80%9D%E8%80%83%E4%B8%8E%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1/">Go 项目的思考与架构设计</a>
+        </h2>
+    
+        
+        <h3 class="article-subtitle">
+            知道自己正在做什么，搞清楚为什么这样做，这样做的道理和效果，这样可以做出更好的设计决策。
+        </h3>
+        
+    </div>
+
+    
+    
+    
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">May 15, 2023</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    3 minute read
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+
+</header>
+
+    <section class="article-content">
+    
+    
+    <p>读完《Domain-Driven Design with Golang》这本书后，我有了一些感悟。</p>
+<p>领域驱动设计广泛应用于解决大型复杂项目的问题。然而，将 DDD 应用于 CURD 程序可能会过度设计，并且会使交付速度变缓且更加繁琐。在实际开发中，我们面临更多中小型项目快速落地的情景，因此需要寻求开发效率和架构设计之间的平衡点。</p>
+<p>同时，在保证高效率开发和可扩展性的前提下，应避免过度设计，确保代码具有良好的可读性、稳定性和可测试性。</p>
+<p>如果您想深入了解领域驱动设计，可以阅读相关的专业书籍。对我而言，将其中的优点应用于我所遇到的项目，不会完全按照DDD规范去设计和开发，有时可能还会采用反模式。</p>
+<h3 id="从分层架构到分模型架构">从分层架构到分模型架构</h3>
+<p>通常，编写的应用程序中最多的是 CRUD。在这类项目中，分层架构得到了广泛应用。无论怎样变化，它大致都被分为 API/Service/DAO 三层。随着业务的发展，可能会出现一层内有 20 或 30 个文件，并且一个结构体的方法可能分布在不同的文件中。因此，组件也很难被复用于其他项目。</p>
+<p>那么，为什么架构设计需要分层呢？分层架构的优点在于关注点分离、分而治之、低耦合和高内聚。</p>
+<p>同样具备这些优点的是分模型架构，所谓分模型架构，基于模型驱动设计的思想，将复杂系统拆分为几个相关的模型。每个模型具有独立的职责，并且负责处理特定的功能，这种架构需要架构师对业务领域非常熟悉。</p>
+<p>相比分层架构，它对行为上下文进行了更加明确的界限，使开发者可以专注于自己的领域模型。</p>
+<p>领域就像积木，有简单的基层子域，也有依赖子域实现的更复杂领域。领域和子域几乎可以互换使用，这取决于对话上下文。</p>
+<p>考虑到并不完全采用 DDD，但基于模型驱动设计，接下来将以“DDD lite”的方式称之，因 DDD 一语双关，D 可以是 Domain，可以是 Data。</p>
+<h2 id="ddd-lite">DDD lite</h2>
+<p>Golang 有许多谚语，例如 <code>不要通过共享内存来进行通信，而是通过通信来共享内存</code>。 遵循这样的谚语可以提高编程体验和代码质量。</p>
+<p>以下是与 DDD lite 相关的谚语，这些谚语甚至本身就是设计模式。它将帮助我们实现更好的架构设计。在设计时，应考虑到未来可能的需求变化，具备高度的可扩展性和灵活性；而在开发过程中，则需要根据当前的需求和限制，注重实现和可维护性，以达成交付可靠代码的目标。</p>
+<h3 id="通用语言">通用语言</h3>
+<p>团队应该使用统一的术语表，这样在针对业务的讨论中就可以更加精准，不会出现词不达意、两个人说的不是同一件事的情况。</p>
+<p>开发者应该在代码中使用这些术语、函数名和变量名，例如用“宝箱的开关”代替“设置属性为 true”。</p>
+<p>有些人思维敏捷，可能会在上一秒谈论这个问题，下一秒谈论另一个问题。对于相似行为的页面，使用同一术语很容易造成误解，甚至在没有图片的情况下很难理解对方在说什么。</p>
+<p>构建一种健壮、无处不在的语言，需要花费时间，没有捷径可走。在沟通和设计阶段，应记录任何术语，并将其添加到术语表中与其他同事分享。</p>
+<p>尽管尝试在多个项目、团队甚至整个公司应用一种共通的语言可能很诱人，但这样做会导致术语失去严谨性，可能会造成混乱。因此，应谨慎考虑并选择最适合特定团队和项目的共通术语。</p>
+<h3 id="依赖倒置">依赖倒置</h3>
+<p>以存储库为例，核心业务依赖于具体存储库的实现，则需要考虑到难以进行扩展，例如从 MySQL 迁移到 PostgreSQL。</p>
+<p>为了方便解耦和测试，可以使核心业务与数据库无关，核心业务依赖抽象接口，实现一个简单的 <code>mockStore</code> 即可进行测试。</p>
+<p>再举一个例子，当数据库成为瓶颈时，可以引入 Redis 缓存。由于核心业务依赖于抽象接口，因此可以扩展缓存实现接口来优化性能。</p>
+<h3 id="实战-rest-ful">实战 REST ful</h3>
+<p>我们按照以下的方式组织代码</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">.
+</span></span><span class="line"><span class="cl">├── config  		 <span class="c1"># 配置相关代码</span>
+</span></span><span class="line"><span class="cl">├── config.toml  <span class="c1"># 配置文件</span>
+</span></span><span class="line"><span class="cl">├── go.mod
+</span></span><span class="line"><span class="cl">├── go.sum
+</span></span><span class="line"><span class="cl">├── internal  	 <span class="c1"># 项目业务</span>
+</span></span><span class="line"><span class="cl">│   ├── api
+</span></span><span class="line"><span class="cl">│   │   ├── api.go
+</span></span><span class="line"><span class="cl">│   │   ├── message.go
+</span></span><span class="line"><span class="cl">│   │   └── user.go
+</span></span><span class="line"><span class="cl">│   └── core  <span class="c1"># 核心业务</span>
+</span></span><span class="line"><span class="cl">│       ├── message  <span class="c1"># 消息领域</span>
+</span></span><span class="line"><span class="cl">│       │   ├── message.go
+</span></span><span class="line"><span class="cl">│       │   ├── model.go
+</span></span><span class="line"><span class="cl">│       │   └── store
+</span></span><span class="line"><span class="cl">│       │       └── messagedb
+</span></span><span class="line"><span class="cl">│       │           └── db.go
+</span></span><span class="line"><span class="cl">│       └── user     <span class="c1"># 用户领域</span>
+</span></span><span class="line"><span class="cl">│           ├── model.go
+</span></span><span class="line"><span class="cl">│           ├── store
+</span></span><span class="line"><span class="cl">│           │   └── userdb
+</span></span><span class="line"><span class="cl">│           │       ├── db.go
+</span></span><span class="line"><span class="cl">│           │       ├── db_test.go
+</span></span><span class="line"><span class="cl">│           │       ├── record.go
+</span></span><span class="line"><span class="cl">│           │       └── user.go
+</span></span><span class="line"><span class="cl">│           ├── user.go
+</span></span><span class="line"><span class="cl">│           └── user_test.go
+</span></span><span class="line"><span class="cl">├── main.go
+</span></span><span class="line"><span class="cl">└── pkg     	<span class="c1"># 工具包</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>代码的组织方式有很多种，这种较为简单，如果有多个 main 函数，即多个程序时，建议创建 <code>cmd</code> 文件夹，或更改目录结构以符合最适合业务的方式。</p>
+<p><code>internal</code> 是一个特殊的目录，它将限制包的导入范围，我们将业务所需全部放在该目录下。</p>
+<p>底下包含两个主要目录，<code>api</code> 和 <code>core</code>。</p>
+<ul>
+<li>api 是 REST ful Web 的具体实现。</li>
+<li>core 是核心业务，包含的每个文件夹即是一个领域。
+<ul>
+<li>store 是数据存储，使用依赖倒置原则，领域行为依赖于抽象接口，存储库依赖于领域模型。</li>
+</ul>
+</li>
+</ul>
+<p>领域模型与数据库模型如果拆分，将需要写许多转换函数，通过依赖倒置原则，store 直接依赖领域模型。</p>
+<p>接下来会涉及 Go 代码，写这篇文章时，我的安装的版本是 Go1.20.3。</p>
+<p>案例: 查询两个用户对话的历史消息。</p>
+<p>在 <code>[core] - [message]</code> 文件夹下，创建 <code>model.go</code> 文件，写入模型。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">Message</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">orm</span><span class="p">.</span><span class="nx">Model</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">SenderID</span>   <span class="kt">int</span>    <span class="s">`gorm:&#34;notNull;default:0;index;comment:发送者&#34;`</span>   
+</span></span><span class="line"><span class="cl">  <span class="nx">ReceiverID</span> <span class="kt">int</span>    <span class="s">`gorm:&#34;notNull;default:0;index;comment:接收者&#34;`</span>     
+</span></span><span class="line"><span class="cl">  <span class="nx">Type</span>       <span class="kt">string</span> <span class="s">`gorm:&#34;type:text;notNull;default:&#39;&#39;;comment:类型&#34;`</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">SessionID</span>  <span class="kt">int</span>    <span class="s">`gorm:&#34;notNull;default:0;index;comment:会话id&#34;`</span>     
+</span></span><span class="line"><span class="cl">	<span class="nx">Content</span>    <span class="p">[]</span><span class="kt">byte</span> <span class="s">`gorm:&#34;type:bytea; notNull; comment:消息&#34;`</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="o">*</span><span class="nx">Message</span><span class="p">)</span> <span class="nf">TableName</span><span class="p">()</span> <span class="kt">string</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="s">&#34;messages&#34;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>在 <code>[core]-[message]</code> 文件夹下，创建 <code>message.go</code> 文件，写入行为。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// 数据存储抽象
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">type</span> <span class="nx">Storer</span> <span class="kd">interface</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nf">InsertOne</span><span class="p">(</span><span class="nx">b</span> <span class="nx">orm</span><span class="p">.</span><span class="nx">Tabler</span><span class="p">)</span> <span class="kt">error</span>
+</span></span><span class="line"><span class="cl">  <span class="nf">FindMessages</span><span class="p">(</span><span class="nx">ms</span> <span class="p">[]</span><span class="nx">Message</span><span class="p">,</span> <span class="nx">uid</span><span class="p">,</span><span class="nx">sessionID</span><span class="p">,</span><span class="nx">limit</span> <span class="kt">int</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">Core</span> <span class="kd">struct</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">ctx</span> <span class="nx">context</span><span class="p">.</span><span class="nx">Context</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// 我非常确定，整个项目周期不会更换日志组件，这里直接依赖实现
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">Log</span> <span class="o">*</span><span class="nx">zap</span><span class="p">.</span><span class="nx">SugaredLogger</span> 
+</span></span><span class="line"><span class="cl">  <span class="c1">// 数据交互
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">store</span> <span class="nx">Storer</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// 使用值对象的优势是不用担心副作用
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="nf">NewCore</span><span class="p">(</span><span class="nx">log</span> <span class="o">*</span><span class="nx">zap</span><span class="p">.</span><span class="nx">SugaredLogger</span><span class="p">,</span> <span class="nx">store</span> <span class="nx">Storer</span><span class="p">)</span> <span class="nx">Core</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="k">return</span> <span class="nx">Core</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">ctx</span><span class="p">:</span>     <span class="nx">context</span><span class="p">.</span><span class="nf">Background</span><span class="p">(),</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">Log</span><span class="p">:</span>     <span class="nx">log</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">store</span><span class="p">:</span>   <span class="nx">store</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// 每次访问，我们将使用 with 创建一个新的对象
+</span></span></span><span class="line"><span class="cl"><span class="c1">// 拥有当前访问的下上文，以及记录追踪 ID 的日志
+</span></span></span><span class="line"><span class="cl"><span class="c1">// 通过日志追踪，可以详细了解用户的操作行为
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">c</span> <span class="nx">Core</span><span class="p">)</span> <span class="nf">With</span><span class="p">(</span><span class="nx">ctx</span> <span class="nx">context</span><span class="p">.</span><span class="nx">Context</span><span class="p">,</span> <span class="nx">log</span> <span class="o">*</span><span class="nx">zap</span><span class="p">.</span><span class="nx">SugaredLogger</span><span class="p">)</span> <span class="nx">Core</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">c</span><span class="p">.</span><span class="nx">ctx</span> <span class="p">=</span> <span class="nx">ctx</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">c</span><span class="p">.</span><span class="nx">Log</span> <span class="p">=</span> <span class="nx">log</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="nx">c</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">c</span> <span class="nx">Core</span><span class="p">)</span> <span class="nf">FindMessages</span><span class="p">(</span><span class="nx">ms</span> <span class="o">*</span><span class="p">[]</span><span class="o">*</span><span class="nx">Message</span><span class="p">,</span> <span class="nx">uid</span><span class="p">,</span><span class="nx">sessionID</span><span class="p">,</span><span class="nx">limit</span> <span class="kt">int</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">uid</span> <span class="o">==</span> <span class="mi">0</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;uid 不能为空&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="k">return</span> <span class="nx">c</span><span class="p">.</span><span class="nx">store</span><span class="p">.</span><span class="nf">FindMessages</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">ms</span><span class="p">,</span> 
+</span></span><span class="line"><span class="cl">    <span class="nx">uid</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">sessionID</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">limit</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">  <span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>在 <code>[api]-[message.go]</code> 文件中实现 REST ful</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">Message</span> <span class="kd">struct</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">core</span> <span class="nx">message</span><span class="p">.</span><span class="nx">Core</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">messageAPI</span><span class="p">(</span><span class="nx">g</span> <span class="o">*</span><span class="nx">gin</span><span class="p">.</span><span class="nx">Engine</span><span class="p">,</span> <span class="nx">cfg</span> <span class="nx">Config</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">store</span> <span class="o">:=</span> <span class="nx">messagedb</span><span class="p">.</span><span class="nf">NewDB</span><span class="p">(</span><span class="nx">cfg</span><span class="p">.</span><span class="nx">DB</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">store</span><span class="p">.</span><span class="nf">AutoMigrate</span><span class="p">();</span><span class="nx">err</span><span class="o">!=</span><span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  
+</span></span><span class="line"><span class="cl">  <span class="nx">core</span> <span class="o">:=</span> <span class="nx">message</span><span class="p">.</span><span class="nf">NewCore</span><span class="p">(</span><span class="nx">zap</span><span class="p">.</span><span class="nf">S</span><span class="p">(),</span> <span class="nx">store</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">m</span> <span class="o">:=</span> <span class="nx">Message</span><span class="p">{</span><span class="nx">core</span><span class="p">:</span><span class="nx">core</span><span class="p">}</span>
+</span></span><span class="line"><span class="cl">  
+</span></span><span class="line"><span class="cl">  <span class="nx">chat</span> <span class="o">:=</span> <span class="nx">g</span><span class="p">.</span><span class="nf">Group</span><span class="p">(</span><span class="s">&#34;/chat&#34;</span><span class="p">,</span> <span class="nx">mid</span><span class="p">.</span><span class="nf">AuthMiddleware</span><span class="p">(</span><span class="nx">cfg</span><span class="p">.</span><span class="nx">JWTSecret</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">chat</span><span class="p">.</span><span class="nf">Get</span><span class="p">(</span><span class="s">&#34;/messages&#34;</span><span class="p">,</span> <span class="nx">m</span><span class="p">.</span><span class="nx">FindMessages</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">m</span> <span class="nx">Message</span><span class="p">)</span> <span class="nf">FindMessages</span><span class="p">(</span><span class="nx">ctx</span> <span class="o">*</span><span class="nx">gin</span><span class="p">.</span><span class="nx">Context</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">core</span> <span class="o">:=</span> <span class="nx">m</span><span class="p">.</span><span class="nx">core</span><span class="p">.</span><span class="nf">With</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">ctx</span><span class="p">.</span><span class="nx">Request</span><span class="p">.</span><span class="nf">Context</span><span class="p">(),</span> 
+</span></span><span class="line"><span class="cl">    <span class="nx">m</span><span class="p">.</span><span class="nx">core</span><span class="p">.</span><span class="nx">Log</span><span class="p">.</span><span class="nf">With</span><span class="p">(</span><span class="s">&#34;traceid&#34;</span><span class="p">,</span> <span class="nx">mid</span><span class="p">.</span><span class="nf">TraceID</span><span class="p">(</span><span class="nx">ctx</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">  <span class="p">)</span>
+</span></span><span class="line"><span class="cl">  
+</span></span><span class="line"><span class="cl">  <span class="kd">var</span> <span class="nx">input</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">SessionID</span> <span class="kt">int</span> <span class="s">`form:&#34;session_id&#34;`</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">err</span><span class="o">:=</span><span class="nx">ctx</span><span class="p">.</span><span class="nf">ShouldBindQuery</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">input</span><span class="p">);</span><span class="nx">err</span><span class="o">!=</span><span class="kc">nil</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">web</span><span class="p">.</span><span class="nf">Fail</span><span class="p">(</span><span class="nx">ctx</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  
+</span></span><span class="line"><span class="cl">  <span class="c1">// ....
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="p">}</span>
+</span></span><span class="line"><span class="cl">  
+</span></span><span class="line"><span class="cl">  
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="实战-grpc">实战 gRPC</h3>
+<p>未完结，欲知后事如何，请听下回分解。</p>
+
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/%E8%AF%BB%E4%B9%A6%E6%80%9D%E8%80%83/">读书思考</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+     
+    
+        
+    <script src="https://utteranc.es/client.js" 
+        repo="ixugo/ixugo.github.io"
+        issue-term="pathname"
+        
+        crossorigin="anonymous"
+        async
+        >
+</script>
+
+<style>
+    .utterances {
+        max-width: unset;
+    }
+</style>
+
+<script>
+    function setUtterancesTheme(theme) {
+        let utterances = document.querySelector('.utterances iframe');
+        if (utterances) {
+            utterances.contentWindow.postMessage(
+                {
+                    type: 'set-theme',
+                    theme: `github-${theme}`
+                },
+                'https://utteranc.es'
+            );
+        }
+    }
+
+    addEventListener('message', event => {
+        if (event.origin !== 'https://utteranc.es') return;
+        setUtterancesTheme(document.documentElement.dataset.scheme)
+    });
+
+    window.addEventListener('onColorSchemeChange', (e) => {
+        setUtterancesTheme(e.detail)
+    })
+</script>
+
+
+    
+
+    <footer class="site-footer">
+  <section class="copyright">
+    &copy;
+    
+    2018 -
+    
+    2023 ixugo
+  </section>
+  <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+  <section class="powerby">
+
+    
+    <span id="busuanzi_container_page_pv">本文阅读量
+      <span style="font-size: 14px" id="busuanzi_value_page_pv"></span>
+      次，</span>
+    <span id="busuanzi_container_site_pv">总访问量
+      <span style="font-size: 14px" id="busuanzi_value_site_pv"></span>
+      次 </span>，总访客数
+    <span style="font-size: 14px" id="busuanzi_value_site_uv"></span> 人
+    <br />
+
+
+    Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> .&nbsp;&nbsp;
+    Theme <a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener"
+      data-version="3.16.0">Stack</a> designed by <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a>
+  </section>
+
+
+
+
+  <script>
+    function count() {
+      let href = window.location.href;
+      let regexp = /^https?:\/\/blog.golang.space\/?(page\/[\d]+\/?)?$/;
+      if (regexp.test(href)) {
+        let e = document.getElementById("busuanzi_container_page_pv");
+        e.innerText = "";
+      }
+    }
+    window.onload = count;
+  </script>
+</footer>
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>
