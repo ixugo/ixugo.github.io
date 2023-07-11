@@ -164,7 +164,7 @@ GET /service/restart
 
 #### *一致的路径格式
 
-使用大小写和破折号分隔的路径名
+使用小写和破折号分隔的路径名
 
 ```bash
 service-api.com/users

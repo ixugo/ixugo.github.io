@@ -112,6 +112,7 @@ sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys FEEA9169307EA071
 sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 8B57C5C2836F4BEB
 
 sudo apt-get update
+# 若遇到秘钥问题，参考 https://www.cnblogs.com/reatual/p/14304675.html
 sudo apt-get install -y kubelet kubeadm kubectl
 systemctl enable --now kubelet
 ```
@@ -175,11 +176,11 @@ master 初始化，如果初始化失败，可以重置
 
 ```bash
 kubeadm init \
---kubernetes-version v1.23.1 \
---apiserver-advertise-address=${公网IP} \
+--kubernetes-version v1.27.3 \
+--apiserver-advertise-address=192.168.0.58 \
+--image-repository=registry.aliyuncs.com/google_containers \
 --service-cidr=10.96.0.0/16 \
---pod-network-cidr=10.244.0.0/16 \
---image-repository=registry.aliyuncs.com/google_containers
+--pod-network-cidr=10.244.0.0/16 
 
 
 # 重置
