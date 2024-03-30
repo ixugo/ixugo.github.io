@@ -6,13 +6,106 @@
         <description>Recent content in Go on ixugo</description>
         <generator>Hugo -- gohugo.io</generator>
         <language>zh-cn</language>
-        <lastBuildDate>Mon, 01 May 2023 00:00:00 +0000</lastBuildDate><atom:link href="https://blog.golang.space/tags/go/index.xml" rel="self" type="application/rss+xml" /><item>
+        <lastBuildDate>Sun, 10 Sep 2023 00:00:00 +0000</lastBuildDate><atom:link href="https://blog.golang.space/tags/go/index.xml" rel="self" type="application/rss+xml" /><item>
+        <title>NSQ</title>
+        <link>https://blog.golang.space/p/nsq/</link>
+        <pubDate>Sun, 10 Sep 2023 00:00:00 +0000</pubDate>
+        
+        <guid>https://blog.golang.space/p/nsq/</guid>
+        <description>&lt;h2 id=&#34;介绍&#34;&gt;介绍&lt;/h2&gt;
+&lt;p&gt;NSQ 是一个实时分布式消息平台。&lt;/p&gt;
+&lt;p&gt;特性:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;支持无单点故障的分布式拓扑&lt;/li&gt;
+&lt;li&gt;水平可扩展&lt;/li&gt;
+&lt;li&gt;低延迟，高性能的消息传递&lt;/li&gt;
+&lt;li&gt;负载均衡和消息多播路由&lt;/li&gt;
+&lt;li&gt;擅长流式(高吞吐)处理和面向作业(低吞吐)的工作负载&lt;/li&gt;
+&lt;li&gt;主要在内存中，超过限制将透明的保存在磁盘上。&lt;/li&gt;
+&lt;li&gt;提供消费者查找生产者的服务发现&lt;/li&gt;
+&lt;li&gt;等等&amp;hellip;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id=&#34;说明&#34;&gt;说明&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;NSQ 主要是内存消息传递平台，默认情况下，消息会在内存中，这也意味着当服务崩溃时会发生丢失，可以通过 &lt;code&gt;--mem-queue-size=0&lt;/code&gt; 来控制将每条消息都持久化到硬盘上。&lt;/li&gt;
+&lt;li&gt;消息至少传递一次。这意味着由于各种原因(超时/断开连接/重新排队)，消息可以多次传递。执行幂等操作或重复数据删除是用户的责任。&lt;/li&gt;
+&lt;li&gt;收到消息是无序的，不能依赖消息的顺序。&lt;/li&gt;
+&lt;li&gt;消费者最终找到所有主题生产者，发现服务被设计最终一致。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id=&#34;设计&#34;&gt;设计&lt;/h2&gt;
+&lt;p&gt;单个 nsqd 实例支持同时处理多个数据流，流称为 &amp;ldquo;主题&amp;rdquo;，一个主题有1 个或多个&amp;quot;通道&amp;quot;，每个通道都会主题的所有消息的副本。一个通道通常可以连接多个客户端，假设这些客户端都处于接收消息状态，则消息会随机传递过去。&lt;/p&gt;
+&lt;p&gt;首次发布到指定主题时，创建主题，首次订阅指定主题时，创建通道。&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;http://img.golang.space/img-1694360233845.gif&#34;
+	
+	
+	
+	loading=&#34;lazy&#34;
+	
+		alt=&#34;nsqd clients&#34;
+	
+	
+&gt;&lt;/p&gt;
+&lt;h2 id=&#34;内部设计&#34;&gt;内部设计&lt;/h2&gt;
+&lt;p&gt;NSQ 由 3 个守护进程组成&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;nsqd，接收消息，排队消息，传递消息给客户端的进程&lt;/li&gt;
+&lt;li&gt;nsqlookupd 管理拓扑信息并提供最终一致的服务发现&lt;/li&gt;
+&lt;li&gt;nsqadmin，是一个 Web UI，用于实时检查集群&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id=&#34;参考&#34;&gt;参考&lt;/h2&gt;
+&lt;p&gt;&lt;a class=&#34;link&#34; href=&#34;https://nsq.io/&#34;  target=&#34;_blank&#34; rel=&#34;noopener&#34;
+    &gt;NSQ 官方文档&lt;/a&gt;&lt;/p&gt;
+</description>
+        </item>
+        <item>
         <title>HTTP 读写超时</title>
         <link>https://blog.golang.space/p/http-%E8%AF%BB%E5%86%99%E8%B6%85%E6%97%B6/</link>
         <pubDate>Mon, 01 May 2023 00:00:00 +0000</pubDate>
         
         <guid>https://blog.golang.space/p/http-%E8%AF%BB%E5%86%99%E8%B6%85%E6%97%B6/</guid>
         <description>&lt;h1 id=&#34;http-读写超时&#34;&gt;HTTP 读写超时&lt;/h1&gt;
+&lt;p&gt;&lt;strong&gt;服务端超时&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;对于暴露在互联网上的 HTTP 服务器来说，强制客户端连接超时非常重要。&lt;/p&gt;
+&lt;p&gt;非常慢或消息的客户端可能会导致文件描述符泄露，出现以下错误:&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;div class=&#34;chroma&#34;&gt;
+&lt;table class=&#34;lntable&#34;&gt;&lt;tr&gt;&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code&gt;&lt;span class=&#34;lnt&#34;&gt;1
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;http: Accept error: accept tcp &lt;span class=&#34;o&#34;&gt;[&lt;/span&gt;::&lt;span class=&#34;o&#34;&gt;]&lt;/span&gt;:80: accept4: too many open files&lt;span class=&#34;p&#34;&gt;;&lt;/span&gt; retrying in 5ms
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;p&gt;&lt;code&gt;ReadTimeout&lt;/code&gt; 涵盖从接受连接到完全读取请求正文（如果您确实读取了正文，否则到标头末尾）的时间。它是通过在 Accept 之后立即调用 &lt;code&gt;SetReadDeadline&lt;/code&gt; 在 &lt;code&gt;net/http&lt;/code&gt; 中实现的。&lt;/p&gt;
+&lt;p&gt;&lt;code&gt;WriteTimeout&lt;/code&gt; 通常通过在 readRequest 末尾调用 &lt;code&gt;SetWriteDeadline&lt;/code&gt; 来覆盖从请求标头读取结束到响应写入结束的时间（也称为 ServeHTTP 的生命周期）。&lt;/p&gt;
+&lt;p&gt;&lt;code&gt;http.TimeoutHandler&lt;/code&gt; 。它不是服务器参数，而是限制 &lt;code&gt;ServeHTTP&lt;/code&gt; 调用最大持续时间的 Handler 包装器。它的工作原理是缓冲响应，并在超过截止时间时发送 504 网关超时。&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;http://img.golang.space/img-1697387080358.png&#34;
+	
+	
+	
+	loading=&#34;lazy&#34;
+	
+		alt=&#34;HTTP server phases&#34;
+	
+	
+&gt;&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;客户端超时&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;最容易使用的是 &lt;code&gt;http.Client&lt;/code&gt; 的 &lt;code&gt;Timeout&lt;/code&gt; 字段。它涵盖了整个流程。&lt;/p&gt;
+&lt;p&gt;&lt;code&gt;http.Get&lt;/code&gt; 等包级函数使用没有超时的客户端，因此在开放的 Internet 上使用是危险的。&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;net.Dialer.Timeout&lt;/code&gt; 限制建立 TCP 连接所花费的时间（如果需要新连接）&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;http.Transport.TLSHandshakeTimeout&lt;/code&gt; 限制执行 TLS 握手所花费的时间。&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;http.Transport.ResponseHeaderTimeout&lt;/code&gt; 限制读取响应标头所花费的时间。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;img src=&#34;http://img.golang.space/img-1697387422807.png&#34;
+	
+	
+	
+	loading=&#34;lazy&#34;
+	
+		alt=&#34;HTTP Client phases&#34;
+	
+	
+&gt;&lt;/p&gt;
 &lt;div class=&#34;highlight&#34;&gt;&lt;div class=&#34;chroma&#34;&gt;
 &lt;table class=&#34;lntable&#34;&gt;&lt;tr&gt;&lt;td class=&#34;lntd&#34;&gt;
 &lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code&gt;&lt;span class=&#34;lnt&#34;&gt;1
@@ -61,7 +154,10 @@
 &lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;p&#34;&gt;}&lt;/span&gt;
 &lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
 &lt;/div&gt;
-&lt;/div&gt;</description>
+&lt;/div&gt;&lt;h2 id=&#34;参考&#34;&gt;参考&lt;/h2&gt;
+&lt;p&gt;&lt;a class=&#34;link&#34; href=&#34;https://blog.cloudflare.com/the-complete-guide-to-golang-net-http-timeouts/&#34;  target=&#34;_blank&#34; rel=&#34;noopener&#34;
+    &gt;http timeouts&lt;/a&gt;&lt;/p&gt;
+</description>
         </item>
         <item>
         <title>HTTP 流式传输</title>

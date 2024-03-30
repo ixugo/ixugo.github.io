@@ -1,0 +1,1034 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='OpenTelemetry OpenTelemetry 是一个可观察性框架和工具包，用于创建和管理链路，指标和日志等遥测数据。
+它不像 Jaeger，Prometheus 那样的可观察性后端，它专注于遥测数据的生成，收集，管理和导出。数据的存储和可视化由其它工具提供。
+可观察性 什么是可观察性?
+从外部了解应用系统内正发生什么。
+可靠性和指标
+遥测是指从系统发出的有关其行为的数据，数据可以是链路，指标，日志的形式。
+服务是否按照用户期望的运行? 如果用户将一条黑色裤子添加到购物车，但系统显示红色的裤子，显然被认为是不可靠。
+指标是一段时间内，有关基础设置和应用程序的数字数据的聚合。包括 CPU ，错误率 ，调用频率，连接数，请求次数等等。
+SLI ( Service Level Indicator )，表示服务的衡量标准，例如网页加载的速度。
+SLO ( Service Level Objective )，向组织传达可靠性的方式。
+了解分布式追踪 日志
+日志是由服务或其它组件发出的带有时间戳的消息，过去开发人员和运维人员非常依赖它们来帮助理解系统行为。
+但日志对于追踪代码执行并不是非常有用，因为通常缺乏上下文信息，例如它们是从哪里调用的。
+当它们与追踪相关时，会变得更加有用。
+Spans
+Span 代表一个工作或操作单元。它追踪请求进行的特定操作，描绘执行该操作期间发生的情况。
+包含名称，时间，结构化日志消息或其它元数据。
+分布式追踪
+分布式追踪，记录请求在微服务架构中传播时所采用的路径。
+如果没有追踪，就很难查明分布式系统中性能问题的原因。
+它提高了应用程序或系统运行状况的可见性，并让我们能够调试难以在本地重现的行为。
+信号 Traces 提供了应用程序发出请求时发生的情况。
+通过三个工作单元，用 Spans 表示:
+1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 # hello span # 注意，它有一个指示追踪的 trace_id { &amp;#34;name&amp;#34;: &amp;#34;hello&amp;#34;, &amp;#34;context&amp;#34;: { &amp;#34;trace_id&amp;#34;: &amp;#34;0x5b8aa5a2d2c872e8321cf37308d69df2&amp;#34;, &amp;#34;span_id&amp;#34;: &amp;#34;0x051581bf3cb55c13&amp;#34; }, &amp;#34;parent_id&amp;#34;: null, &amp;#34;start_time&amp;#34;: &amp;#34;2022-04-29T18:52:58.'>
+<title>OpenTelemetry</title>
+
+<link rel='canonical' href='https://blog.golang.space/p/opentelemetry/'>
+
+<link rel="stylesheet" href="/scss/style.min.8191399262444ab68b72a18c97392f5349be20a1615d77445be51e974c144cff.css"><meta property='og:title' content='OpenTelemetry'>
+<meta property='og:description' content='OpenTelemetry OpenTelemetry 是一个可观察性框架和工具包，用于创建和管理链路，指标和日志等遥测数据。
+它不像 Jaeger，Prometheus 那样的可观察性后端，它专注于遥测数据的生成，收集，管理和导出。数据的存储和可视化由其它工具提供。
+可观察性 什么是可观察性?
+从外部了解应用系统内正发生什么。
+可靠性和指标
+遥测是指从系统发出的有关其行为的数据，数据可以是链路，指标，日志的形式。
+服务是否按照用户期望的运行? 如果用户将一条黑色裤子添加到购物车，但系统显示红色的裤子，显然被认为是不可靠。
+指标是一段时间内，有关基础设置和应用程序的数字数据的聚合。包括 CPU ，错误率 ，调用频率，连接数，请求次数等等。
+SLI ( Service Level Indicator )，表示服务的衡量标准，例如网页加载的速度。
+SLO ( Service Level Objective )，向组织传达可靠性的方式。
+了解分布式追踪 日志
+日志是由服务或其它组件发出的带有时间戳的消息，过去开发人员和运维人员非常依赖它们来帮助理解系统行为。
+但日志对于追踪代码执行并不是非常有用，因为通常缺乏上下文信息，例如它们是从哪里调用的。
+当它们与追踪相关时，会变得更加有用。
+Spans
+Span 代表一个工作或操作单元。它追踪请求进行的特定操作，描绘执行该操作期间发生的情况。
+包含名称，时间，结构化日志消息或其它元数据。
+分布式追踪
+分布式追踪，记录请求在微服务架构中传播时所采用的路径。
+如果没有追踪，就很难查明分布式系统中性能问题的原因。
+它提高了应用程序或系统运行状况的可见性，并让我们能够调试难以在本地重现的行为。
+信号 Traces 提供了应用程序发出请求时发生的情况。
+通过三个工作单元，用 Spans 表示:
+1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 # hello span # 注意，它有一个指示追踪的 trace_id { &amp;#34;name&amp;#34;: &amp;#34;hello&amp;#34;, &amp;#34;context&amp;#34;: { &amp;#34;trace_id&amp;#34;: &amp;#34;0x5b8aa5a2d2c872e8321cf37308d69df2&amp;#34;, &amp;#34;span_id&amp;#34;: &amp;#34;0x051581bf3cb55c13&amp;#34; }, &amp;#34;parent_id&amp;#34;: null, &amp;#34;start_time&amp;#34;: &amp;#34;2022-04-29T18:52:58.'>
+<meta property='og:url' content='https://blog.golang.space/p/opentelemetry/'>
+<meta property='og:site_name' content='ixugo'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='' /><meta property='article:published_time' content='2023-10-10T00:00:00&#43;00:00'/><meta property='article:modified_time' content='2023-10-10T00:00:00&#43;00:00'/>
+<meta name="twitter:title" content="OpenTelemetry">
+<meta name="twitter:description" content="OpenTelemetry OpenTelemetry 是一个可观察性框架和工具包，用于创建和管理链路，指标和日志等遥测数据。
+它不像 Jaeger，Prometheus 那样的可观察性后端，它专注于遥测数据的生成，收集，管理和导出。数据的存储和可视化由其它工具提供。
+可观察性 什么是可观察性?
+从外部了解应用系统内正发生什么。
+可靠性和指标
+遥测是指从系统发出的有关其行为的数据，数据可以是链路，指标，日志的形式。
+服务是否按照用户期望的运行? 如果用户将一条黑色裤子添加到购物车，但系统显示红色的裤子，显然被认为是不可靠。
+指标是一段时间内，有关基础设置和应用程序的数字数据的聚合。包括 CPU ，错误率 ，调用频率，连接数，请求次数等等。
+SLI ( Service Level Indicator )，表示服务的衡量标准，例如网页加载的速度。
+SLO ( Service Level Objective )，向组织传达可靠性的方式。
+了解分布式追踪 日志
+日志是由服务或其它组件发出的带有时间戳的消息，过去开发人员和运维人员非常依赖它们来帮助理解系统行为。
+但日志对于追踪代码执行并不是非常有用，因为通常缺乏上下文信息，例如它们是从哪里调用的。
+当它们与追踪相关时，会变得更加有用。
+Spans
+Span 代表一个工作或操作单元。它追踪请求进行的特定操作，描绘执行该操作期间发生的情况。
+包含名称，时间，结构化日志消息或其它元数据。
+分布式追踪
+分布式追踪，记录请求在微服务架构中传播时所采用的路径。
+如果没有追踪，就很难查明分布式系统中性能问题的原因。
+它提高了应用程序或系统运行状况的可见性，并让我们能够调试难以在本地重现的行为。
+信号 Traces 提供了应用程序发出请求时发生的情况。
+通过三个工作单元，用 Spans 表示:
+1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 # hello span # 注意，它有一个指示追踪的 trace_id { &amp;#34;name&amp;#34;: &amp;#34;hello&amp;#34;, &amp;#34;context&amp;#34;: { &amp;#34;trace_id&amp;#34;: &amp;#34;0x5b8aa5a2d2c872e8321cf37308d69df2&amp;#34;, &amp;#34;span_id&amp;#34;: &amp;#34;0x051581bf3cb55c13&amp;#34; }, &amp;#34;parent_id&amp;#34;: null, &amp;#34;start_time&amp;#34;: &amp;#34;2022-04-29T18:52:58.">
+    <link rel="shortcut icon" href="img/favicon.ico" />
+
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+	(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+	m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+	})(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+	ga('create', 'UA-192125643-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="Toggle Menu">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu0b04ba6d7249c9f90c92db974439eb8c_208246_300x0_resize_box_3.png" width="300"
+                            height="321" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🧐</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">ixugo</a></h1>
+            <h2 class="site-description">走出舒适区</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/ixugo'
+                        target="_blank"
+                        title="GitHub"
+                        rel="me"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>Home</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/about/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>About</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>Archives</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>Search</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>Dark Mode</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">Table of contents</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#可观察性">可观察性</a></li>
+    <li><a href="#了解分布式追踪">了解分布式追踪</a></li>
+    <li><a href="#信号">信号</a>
+      <ol>
+        <li><a href="#traces">Traces</a></li>
+        <li><a href="#metrics">Metrics</a></li>
+        <li><a href="#logs">Logs</a></li>
+        <li><a href="#baggage">Baggage</a></li>
+      </ol>
+    </li>
+    <li><a href="#参考">参考</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+            <main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+    <header class="article-category">
+        
+            <a href="/categories/%E9%81%A5%E6%B5%8B/" >
+                遥测
+            </a>
+        
+    </header>
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/opentelemetry/">OpenTelemetry</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    
+    
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Oct 10, 2023</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    3 minute read
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+
+</header>
+
+    <section class="article-content">
+    
+    
+    <h1 id="opentelemetry">OpenTelemetry</h1>
+<p>OpenTelemetry 是一个可观察性框架和工具包，用于创建和管理链路，指标和日志等遥测数据。</p>
+<p>它不像 Jaeger，Prometheus 那样的可观察性后端，它专注于遥测数据的生成，收集，管理和导出。数据的存储和可视化由其它工具提供。</p>
+<h2 id="可观察性">可观察性</h2>
+<hr>
+<p><strong>什么是可观察性?</strong></p>
+<p>从外部了解应用系统内正发生什么。</p>
+<p><strong>可靠性和指标</strong></p>
+<p>遥测是指从系统发出的有关其行为的数据，数据可以是链路，指标，日志的形式。</p>
+<p>服务是否按照用户期望的运行? 如果用户将一条黑色裤子添加到购物车，但系统显示红色的裤子，显然被认为是不可靠。</p>
+<p>指标是一段时间内，有关基础设置和应用程序的数字数据的聚合。包括 CPU ，错误率 ，调用频率，连接数，请求次数等等。</p>
+<p>SLI ( Service Level Indicator )，表示服务的衡量标准，例如网页加载的速度。</p>
+<p>SLO ( Service Level Objective  )，向组织传达可靠性的方式。</p>
+<h2 id="了解分布式追踪">了解分布式追踪</h2>
+<hr>
+<p><strong>日志</strong></p>
+<p>日志是由服务或其它组件发出的带有时间戳的消息，过去开发人员和运维人员非常依赖它们来帮助理解系统行为。</p>
+<p>但日志对于追踪代码执行并不是非常有用，因为通常缺乏上下文信息，例如它们是从哪里调用的。</p>
+<p>当它们与追踪相关时，会变得更加有用。</p>
+<hr>
+<p><strong>Spans</strong></p>
+<p>Span 代表一个工作或操作单元。它追踪请求进行的特定操作，描绘执行该操作期间发生的情况。</p>
+<p>包含名称，时间，结构化日志消息或其它元数据。</p>
+<hr>
+<p><strong>分布式追踪</strong></p>
+<p>分布式追踪，记录请求在微服务架构中传播时所采用的路径。</p>
+<p>如果没有追踪，就很难查明分布式系统中性能问题的原因。</p>
+<p>它提高了应用程序或系统运行状况的可见性，并让我们能够调试难以在本地重现的行为。</p>
+<hr>
+<h2 id="信号">信号</h2>
+<h3 id="traces">Traces</h3>
+<p><img src="http://img.golang.space/img-1697648152083.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20231019005551903"
+	
+	
+></p>
+<p>提供了应用程序发出请求时发生的情况。</p>
+<p>通过三个工作单元，用 Spans 表示:</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="c1"># hello span</span>
+</span></span><span class="line"><span class="cl"><span class="c1"># 注意，它有一个指示追踪的 trace_id</span>
+</span></span><span class="line"><span class="cl"><span class="o">{</span>
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;name&#34;</span>: <span class="s2">&#34;hello&#34;</span>,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;context&#34;</span>: <span class="o">{</span>
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;trace_id&#34;</span>: <span class="s2">&#34;0x5b8aa5a2d2c872e8321cf37308d69df2&#34;</span>,
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;span_id&#34;</span>: <span class="s2">&#34;0x051581bf3cb55c13&#34;</span>
+</span></span><span class="line"><span class="cl">  <span class="o">}</span>,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;parent_id&#34;</span>: null,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;start_time&#34;</span>: <span class="s2">&#34;2022-04-29T18:52:58.114201Z&#34;</span>,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;end_time&#34;</span>: <span class="s2">&#34;2022-04-29T18:52:58.114687Z&#34;</span>,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;attributes&#34;</span>: <span class="o">{</span>
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;http.route&#34;</span>: <span class="s2">&#34;some_route1&#34;</span>
+</span></span><span class="line"><span class="cl">  <span class="o">}</span>,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;events&#34;</span>: <span class="o">[</span>
+</span></span><span class="line"><span class="cl">    <span class="o">{</span>
+</span></span><span class="line"><span class="cl">      <span class="s2">&#34;name&#34;</span>: <span class="s2">&#34;Guten Tag!&#34;</span>,
+</span></span><span class="line"><span class="cl">      <span class="s2">&#34;timestamp&#34;</span>: <span class="s2">&#34;2022-04-29T18:52:58.114561Z&#34;</span>,
+</span></span><span class="line"><span class="cl">      <span class="s2">&#34;attributes&#34;</span>: <span class="o">{</span>
+</span></span><span class="line"><span class="cl">        <span class="s2">&#34;event_attributes&#34;</span>: <span class="m">1</span>
+</span></span><span class="line"><span class="cl">      <span class="o">}</span>
+</span></span><span class="line"><span class="cl">    <span class="o">}</span>
+</span></span><span class="line"><span class="cl">  <span class="o">]</span>
+</span></span><span class="line"><span class="cl"><span class="o">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="c1"># hello-greetings span</span>
+</span></span><span class="line"><span class="cl"><span class="c1"># 这个 span 封装了特定的任务，它与 hello 共享 trace_id，并有 parent_id 指示调用关系。</span>
+</span></span><span class="line"><span class="cl"><span class="o">{</span>
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;name&#34;</span>: <span class="s2">&#34;hello-greetings&#34;</span>,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;context&#34;</span>: <span class="o">{</span>
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;trace_id&#34;</span>: <span class="s2">&#34;0x5b8aa5a2d2c872e8321cf37308d69df2&#34;</span>,
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;span_id&#34;</span>: <span class="s2">&#34;0x5fb397be34d26b51&#34;</span>
+</span></span><span class="line"><span class="cl">  <span class="o">}</span>,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;parent_id&#34;</span>: <span class="s2">&#34;0x051581bf3cb55c13&#34;</span>,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;start_time&#34;</span>: <span class="s2">&#34;2022-04-29T18:52:58.114304Z&#34;</span>,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;end_time&#34;</span>: <span class="s2">&#34;2022-04-29T22:52:58.114561Z&#34;</span>,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;attributes&#34;</span>: <span class="o">{</span>
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;http.route&#34;</span>: <span class="s2">&#34;some_route2&#34;</span>
+</span></span><span class="line"><span class="cl">  <span class="o">}</span>,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;events&#34;</span>: <span class="o">[</span>
+</span></span><span class="line"><span class="cl">    <span class="o">{</span>
+</span></span><span class="line"><span class="cl">      <span class="s2">&#34;name&#34;</span>: <span class="s2">&#34;hey there!&#34;</span>,
+</span></span><span class="line"><span class="cl">      <span class="s2">&#34;timestamp&#34;</span>: <span class="s2">&#34;2022-04-29T18:52:58.114561Z&#34;</span>,
+</span></span><span class="line"><span class="cl">      <span class="s2">&#34;attributes&#34;</span>: <span class="o">{</span>
+</span></span><span class="line"><span class="cl">        <span class="s2">&#34;event_attributes&#34;</span>: <span class="m">1</span>
+</span></span><span class="line"><span class="cl">      <span class="o">}</span>
+</span></span><span class="line"><span class="cl">    <span class="o">}</span>,
+</span></span><span class="line"><span class="cl">    <span class="o">{</span>
+</span></span><span class="line"><span class="cl">      <span class="s2">&#34;name&#34;</span>: <span class="s2">&#34;bye now!&#34;</span>,
+</span></span><span class="line"><span class="cl">      <span class="s2">&#34;timestamp&#34;</span>: <span class="s2">&#34;2022-04-29T18:52:58.114585Z&#34;</span>,
+</span></span><span class="line"><span class="cl">      <span class="s2">&#34;attributes&#34;</span>: <span class="o">{</span>
+</span></span><span class="line"><span class="cl">        <span class="s2">&#34;event_attributes&#34;</span>: <span class="m">1</span>
+</span></span><span class="line"><span class="cl">      <span class="o">}</span>
+</span></span><span class="line"><span class="cl">    <span class="o">}</span>
+</span></span><span class="line"><span class="cl">  <span class="o">]</span>
+</span></span><span class="line"><span class="cl"><span class="o">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="c1"># hello-salutations</span>
+</span></span><span class="line"><span class="cl"><span class="c1"># 该 span 代表此跟踪中的第三个操作，它是 `hello` span 的子级，与 `hello-greetings` 同级。</span>
+</span></span><span class="line"><span class="cl"><span class="o">{</span>
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;name&#34;</span>: <span class="s2">&#34;hello-salutations&#34;</span>,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;context&#34;</span>: <span class="o">{</span>
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;trace_id&#34;</span>: <span class="s2">&#34;0x5b8aa5a2d2c872e8321cf37308d69df2&#34;</span>,
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;span_id&#34;</span>: <span class="s2">&#34;0x93564f51e1abe1c2&#34;</span>
+</span></span><span class="line"><span class="cl">  <span class="o">}</span>,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;parent_id&#34;</span>: <span class="s2">&#34;0x051581bf3cb55c13&#34;</span>,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;start_time&#34;</span>: <span class="s2">&#34;2022-04-29T18:52:58.114492Z&#34;</span>,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;end_time&#34;</span>: <span class="s2">&#34;2022-04-29T18:52:58.114631Z&#34;</span>,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;attributes&#34;</span>: <span class="o">{</span>
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;http.route&#34;</span>: <span class="s2">&#34;some_route3&#34;</span>
+</span></span><span class="line"><span class="cl">  <span class="o">}</span>,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;events&#34;</span>: <span class="o">[</span>
+</span></span><span class="line"><span class="cl">    <span class="o">{</span>
+</span></span><span class="line"><span class="cl">      <span class="s2">&#34;name&#34;</span>: <span class="s2">&#34;hey there!&#34;</span>,
+</span></span><span class="line"><span class="cl">      <span class="s2">&#34;timestamp&#34;</span>: <span class="s2">&#34;2022-04-29T18:52:58.114561Z&#34;</span>,
+</span></span><span class="line"><span class="cl">      <span class="s2">&#34;attributes&#34;</span>: <span class="o">{</span>
+</span></span><span class="line"><span class="cl">        <span class="s2">&#34;event_attributes&#34;</span>: <span class="m">1</span>
+</span></span><span class="line"><span class="cl">      <span class="o">}</span>
+</span></span><span class="line"><span class="cl">    <span class="o">}</span>
+</span></span><span class="line"><span class="cl">  <span class="o">]</span>
+</span></span><span class="line"><span class="cl"><span class="o">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>在三个 JSON 块，有相同的 trace_id，有 parent_id 来表示层次结构，具有上下文，相关信息，层次结构。</p>
+<hr>
+<p><strong>Tracer Provider</strong></p>
+<p>这是 Tracer 的工厂，在大多数应用程序中，Provider 会初始化一次，还包括 Resource 和 Exporter 初始化。</p>
+<hr>
+<p><strong>Tracer</strong></p>
+<p>tracer 创建的 span 包含有关给定操作锁发生情况的更多信息，由 Tracer Provider 创建。</p>
+<hr>
+<p><strong>Trace Exporters</strong></p>
+<p>追踪导出器将数据发送给消费者。可以是 OpenTelemetry Collector 或其它后端。</p>
+<hr>
+<p><strong>Context Propagation</strong></p>
+<p>上下文传播是实现分布式跟踪的核心概念。通过上下文传播，Span 可以互相关联并组装成 Tracer。</p>
+<p>Context 是一个对象，其中包含发送和接收服务的信息，用于将一个 Span 与 另一个 Span 关联起来。</p>
+<p>Propagation 是在服务和进程之间移动上下文的机制，它序列化或反序列化上下文对象。OpenTelemetry 支持多种不同的上下文格式。 OpenTelemetry 跟踪中使用的默认格式称为 W3C TraceContext。</p>
+<hr>
+<p><strong>Spans</strong></p>
+<p>Span 是 Traces 的构建模块。包含以下信息:</p>
+<ul>
+<li>Name</li>
+<li>Parent span ID (empty for root spans)</li>
+<li>Start and End Timestamps</li>
+<li>Span Context，每个 Span 不可变对象，包含 trace_id，span_id，state</li>
+<li>Attributes，包含元数据的键值对，描述追踪操作的信息</li>
+<li>Span Events，可以被认为是结构化日志，通常表示持续时间内有意义的单一时间点</li>
+<li>Span links，关联多个 span，因果关系。</li>
+<li>Span Status，当代码中出现错误时，可以设置 span 状态。
+<ul>
+<li><code>Unset</code>，由处理 span 的后端分配</li>
+<li><code>OK</code>，一切正常</li>
+<li>``Error`，代码中出现错误</li>
+</ul>
+</li>
+</ul>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="o">{</span>
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;trace_id&#34;</span>: <span class="s2">&#34;7bba9f33312b3dbb8b2c2c62bb7abe2d&#34;</span>,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;parent_id&#34;</span>: <span class="s2">&#34;&#34;</span>,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;span_id&#34;</span>: <span class="s2">&#34;086e83747d0e381e&#34;</span>,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;name&#34;</span>: <span class="s2">&#34;/v1/sys/health&#34;</span>,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;start_time&#34;</span>: <span class="s2">&#34;2021-10-22 16:04:01.209458162 +0000 UTC&#34;</span>,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;end_time&#34;</span>: <span class="s2">&#34;2021-10-22 16:04:01.209514132 +0000 UTC&#34;</span>,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;status_code&#34;</span>: <span class="s2">&#34;STATUS_CODE_OK&#34;</span>,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;status_message&#34;</span>: <span class="s2">&#34;&#34;</span>,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;attributes&#34;</span>: <span class="o">{</span>
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;net.transport&#34;</span>: <span class="s2">&#34;IP.TCP&#34;</span>,
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;net.peer.ip&#34;</span>: <span class="s2">&#34;172.17.0.1&#34;</span>,
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;net.peer.port&#34;</span>: <span class="s2">&#34;51820&#34;</span>,
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;net.host.ip&#34;</span>: <span class="s2">&#34;10.177.2.152&#34;</span>,
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;net.host.port&#34;</span>: <span class="s2">&#34;26040&#34;</span>,
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;http.method&#34;</span>: <span class="s2">&#34;GET&#34;</span>,
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;http.target&#34;</span>: <span class="s2">&#34;/v1/sys/health&#34;</span>,
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;http.server_name&#34;</span>: <span class="s2">&#34;mortar-gateway&#34;</span>,
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;http.route&#34;</span>: <span class="s2">&#34;/v1/sys/health&#34;</span>,
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;http.user_agent&#34;</span>: <span class="s2">&#34;Consul Health Check&#34;</span>,
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;http.scheme&#34;</span>: <span class="s2">&#34;http&#34;</span>,
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;http.host&#34;</span>: <span class="s2">&#34;10.177.2.152:26040&#34;</span>,
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;http.flavor&#34;</span>: <span class="s2">&#34;1.1&#34;</span>
+</span></span><span class="line"><span class="cl">  <span class="o">}</span>,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;events&#34;</span>: <span class="o">[</span>
+</span></span><span class="line"><span class="cl">    <span class="o">{</span>
+</span></span><span class="line"><span class="cl">      <span class="s2">&#34;name&#34;</span>: <span class="s2">&#34;&#34;</span>,
+</span></span><span class="line"><span class="cl">      <span class="s2">&#34;message&#34;</span>: <span class="s2">&#34;OK&#34;</span>,
+</span></span><span class="line"><span class="cl">      <span class="s2">&#34;timestamp&#34;</span>: <span class="s2">&#34;2021-10-22 16:04:01.209512872 +0000 UTC&#34;</span>
+</span></span><span class="line"><span class="cl">    <span class="o">}</span>
+</span></span><span class="line"><span class="cl">  <span class="o">]</span>
+</span></span><span class="line"><span class="cl"><span class="o">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><hr>
+<p><strong>Span Kind</strong></p>
+<p>Span 有以下类型:</p>
+<ul>
+<li>client，子级通常是 server span，表示同步传出远程调用。</li>
+<li>server，父级通常是 client span，表示远程过程调用。</li>
+<li>internal，未提供类型，则默认为此类型，表示不跨越 span 的操作。</li>
+<li>producer，子级通常是 consumer span，表示创建一个稍后可能会异步处理的作业。</li>
+<li>consumer，父级通常是 producer span，表示对 producer 创建的作业的处理，可能再很久之后才开始。</li>
+</ul>
+<hr>
+<h3 id="metrics">Metrics</h3>
+<p>对运行时捕获的测量，捕获测量的时刻称为度量事件，不仅包括测量本身，还包括捕获的时间和关联的元数据。</p>
+<p>应用程序和请求指标是可用性和性能的重要指标，自定义指标可以深入了解其如何影响用户体验或业务。收集的数据可用于发出警报或调度决策，以根据高需求自动扩展部署。</p>
+<hr>
+<p><strong>Meter Provider</strong></p>
+<p>是 Metrics 的工厂，它会初始化一次，还包括 Resource 和 Exporter 初始。</p>
+<hr>
+<p><strong>Meter</strong></p>
+<p>创建度量工具，在运行时捕获有关服务的测量结果。</p>
+<hr>
+<p><strong>Metric Exporter</strong></p>
+<p>将数据发送给消费者，可以是标准输出OpenTelemetry Collector 或其它后端。</p>
+<hr>
+<p><strong>Metric Instruments</strong></p>
+<p>测量结果由它捕获，定义如下:</p>
+<ul>
+<li>Name</li>
+<li>Kind</li>
+<li>Unit</li>
+<li>Description</li>
+</ul>
+<p>instrument 的 kind 有:</p>
+<ul>
+<li>counter，计数器，只会上涨</li>
+<li>asynchronous counter，异步计数器，与计数器相同，但每次导出只会收集一次。如果无法访问连续增量，而只能访问聚合值，则可以使用。</li>
+<li>UpDownCounter，随着时间积累的值，可以下降。</li>
+<li>asynchronous UpDownCounter，与 UpDownCounter 相同，但每次导出时收集一次。</li>
+<li>Gauge ，仪表，测量读取时的当前值，例如汽车的功率表。</li>
+<li>Histogram ，直方图，值的聚合，例如请求延迟，例如有多少个请求花费的时间大于 1 秒。</li>
+</ul>
+<hr>
+<p><strong>Aggregation</strong></p>
+<p>将大量结果组合成有关窗口期发生的度量事件。</p>
+<p>例如:</p>
+<ul>
+<li>系统调用持续时间</li>
+<li>请求数量趋势</li>
+<li>CPU 或 内存使用情况</li>
+<li>账号的平均余额</li>
+<li>当前正在处理的活动请求</li>
+</ul>
+<hr>
+<p><strong>View</strong></p>
+<p>视图为用户提供自定义输出指标的灵活性。</p>
+<hr>
+<h3 id="logs">Logs</h3>
+<p>Go 版本截止 2023-10-14 尚未实现，略。</p>
+<h3 id="baggage">Baggage</h3>
+<p>是在 Span 之间传递的 Context 信息，它是一个键值对存。</p>
+<p>假设希望追踪中的每个范围都有一个 CustomerID 属性，涉及多个服务，但是 CustomerID 仅一项特定服务可用，为了实现目标，可以使用 Baggage 在整个系统中传播此值。</p>
+<p>通常将 账号标识，用户 ID，产品 ID等等内容，附加到下游服务中的 Span ，以便于搜索时过滤。</p>
+<h2 id="参考">参考</h2>
+<p><a class="link" href="https://github.com/open-telemetry/opentelemetry-go#opentelemetry-go"  target="_blank" rel="noopener"
+    >OpenTelemetry-Go Github</a></p>
+<p><a class="link" href="https://opentelemetry.io/docs/instrumentation/go/"  target="_blank" rel="noopener"
+    >Go 语言实现的 Otel 文档</a></p>
+<p><a class="link" href="https://opentelemetry.io/docs/concepts/"  target="_blank" rel="noopener"
+    >Otel 概念</a></p>
+
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">Related content</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/%E4%BD%BF%E7%94%A8-traceql-%E6%9F%A5%E8%AF%A2/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">使用 TraceQL 查询</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script src="https://utteranc.es/client.js" 
+        repo="ixugo/ixugo.github.io"
+        issue-term="pathname"
+        
+        crossorigin="anonymous"
+        async
+        >
+</script>
+
+<style>
+    .utterances {
+        max-width: unset;
+    }
+</style>
+
+<script>
+    function setUtterancesTheme(theme) {
+        let utterances = document.querySelector('.utterances iframe');
+        if (utterances) {
+            utterances.contentWindow.postMessage(
+                {
+                    type: 'set-theme',
+                    theme: `github-${theme}`
+                },
+                'https://utteranc.es'
+            );
+        }
+    }
+
+    addEventListener('message', event => {
+        if (event.origin !== 'https://utteranc.es') return;
+        setUtterancesTheme(document.documentElement.dataset.scheme)
+    });
+
+    window.addEventListener('onColorSchemeChange', (e) => {
+        setUtterancesTheme(e.detail)
+    })
+</script>
+
+
+    
+
+    <footer class="site-footer">
+  <section class="copyright">
+    &copy;
+    
+    2018 -
+    
+    2024 ixugo
+  </section>
+  <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+  <section class="powerby">
+
+    
+    <span id="busuanzi_container_page_pv">本文阅读量
+      <span style="font-size: 14px" id="busuanzi_value_page_pv"></span>
+      次，</span>
+    <span id="busuanzi_container_site_pv">总访问量
+      <span style="font-size: 14px" id="busuanzi_value_site_pv"></span>
+      次 </span>，总访客数
+    <span style="font-size: 14px" id="busuanzi_value_site_uv"></span> 人
+    <br />
+
+
+    Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> .&nbsp;&nbsp;
+    Theme <a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener"
+      data-version="3.16.0">Stack</a> designed by <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a>
+  </section>
+
+
+
+
+  <script>
+    function count() {
+      let href = window.location.href;
+      let regexp = /^https?:\/\/blog.golang.space\/?(page\/[\d]+\/?)?$/;
+      if (regexp.test(href)) {
+        let e = document.getElementById("busuanzi_container_page_pv");
+        e.innerText = "";
+      }
+    }
+    window.onload = count;
+  </script>
+</footer>
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

@@ -72,6 +72,48 @@
         
         <guid>https://blog.golang.space/p/http-%E8%AF%BB%E5%86%99%E8%B6%85%E6%97%B6/</guid>
         <description>&lt;h1 id=&#34;http-读写超时&#34;&gt;HTTP 读写超时&lt;/h1&gt;
+&lt;p&gt;&lt;strong&gt;服务端超时&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;对于暴露在互联网上的 HTTP 服务器来说，强制客户端连接超时非常重要。&lt;/p&gt;
+&lt;p&gt;非常慢或消息的客户端可能会导致文件描述符泄露，出现以下错误:&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;div class=&#34;chroma&#34;&gt;
+&lt;table class=&#34;lntable&#34;&gt;&lt;tr&gt;&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code&gt;&lt;span class=&#34;lnt&#34;&gt;1
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;http: Accept error: accept tcp &lt;span class=&#34;o&#34;&gt;[&lt;/span&gt;::&lt;span class=&#34;o&#34;&gt;]&lt;/span&gt;:80: accept4: too many open files&lt;span class=&#34;p&#34;&gt;;&lt;/span&gt; retrying in 5ms
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;p&gt;&lt;code&gt;ReadTimeout&lt;/code&gt; 涵盖从接受连接到完全读取请求正文（如果您确实读取了正文，否则到标头末尾）的时间。它是通过在 Accept 之后立即调用 &lt;code&gt;SetReadDeadline&lt;/code&gt; 在 &lt;code&gt;net/http&lt;/code&gt; 中实现的。&lt;/p&gt;
+&lt;p&gt;&lt;code&gt;WriteTimeout&lt;/code&gt; 通常通过在 readRequest 末尾调用 &lt;code&gt;SetWriteDeadline&lt;/code&gt; 来覆盖从请求标头读取结束到响应写入结束的时间（也称为 ServeHTTP 的生命周期）。&lt;/p&gt;
+&lt;p&gt;&lt;code&gt;http.TimeoutHandler&lt;/code&gt; 。它不是服务器参数，而是限制 &lt;code&gt;ServeHTTP&lt;/code&gt; 调用最大持续时间的 Handler 包装器。它的工作原理是缓冲响应，并在超过截止时间时发送 504 网关超时。&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;http://img.golang.space/img-1697387080358.png&#34;
+	
+	
+	
+	loading=&#34;lazy&#34;
+	
+		alt=&#34;HTTP server phases&#34;
+	
+	
+&gt;&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;客户端超时&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;最容易使用的是 &lt;code&gt;http.Client&lt;/code&gt; 的 &lt;code&gt;Timeout&lt;/code&gt; 字段。它涵盖了整个流程。&lt;/p&gt;
+&lt;p&gt;&lt;code&gt;http.Get&lt;/code&gt; 等包级函数使用没有超时的客户端，因此在开放的 Internet 上使用是危险的。&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;net.Dialer.Timeout&lt;/code&gt; 限制建立 TCP 连接所花费的时间（如果需要新连接）&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;http.Transport.TLSHandshakeTimeout&lt;/code&gt; 限制执行 TLS 握手所花费的时间。&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;http.Transport.ResponseHeaderTimeout&lt;/code&gt; 限制读取响应标头所花费的时间。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;img src=&#34;http://img.golang.space/img-1697387422807.png&#34;
+	
+	
+	
+	loading=&#34;lazy&#34;
+	
+		alt=&#34;HTTP Client phases&#34;
+	
+	
+&gt;&lt;/p&gt;
 &lt;div class=&#34;highlight&#34;&gt;&lt;div class=&#34;chroma&#34;&gt;
 &lt;table class=&#34;lntable&#34;&gt;&lt;tr&gt;&lt;td class=&#34;lntd&#34;&gt;
 &lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code&gt;&lt;span class=&#34;lnt&#34;&gt;1
@@ -120,7 +162,10 @@
 &lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;p&#34;&gt;}&lt;/span&gt;
 &lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
 &lt;/div&gt;
-&lt;/div&gt;</description>
+&lt;/div&gt;&lt;h2 id=&#34;参考&#34;&gt;参考&lt;/h2&gt;
+&lt;p&gt;&lt;a class=&#34;link&#34; href=&#34;https://blog.cloudflare.com/the-complete-guide-to-golang-net-http-timeouts/&#34;  target=&#34;_blank&#34; rel=&#34;noopener&#34;
+    &gt;http timeouts&lt;/a&gt;&lt;/p&gt;
+</description>
         </item>
         <item>
         <title>持续集成(CI)/持续交付(CD)</title>

@@ -244,6 +244,7 @@ if (!doNotTrack) {
         <li><a href="#使用">使用</a></li>
       </ol>
     </li>
+    <li><a href="#参考">参考</a></li>
   </ol>
 </nav>
         </div>
@@ -328,6 +329,48 @@ if (!doNotTrack) {
     
     
     <h1 id="http-读写超时">HTTP 读写超时</h1>
+<p><strong>服务端超时</strong></p>
+<p>对于暴露在互联网上的 HTTP 服务器来说，强制客户端连接超时非常重要。</p>
+<p>非常慢或消息的客户端可能会导致文件描述符泄露，出现以下错误:</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">http: Accept error: accept tcp <span class="o">[</span>::<span class="o">]</span>:80: accept4: too many open files<span class="p">;</span> retrying in 5ms
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><code>ReadTimeout</code> 涵盖从接受连接到完全读取请求正文（如果您确实读取了正文，否则到标头末尾）的时间。它是通过在 Accept 之后立即调用 <code>SetReadDeadline</code> 在 <code>net/http</code> 中实现的。</p>
+<p><code>WriteTimeout</code> 通常通过在 readRequest 末尾调用 <code>SetWriteDeadline</code> 来覆盖从请求标头读取结束到响应写入结束的时间（也称为 ServeHTTP 的生命周期）。</p>
+<p><code>http.TimeoutHandler</code> 。它不是服务器参数，而是限制 <code>ServeHTTP</code> 调用最大持续时间的 Handler 包装器。它的工作原理是缓冲响应，并在超过截止时间时发送 504 网关超时。</p>
+<p><img src="http://img.golang.space/img-1697387080358.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="HTTP server phases"
+	
+	
+></p>
+<p><strong>客户端超时</strong></p>
+<p>最容易使用的是 <code>http.Client</code> 的 <code>Timeout</code> 字段。它涵盖了整个流程。</p>
+<p><code>http.Get</code> 等包级函数使用没有超时的客户端，因此在开放的 Internet 上使用是危险的。</p>
+<ul>
+<li><code>net.Dialer.Timeout</code> 限制建立 TCP 连接所花费的时间（如果需要新连接）</li>
+<li><code>http.Transport.TLSHandshakeTimeout</code> 限制执行 TLS 握手所花费的时间。</li>
+<li><code>http.Transport.ResponseHeaderTimeout</code> 限制读取响应标头所花费的时间。</li>
+</ul>
+<p><img src="http://img.golang.space/img-1697387422807.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="HTTP Client phases"
+	
+	
+></p>
 <div class="highlight"><div class="chroma">
 <table class="lntable"><tr><td class="lntd">
 <pre tabindex="0" class="chroma"><code><span class="lnt">1
@@ -376,7 +419,10 @@ if (!doNotTrack) {
 </span></span><span class="line"><span class="cl"><span class="p">}</span>
 </span></span></code></pre></td></tr></table>
 </div>
-</div>
+</div><h2 id="参考">参考</h2>
+<p><a class="link" href="https://blog.cloudflare.com/the-complete-guide-to-golang-net-http-timeouts/"  target="_blank" rel="noopener"
+    >http timeouts</a></p>
+
 </section>
 
 
@@ -536,7 +582,7 @@ if (!doNotTrack) {
     
     2018 -
     
-    2023 ixugo
+    2024 ixugo
   </section>
   <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
   <section class="powerby">
