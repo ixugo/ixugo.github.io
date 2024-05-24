@@ -1,3 +1,17 @@
+---
+title: 设置 Gitea Actions 
+description: 
+date: 2024-04-28
+slug: 
+image: 
+draft: false
+categories:
+    - 后端
+tags:
+
+
+---
+
 # Gitea Actions
 
 

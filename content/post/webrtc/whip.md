@@ -1,8 +1,8 @@
 ---
-title: 图记创建博客的过程
+title: 什么是 WHIP 和 WHEP
 description: 
 date: 2023-11-21
-slug: http://img.golang.space/img-1700581470261.png
+slug: 
 image: 
 categories:
     - WebRTC
