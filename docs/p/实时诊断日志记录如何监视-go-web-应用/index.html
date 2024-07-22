@@ -1,0 +1,1168 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='日志记录对于任何野蛮生长的应用必不可少。通常，我们会回顾性的查阅日志以了解过去，但在某些情况下，实时访问有关特定用户操作的详细流程是识别问题的最佳(有时是唯一)方法。让我们看看如何使用 Go 及 Slog 包实现这种日志记录功能。
+当用户开始抱怨应用中的特定功能不起作用时，该怎么办？首先，你可能会评估症状并验证用户是否存在意料之外的行为。然后，你可以检查你的错误跟踪服务（这里没什么可看的）、正常运行时间和重要指标（一切正常）。最后，任何潜在有用信息的最后一个来源都隐藏在日志中的某个地方。但是，默认生产日志级别为“INFO”（对吗？），因此，尽管可能存在一些警告和错误，但这些日志不太可能包含有关问题的足够信息。下一步该怎么做？
+在这篇文章中，我想探讨不同的选项，包括如何临时启用详细（通常是选择性）日志记录以进行故障排除，以及如何使这些类型的日志能够随时随地实时轻松访问。这种日志记录有时称为诊断日志记录。
+在本文中，我们将探讨一些不同的策略，用于将诊断日志记录引入由 slog 包支持的 Go 应用程序，并涵盖该过程中的以下主题：
+更新全局日志级别 (无论是否重启) Slog 是大道，大道至简 多 handler Slogging 提高性能的方法 更新全局日志级别 (无论是否重启) 让我们从一些简单明了且适用于任何应用程序的东西开始，而不仅仅是那些用 Go 编写的应用程序。
+你可以暂时将应用程序日志级别更新为“DEBUG”并重新启动它。现在，你已经记录了大量日志，并且（我希望）有一个不错的日志收集和查看服务（即不是普通文件）来搜索相关事件。问题解决了，牛逼。
+对吗? 但是，如果您不能仅仅为了调试而重新启动应用程序怎么办? 这正是 AnyCable 或任何其他服务于数千个持久连接的应用程序（例如，在线活动平台）的情况。在这种情况下，重新启动服务器将需要重新初始化所有活动客户端（重新建立连接并恢复状态）。从用户体验的角度来看，这并不好，从服务器的角度来看也不好，而且大规模的重新连接（也称为连接雪崩）可能会导致严重的负载峰值。
+因此，重新启动服务器不是一种选择。因此我们更改日志记录设置的唯一方法是向应用程序添加一些自定义逻辑。所以，让我们开始写一些 Go。
+Slog 是大道，大道至简 让我们注意 slog 包的两个主要概念：
+slog.Logger 是日志记录入口点，是调用 Info() 、 Debug() 等函数的结构。 slog.Handler 是一个接口，负责处理日志条目（或记录）并执行对日志记录设备的写入、级别过滤、格式化等。 下面是一个使用的基本示例：
+1 2 3 4 5 6 7 8 9 10 11 12 13 package main import &amp;#34;log/slog&amp;#34; func main() { opts := &amp;amp;slog.HandlerOptions{ Level: slog.'>
+<title>实时诊断日志记录，如何监视 Go Web 应用</title>
+
+<link rel='canonical' href='https://blog.golang.space/p/%E5%AE%9E%E6%97%B6%E8%AF%8A%E6%96%AD%E6%97%A5%E5%BF%97%E8%AE%B0%E5%BD%95%E5%A6%82%E4%BD%95%E7%9B%91%E8%A7%86-go-web-%E5%BA%94%E7%94%A8/'>
+
+<link rel="stylesheet" href="/scss/style.min.8191399262444ab68b72a18c97392f5349be20a1615d77445be51e974c144cff.css"><meta property='og:title' content='实时诊断日志记录，如何监视 Go Web 应用'>
+<meta property='og:description' content='日志记录对于任何野蛮生长的应用必不可少。通常，我们会回顾性的查阅日志以了解过去，但在某些情况下，实时访问有关特定用户操作的详细流程是识别问题的最佳(有时是唯一)方法。让我们看看如何使用 Go 及 Slog 包实现这种日志记录功能。
+当用户开始抱怨应用中的特定功能不起作用时，该怎么办？首先，你可能会评估症状并验证用户是否存在意料之外的行为。然后，你可以检查你的错误跟踪服务（这里没什么可看的）、正常运行时间和重要指标（一切正常）。最后，任何潜在有用信息的最后一个来源都隐藏在日志中的某个地方。但是，默认生产日志级别为“INFO”（对吗？），因此，尽管可能存在一些警告和错误，但这些日志不太可能包含有关问题的足够信息。下一步该怎么做？
+在这篇文章中，我想探讨不同的选项，包括如何临时启用详细（通常是选择性）日志记录以进行故障排除，以及如何使这些类型的日志能够随时随地实时轻松访问。这种日志记录有时称为诊断日志记录。
+在本文中，我们将探讨一些不同的策略，用于将诊断日志记录引入由 slog 包支持的 Go 应用程序，并涵盖该过程中的以下主题：
+更新全局日志级别 (无论是否重启) Slog 是大道，大道至简 多 handler Slogging 提高性能的方法 更新全局日志级别 (无论是否重启) 让我们从一些简单明了且适用于任何应用程序的东西开始，而不仅仅是那些用 Go 编写的应用程序。
+你可以暂时将应用程序日志级别更新为“DEBUG”并重新启动它。现在，你已经记录了大量日志，并且（我希望）有一个不错的日志收集和查看服务（即不是普通文件）来搜索相关事件。问题解决了，牛逼。
+对吗? 但是，如果您不能仅仅为了调试而重新启动应用程序怎么办? 这正是 AnyCable 或任何其他服务于数千个持久连接的应用程序（例如，在线活动平台）的情况。在这种情况下，重新启动服务器将需要重新初始化所有活动客户端（重新建立连接并恢复状态）。从用户体验的角度来看，这并不好，从服务器的角度来看也不好，而且大规模的重新连接（也称为连接雪崩）可能会导致严重的负载峰值。
+因此，重新启动服务器不是一种选择。因此我们更改日志记录设置的唯一方法是向应用程序添加一些自定义逻辑。所以，让我们开始写一些 Go。
+Slog 是大道，大道至简 让我们注意 slog 包的两个主要概念：
+slog.Logger 是日志记录入口点，是调用 Info() 、 Debug() 等函数的结构。 slog.Handler 是一个接口，负责处理日志条目（或记录）并执行对日志记录设备的写入、级别过滤、格式化等。 下面是一个使用的基本示例：
+1 2 3 4 5 6 7 8 9 10 11 12 13 package main import &amp;#34;log/slog&amp;#34; func main() { opts := &amp;amp;slog.HandlerOptions{ Level: slog.'>
+<meta property='og:url' content='https://blog.golang.space/p/%E5%AE%9E%E6%97%B6%E8%AF%8A%E6%96%AD%E6%97%A5%E5%BF%97%E8%AE%B0%E5%BD%95%E5%A6%82%E4%BD%95%E7%9B%91%E8%A7%86-go-web-%E5%BA%94%E7%94%A8/'>
+<meta property='og:site_name' content='ixugo'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='读书笔记' /><meta property='article:published_time' content='2024-07-04T00:00:00&#43;00:00'/><meta property='article:modified_time' content='2024-07-04T00:00:00&#43;00:00'/>
+<meta name="twitter:title" content="实时诊断日志记录，如何监视 Go Web 应用">
+<meta name="twitter:description" content="日志记录对于任何野蛮生长的应用必不可少。通常，我们会回顾性的查阅日志以了解过去，但在某些情况下，实时访问有关特定用户操作的详细流程是识别问题的最佳(有时是唯一)方法。让我们看看如何使用 Go 及 Slog 包实现这种日志记录功能。
+当用户开始抱怨应用中的特定功能不起作用时，该怎么办？首先，你可能会评估症状并验证用户是否存在意料之外的行为。然后，你可以检查你的错误跟踪服务（这里没什么可看的）、正常运行时间和重要指标（一切正常）。最后，任何潜在有用信息的最后一个来源都隐藏在日志中的某个地方。但是，默认生产日志级别为“INFO”（对吗？），因此，尽管可能存在一些警告和错误，但这些日志不太可能包含有关问题的足够信息。下一步该怎么做？
+在这篇文章中，我想探讨不同的选项，包括如何临时启用详细（通常是选择性）日志记录以进行故障排除，以及如何使这些类型的日志能够随时随地实时轻松访问。这种日志记录有时称为诊断日志记录。
+在本文中，我们将探讨一些不同的策略，用于将诊断日志记录引入由 slog 包支持的 Go 应用程序，并涵盖该过程中的以下主题：
+更新全局日志级别 (无论是否重启) Slog 是大道，大道至简 多 handler Slogging 提高性能的方法 更新全局日志级别 (无论是否重启) 让我们从一些简单明了且适用于任何应用程序的东西开始，而不仅仅是那些用 Go 编写的应用程序。
+你可以暂时将应用程序日志级别更新为“DEBUG”并重新启动它。现在，你已经记录了大量日志，并且（我希望）有一个不错的日志收集和查看服务（即不是普通文件）来搜索相关事件。问题解决了，牛逼。
+对吗? 但是，如果您不能仅仅为了调试而重新启动应用程序怎么办? 这正是 AnyCable 或任何其他服务于数千个持久连接的应用程序（例如，在线活动平台）的情况。在这种情况下，重新启动服务器将需要重新初始化所有活动客户端（重新建立连接并恢复状态）。从用户体验的角度来看，这并不好，从服务器的角度来看也不好，而且大规模的重新连接（也称为连接雪崩）可能会导致严重的负载峰值。
+因此，重新启动服务器不是一种选择。因此我们更改日志记录设置的唯一方法是向应用程序添加一些自定义逻辑。所以，让我们开始写一些 Go。
+Slog 是大道，大道至简 让我们注意 slog 包的两个主要概念：
+slog.Logger 是日志记录入口点，是调用 Info() 、 Debug() 等函数的结构。 slog.Handler 是一个接口，负责处理日志条目（或记录）并执行对日志记录设备的写入、级别过滤、格式化等。 下面是一个使用的基本示例：
+1 2 3 4 5 6 7 8 9 10 11 12 13 package main import &amp;#34;log/slog&amp;#34; func main() { opts := &amp;amp;slog.HandlerOptions{ Level: slog.">
+    <link rel="shortcut icon" href="img/favicon.ico" />
+
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+	(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+	m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+	})(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+	ga('create', 'UA-192125643-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="Toggle Menu">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu0b04ba6d7249c9f90c92db974439eb8c_208246_300x0_resize_box_3.png" width="300"
+                            height="321" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🧐</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">ixugo</a></h1>
+            <h2 class="site-description">走出舒适区</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/ixugo'
+                        target="_blank"
+                        title="GitHub"
+                        rel="me"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>Home</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/about/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>About</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>Archives</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>Search</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>Dark Mode</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">Table of contents</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#更新全局日志级别-无论是否重启">更新全局日志级别 (无论是否重启)</a></li>
+    <li><a href="#slog-是大道大道至简">Slog 是大道，大道至简</a></li>
+    <li><a href="#多-handler-slogging">多 handler Slogging</a></li>
+    <li><a href="#提高性能的方法">提高性能的方法</a></li>
+    <li><a href="#ignorepc的故事">IgnorePC的故事</a></li>
+    <li><a href="#参考">参考</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+            <main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+    <header class="article-category">
+        
+            <a href="/categories/go/" >
+                Go
+            </a>
+        
+    </header>
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/%E5%AE%9E%E6%97%B6%E8%AF%8A%E6%96%AD%E6%97%A5%E5%BF%97%E8%AE%B0%E5%BD%95%E5%A6%82%E4%BD%95%E7%9B%91%E8%A7%86-go-web-%E5%BA%94%E7%94%A8/">实时诊断日志记录，如何监视 Go Web 应用</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    
+    
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Jul 04, 2024</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    5 minute read
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+
+</header>
+
+    <section class="article-content">
+    
+    
+    <p>日志记录对于任何野蛮生长的应用必不可少。通常，我们会回顾性的查阅日志以了解过去，但在某些情况下，实时访问有关特定用户操作的详细流程是识别问题的最佳(有时是唯一)方法。让我们看看如何使用 Go 及 Slog 包实现这种日志记录功能。</p>
+<p>当用户开始抱怨应用中的特定功能不起作用时，该怎么办？首先，你可能会评估症状并验证用户是否存在意料之外的行为。然后，你可以检查你的错误跟踪服务（这里没什么可看的）、正常运行时间和重要指标（一切正常）。最后，任何潜在有用信息的最后一个来源都隐藏在日志中的某个地方。但是，默认生产日志级别为“INFO”（对吗？），因此，尽管可能存在一些警告和错误，但这些日志不太可能包含有关问题的足够信息。下一步该怎么做？</p>
+<p>在这篇文章中，我想探讨不同的选项，包括如何临时启用详细（通常是选择性）日志记录以进行故障排除，以及如何使这些类型的日志能够随时随地实时轻松访问。这种日志记录有时称为诊断日志记录。</p>
+<p>在本文中，我们将探讨一些不同的策略，用于将诊断日志记录引入由 slog 包支持的 Go 应用程序，并涵盖该过程中的以下主题：</p>
+<ul>
+<li>更新全局日志级别 (无论是否重启)</li>
+<li>Slog 是大道，大道至简</li>
+<li>多 handler Slogging</li>
+<li>提高性能的方法</li>
+</ul>
+<h2 id="更新全局日志级别-无论是否重启">更新全局日志级别 (无论是否重启)</h2>
+<p>让我们从一些简单明了且适用于任何应用程序的东西开始，而不仅仅是那些用 Go 编写的应用程序。</p>
+<p>你可以暂时将应用程序日志级别更新为“DEBUG”并重新启动它。现在，你已经记录了大量日志，并且（我希望）有一个不错的日志收集和查看服务（即不是普通文件）来搜索相关事件。问题解决了，牛逼。</p>
+<p>对吗? 但是，如果您不能仅仅为了调试而重新启动应用程序怎么办? 这正是 AnyCable 或任何其他服务于数千个持久连接的应用程序（例如，在线活动平台）的情况。在这种情况下，重新启动服务器将需要重新初始化所有活动客户端（重新建立连接并恢复状态）。从用户体验的角度来看，这并不好，从服务器的角度来看也不好，而且大规模的重新连接（也称为连接雪崩）可能会导致严重的负载峰值。</p>
+<p>因此，重新启动服务器不是一种选择。因此我们更改日志记录设置的唯一方法是向应用程序添加一些自定义逻辑。所以，让我们开始写一些 Go。</p>
+<h2 id="slog-是大道大道至简">Slog 是大道，大道至简</h2>
+<p>让我们注意 slog 包的两个主要概念：</p>
+<ul>
+<li><code>slog.Logger</code> 是日志记录入口点，是调用 <code>Info()</code> 、 <code>Debug()</code> 等函数的结构。</li>
+<li><code>slog.Handler</code> 是一个接口，负责处理日志条目（或记录）并执行对日志记录设备的写入、级别过滤、格式化等。</li>
+</ul>
+<p>下面是一个使用的基本示例：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kn">package</span> <span class="nx">main</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kn">import</span> <span class="s">&#34;log/slog&#34;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">main</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">opts</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="nx">slog</span><span class="p">.</span><span class="nx">HandlerOptions</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">Level</span><span class="p">:</span> <span class="nx">slog</span><span class="p">.</span><span class="nx">LevelInfo</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">logger</span> <span class="o">:=</span> <span class="nx">slog</span><span class="p">.</span><span class="nf">New</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">slog</span><span class="p">.</span><span class="nf">NewTextHandler</span><span class="p">(</span><span class="nx">os</span><span class="p">.</span><span class="nx">Stdout</span><span class="p">,</span> <span class="nx">opts</span><span class="p">),</span>
+</span></span><span class="line"><span class="cl">	<span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// ...
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>请注意，日志记录级别是 handler 的特征，而不是 logger 实例的特征。没有 <code>logger.SetLogLevel(lvl)</code> 函数或任何类似的机制（如在许多日志记录库中）来更改日志级别。那么，我们如何动态地更改日志级别呢？</p>
+<p>有很多解决方法，但我更喜欢的一种如下：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kn">package</span> <span class="nx">main</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kn">import</span> <span class="s">&#34;log/slog&#34;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">var</span> <span class="nx">LOG_LEVEL</span> <span class="p">=</span> <span class="nb">new</span><span class="p">(</span><span class="nx">slog</span><span class="p">.</span><span class="nx">LevelVar</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">main</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">LOG_LEVEL</span><span class="p">.</span><span class="nf">Set</span><span class="p">(</span><span class="nx">slog</span><span class="p">.</span><span class="nx">LevelInfo</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="nx">opts</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="nx">slog</span><span class="p">.</span><span class="nx">HandlerOptions</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">Level</span><span class="p">:</span> <span class="nx">LOG_LEVEL</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">logger</span> <span class="o">:=</span> <span class="nx">slog</span><span class="p">.</span><span class="nf">New</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">slog</span><span class="p">.</span><span class="nf">NewTextHandler</span><span class="p">(</span><span class="nx">os</span><span class="p">.</span><span class="nx">Stdout</span><span class="p">,</span> <span class="nx">opts</span><span class="p">),</span>
+</span></span><span class="line"><span class="cl">	<span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// ...
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// SetLogLevel updates the application log level
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="nf">SetLogLevel</span><span class="p">(</span><span class="nx">lvl</span> <span class="nx">slog</span><span class="p">.</span><span class="nx">Level</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">LOG_LEVEL</span><span class="p">.</span><span class="nf">Set</span><span class="p">(</span><span class="nx">lvl</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>在这里，我们使用特殊 <code>slog.LevelVar</code> 变量作为当前日志记录级别的容器。现在，如果我们想在不中断应用程序的情况下更改日志记录级别，我们可以调用该 <code>SetLogLevel</code> 函数。为了演示，我们可以设置一个 <code>SIGQUIT</code> 信号处理程序来在“DEBUG”和“INFO”之间切换日志值（您可以在此 <a class="link" href="https://gist.github.com/palkan/c735f7bb85b9950189ff56da9d9cd520"  target="_blank" rel="noopener"
+    >this gist</a> 找到一个完整的工作示例）。</p>
+<p>如果我们能够轻松访问日志，并且能够满足不断大海捞针的需要，那么这种方法就足够好了，因为在全局范围内启用详细日志记录会产生大量日志。</p>
+<p>我们在开发故障排除日志功能时考虑了两个用例：</p>
+<ul>
+<li>为用户提供轻松的日志访问。</li>
+<li>通过后台管理 UI 访问日志。</li>
+</ul>
+<p>在这两种情况下，都无法对日志的收集方式做出任何假设。因此，我们需要一种独立于基础设施的方式来按需流式传输详细日志。因此，我们开始寻找同时将日志写入多个输出的方法。</p>
+<p>让我们看看如何使用 slog 实现多输出日志记录。</p>
+<h2 id="多-handler-slogging">多 handler Slogging</h2>
+<p>我们可以使用扇出模式构建一个多输出记录器。让我们看一个例子：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span><span class="lnt">51
+</span><span class="lnt">52
+</span><span class="lnt">53
+</span><span class="lnt">54
+</span><span class="lnt">55
+</span><span class="lnt">56
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kn">package</span> <span class="nx">main</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kn">import</span> <span class="s">&#34;log/slog&#34;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">MultiHandler</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">left</span> <span class="nx">slog</span><span class="p">.</span><span class="nx">Handler</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">right</span> <span class="nx">slog</span><span class="p">.</span><span class="nx">Handler</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">t</span> <span class="o">*</span><span class="nx">MultiHandler</span><span class="p">)</span> <span class="nf">Enabled</span><span class="p">(</span><span class="nx">ctx</span> <span class="nx">context</span><span class="p">.</span><span class="nx">Context</span><span class="p">,</span> <span class="nx">level</span> <span class="nx">slog</span><span class="p">.</span><span class="nx">Level</span><span class="p">)</span> <span class="kt">bool</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="nx">left</span><span class="p">.</span><span class="nf">Enabled</span><span class="p">()</span> <span class="o">||</span> <span class="nx">right</span><span class="p">.</span><span class="nf">Enabled</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">t</span> <span class="o">*</span><span class="nx">MultiHandler</span><span class="p">)</span> <span class="nf">Handle</span><span class="p">(</span><span class="nx">ctx</span> <span class="nx">context</span><span class="p">.</span><span class="nx">Context</span><span class="p">,</span> <span class="nx">r</span> <span class="nx">slog</span><span class="p">.</span><span class="nx">Record</span><span class="p">)</span> <span class="p">(</span><span class="nx">err</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="nx">t</span><span class="p">.</span><span class="nx">left</span><span class="p">.</span><span class="nf">Enabled</span><span class="p">(</span><span class="nx">ctx</span><span class="p">,</span> <span class="nx">r</span><span class="p">.</span><span class="nx">Level</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">err</span> <span class="p">=</span> <span class="nx">t</span><span class="p">.</span><span class="nx">left</span><span class="p">.</span><span class="nf">Handle</span><span class="p">(</span><span class="nx">ctx</span><span class="p">,</span> <span class="nx">r</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="nx">t</span><span class="p">.</span><span class="nx">right</span><span class="p">.</span><span class="nf">Enabled</span><span class="p">(</span><span class="nx">ctx</span><span class="p">,</span> <span class="nx">r</span><span class="p">.</span><span class="nx">Level</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">err</span> <span class="p">=</span> <span class="nx">t</span><span class="p">.</span><span class="nx">right</span><span class="p">.</span><span class="nf">Handle</span><span class="p">(</span><span class="nx">ctx</span><span class="p">,</span> <span class="nx">r</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">return</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">t</span> <span class="o">*</span><span class="nx">MultiHandler</span><span class="p">)</span> <span class="nf">WithAttrs</span><span class="p">(</span><span class="nx">attrs</span> <span class="p">[]</span><span class="nx">slog</span><span class="p">.</span><span class="nx">Attr</span><span class="p">)</span> <span class="nx">slog</span><span class="p">.</span><span class="nx">Handler</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="o">&amp;</span><span class="nx">MultiHandler</span><span class="p">{</span><span class="nx">t</span><span class="p">.</span><span class="nx">left</span><span class="p">.</span><span class="nf">WithAttrs</span><span class="p">(</span><span class="nx">attrs</span><span class="p">),</span> <span class="nx">t</span><span class="p">.</span><span class="nx">right</span><span class="p">.</span><span class="nf">WithAttrs</span><span class="p">(</span><span class="nx">attrs</span><span class="p">)}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">t</span> <span class="o">*</span><span class="nx">MultiHandler</span><span class="p">)</span> <span class="nf">WithGroup</span><span class="p">(</span><span class="nx">name</span> <span class="kt">string</span><span class="p">)</span> <span class="nx">slog</span><span class="p">.</span><span class="nx">Handler</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="o">&amp;</span><span class="nx">MultiHandler</span><span class="p">{</span><span class="nx">t</span><span class="p">.</span><span class="nx">left</span><span class="p">.</span><span class="nf">WithGroup</span><span class="p">(</span><span class="nx">name</span><span class="p">),</span> <span class="nx">t</span><span class="p">.</span><span class="nx">right</span><span class="p">.</span><span class="nf">WithGroup</span><span class="p">(</span><span class="nx">name</span><span class="p">)}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">main</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">jsonHandler</span> <span class="o">:=</span> <span class="nx">slog</span><span class="p">.</span><span class="nf">NewJSONHandler</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">os</span><span class="p">.</span><span class="nx">Stdout</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">		<span class="o">&amp;</span><span class="nx">slog</span><span class="p">.</span><span class="nx">HandlerOptions</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="nx">Level</span><span class="p">:</span> <span class="nx">slog</span><span class="p">.</span><span class="nx">LevelInfo</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">		<span class="p">},</span>
+</span></span><span class="line"><span class="cl">	<span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="nx">textErrorHandler</span> <span class="o">:=</span> <span class="nx">slog</span><span class="p">.</span><span class="nf">NewTextHandler</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">os</span><span class="p">.</span><span class="nx">Stderr</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">		<span class="o">&amp;</span><span class="nx">slog</span><span class="p">.</span><span class="nx">HandlerOptions</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="nx">Level</span><span class="p">:</span> <span class="nx">slog</span><span class="p">.</span><span class="nx">LevelError</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">		<span class="p">},</span>
+</span></span><span class="line"><span class="cl">	<span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="nx">logger</span> <span class="o">:=</span> <span class="nx">slog</span><span class="p">.</span><span class="nf">New</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">		<span class="o">&amp;</span><span class="nx">MultiHandler</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="nx">jsonHandler</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">			<span class="nx">textErrorHandler</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">		<span class="p">},</span>
+</span></span><span class="line"><span class="cl">	<span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// ...
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>我们的 MultiHandler 必须实现以下 <code>slog.Handler</code> 接口：该 <code>Enabled()</code> 函数是记录器用来决定处理程序是否要处理此条目的保护; 如果是，则生成 <code>slog.Record</code> 结构并将其传递给 <code>Handle()</code> 函数。</p>
+<p><code>WithAttrs()</code> and <code>WithGroup()</code> 函数用于创建附加了给定上下文的处理程序的副本。</p>
+<p>现在，我们只需要创建一个自定义处理程序，即 <em>spy handler</em> ，当且仅当至少有一个用户请求日志时，它将使用所有日志。由于诊断日志记录可以在生产和高峰时段使用，因此存在与性能相关的重要注意事项：</p>
+<ul>
+<li>将 <code>spy handler </code> 附加到记录器时，当它处于非活动状态时，不得产生明显的性能开销（即，它不应该向用户发送消息）</li>
+<li>一旦激活，  <code>spy handler </code>  不得导致性能下降。</li>
+<li><code>spy handler </code>  必须是非阻塞的（可以跳过一些消息来实现这一点）。</li>
+</ul>
+<p>让我们分享一下我们为获得令人满意的效果而采取的步骤！</p>
+<h2 id="提高性能的方法">提高性能的方法</h2>
+<p>非阻塞的要求，意味着在单独的 Go 协程中处理日志条目，并使用通道作为传输。我们还需要跟踪处理程序状态，无论是活动还是非活动。因此，我们提出了这个 <code>spy handler </code> 的初始实现：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">SpyHandler</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">active</span> <span class="kt">bool</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">ch</span>     <span class="kd">chan</span> <span class="o">*</span><span class="nx">slog</span><span class="p">.</span><span class="nx">Record</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">NewSpyHandler</span><span class="p">(</span><span class="nx">callback</span> <span class="kd">func</span><span class="p">(</span><span class="o">*</span><span class="nx">slog</span><span class="p">.</span><span class="nx">Record</span><span class="p">))</span> <span class="o">*</span><span class="nx">SpyHandler</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">h</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="nx">SpyHandler</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">ch</span><span class="p">:</span> <span class="nb">make</span><span class="p">(</span><span class="kd">chan</span> <span class="o">*</span><span class="nx">slog</span><span class="p">.</span><span class="nx">Record</span><span class="p">,</span> <span class="mi">2048</span><span class="p">),</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">go</span> <span class="kd">func</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">for</span> <span class="nx">r</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">h</span><span class="p">.</span><span class="nx">ch</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="nf">callback</span><span class="p">(</span><span class="nx">r</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="nx">h</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">h</span> <span class="o">*</span><span class="nx">SpyHandler</span><span class="p">)</span> <span class="nf">Enabled</span><span class="p">(</span><span class="nx">ctx</span> <span class="nx">context</span><span class="p">.</span><span class="nx">Context</span><span class="p">,</span> <span class="nx">level</span> <span class="nx">slog</span><span class="p">.</span><span class="nx">Level</span><span class="p">)</span> <span class="kt">bool</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="kc">true</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">h</span> <span class="o">*</span><span class="nx">SpyHandler</span><span class="p">)</span> <span class="nf">Handle</span><span class="p">(</span><span class="nx">ctx</span> <span class="nx">context</span><span class="p">.</span><span class="nx">Context</span><span class="p">,</span> <span class="nx">r</span> <span class="nx">slog</span><span class="p">.</span><span class="nx">Record</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="nx">h</span><span class="p">.</span><span class="nx">active</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">h</span><span class="p">.</span><span class="nf">enqueueRecord</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">r</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">h</span> <span class="o">*</span><span class="nx">SpyHandler</span><span class="p">)</span> <span class="nf">enqueueRecord</span><span class="p">(</span><span class="nx">r</span> <span class="o">*</span><span class="nx">slog</span><span class="p">.</span><span class="nx">Record</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">select</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">case</span> <span class="nx">h</span><span class="p">.</span><span class="nx">ch</span> <span class="o">&lt;-</span> <span class="nx">r</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">	<span class="k">default</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>上面代码段中的重要部分如下：</p>
+<p>该 <code>select { ... default:}</code> 模式的使用避免了可能阻塞通道写入操作（如果通道的缓冲区已满，则默认子句只会删除记录）。</p>
+<ul>
+<li><code>Enabled()</code> 函数中 <code>return true</code> ，我们的处理程序应该消费所有日志，对吧？</li>
+</ul>
+<p>在我们继续完善此实现之前，我们最好运行一些性能测试并检查这种方法是否可行。幸运的是，在 Go 中编写性能测试（或基准测试）是一件轻而易举的事：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">BenchmarkSpy</span><span class="p">(</span><span class="nx">b</span> <span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">B</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">handler</span> <span class="o">:=</span> <span class="nx">slog</span><span class="p">.</span><span class="nf">NewTextHandler</span><span class="p">(</span><span class="nx">os</span><span class="p">.</span><span class="nx">Stderr</span><span class="p">,</span> <span class="o">&amp;</span><span class="nx">slog</span><span class="p">.</span><span class="nx">HandlerOptions</span><span class="p">{</span><span class="nx">Level</span><span class="p">:</span> <span class="nx">slog</span><span class="p">.</span><span class="nx">LevelError</span><span class="p">})</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">callback</span><span class="p">:</span> <span class="p">=</span> <span class="kd">func</span><span class="p">(</span><span class="nx">r</span> <span class="o">*</span><span class="nx">slog</span><span class="p">.</span><span class="nx">Record</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="c1">// Immitate some work to ensure that the spy is not blocking the logger
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="nx">time</span><span class="p">.</span><span class="nf">Sleep</span><span class="p">(</span><span class="mi">10</span> <span class="o">*</span> <span class="nx">time</span><span class="p">.</span><span class="nx">Millisecond</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">spy</span> <span class="o">:=</span> <span class="nf">NewSpyHandler</span><span class="p">(</span><span class="nx">callback</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="nx">configs</span> <span class="o">:=</span> <span class="p">[]</span><span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">spy</span>      <span class="o">*</span><span class="nx">SpyHandler</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">active</span>   <span class="kt">bool</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}{</span>
+</span></span><span class="line"><span class="cl">		<span class="p">{</span><span class="nx">spy</span><span class="p">,</span> <span class="kc">true</span><span class="p">},</span>
+</span></span><span class="line"><span class="cl">		<span class="p">{</span><span class="nx">spy</span><span class="p">,</span> <span class="kc">false</span><span class="p">},</span>
+</span></span><span class="line"><span class="cl">		<span class="p">{</span><span class="kc">nil</span><span class="p">,</span> <span class="kc">false</span><span class="p">},</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">config</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">configs</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">desc</span> <span class="o">:=</span> <span class="s">&#34;no spy&#34;</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="nx">config</span><span class="p">.</span><span class="nx">spy</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="nx">desc</span> <span class="p">=</span> <span class="s">&#34;active spy&#34;</span>
+</span></span><span class="line"><span class="cl">			<span class="k">if</span> <span class="p">!</span><span class="nx">config</span><span class="p">.</span><span class="nx">active</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">				<span class="nx">desc</span> <span class="p">=</span> <span class="s">&#34;inactive spy&#34;</span>
+</span></span><span class="line"><span class="cl">			<span class="p">}</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">b</span><span class="p">.</span><span class="nf">Run</span><span class="p">(</span><span class="nx">desc</span><span class="p">,</span> <span class="kd">func</span><span class="p">(</span><span class="nx">b</span> <span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">B</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="kd">var</span> <span class="nx">logger</span> <span class="nx">slog</span><span class="p">.</span><span class="nx">Logger</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">			<span class="k">if</span> <span class="nx">config</span><span class="p">.</span><span class="nx">spy</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">				<span class="nx">config</span><span class="p">.</span><span class="nx">spy</span><span class="p">.</span><span class="nx">active</span> <span class="p">=</span> <span class="nx">config</span><span class="p">.</span><span class="nx">active</span>
+</span></span><span class="line"><span class="cl">				<span class="nx">logger</span> <span class="p">=</span> <span class="nx">slog</span><span class="p">.</span><span class="nf">New</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">MultiHandler</span><span class="p">{</span><span class="nx">handler</span><span class="p">,</span> <span class="nx">config</span><span class="p">.</span><span class="nx">spy</span><span class="p">})</span>
+</span></span><span class="line"><span class="cl">			<span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">				<span class="nx">logger</span> <span class="o">:=</span> <span class="nx">slog</span><span class="p">.</span><span class="nf">New</span><span class="p">(</span><span class="nx">handler</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">			<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">			<span class="nx">b</span><span class="p">.</span><span class="nf">ResetTimer</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">			<span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="mi">0</span><span class="p">;</span> <span class="nx">i</span> <span class="p">&lt;</span> <span class="nx">b</span><span class="p">.</span><span class="nx">N</span><span class="p">;</span> <span class="nx">i</span><span class="o">++</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">				<span class="nx">logger</span><span class="p">.</span><span class="nf">Debug</span><span class="p">(</span><span class="s">&#34;test&#34;</span><span class="p">,</span> <span class="s">&#34;key&#34;</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="s">&#34;key2&#34;</span><span class="p">,</span> <span class="s">&#34;value2&#34;</span><span class="p">,</span> <span class="s">&#34;key3&#34;</span><span class="p">,</span> <span class="mf">3.14</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">			<span class="p">}</span>
+</span></span><span class="line"><span class="cl">		<span class="p">})</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>我们得到的结果如下：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="nx">BenchmarkSpy</span>
+</span></span><span class="line"><span class="cl"><span class="nx">BenchmarkSpy</span><span class="o">/</span><span class="nx">active_spy</span>            <span class="mf">401.4</span> <span class="nx">ns</span><span class="o">/</span><span class="nx">op</span>
+</span></span><span class="line"><span class="cl"><span class="nx">BenchmarkSpy</span><span class="o">/</span><span class="nx">inactive_spy</span>          <span class="mf">266.0</span> <span class="nx">ns</span><span class="o">/</span><span class="nx">op</span>
+</span></span><span class="line"><span class="cl"><span class="nx">BenchmarkSpy</span><span class="o">/</span><span class="nx">no_spy</span>                <span class="mf">8.142</span> <span class="nx">ns</span><span class="o">/</span><span class="nx">op</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>哇！监视调试日志比没有监视慢 40 倍。但这并不奇怪：如果我们将基本处理程序的日志级别设置为“DEBUG”，我们将在“无监视”场景中看到类似（甚至更高）的数字。换句话说，在我们的例子中，附加一个活跃的监视大致等于全局启用详细日志。更有趣的是，即使监视处于非活动状态，我们仍然可以观察到明显的开销：数百纳秒 vs 约十几纳秒。</p>
+<p>虽然当有人读取诊断日志时，有一些开销是可以的，但总是有开销是不可接受的。</p>
+<p>我决定仔细研究一下 slog 是如何工作的，以便弄清楚这种开销可能来自哪里。下面是由 <code>Info()</code> 、 <code>Debug()</code> 等函数调用的 <code>slog.Logger.log()</code> 函数：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">l</span> <span class="o">*</span><span class="nx">Logger</span><span class="p">)</span> <span class="nf">log</span><span class="p">(</span><span class="nx">ctx</span> <span class="nx">context</span><span class="p">.</span><span class="nx">Context</span><span class="p">,</span> <span class="nx">level</span> <span class="nx">Level</span><span class="p">,</span> <span class="nx">msg</span> <span class="kt">string</span><span class="p">,</span> <span class="nx">args</span> <span class="o">...</span><span class="nx">any</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">!</span><span class="nx">l</span><span class="p">.</span><span class="nf">Enabled</span><span class="p">(</span><span class="nx">ctx</span><span class="p">,</span> <span class="nx">level</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="kd">var</span> <span class="nx">pc</span> <span class="kt">uintptr</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">!</span><span class="nx">internal</span><span class="p">.</span><span class="nx">IgnorePC</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="kd">var</span> <span class="nx">pcs</span> <span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="kt">uintptr</span>
+</span></span><span class="line"><span class="cl">		<span class="c1">// skip [runtime.Callers, this function, this function&#39;s caller]
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="nx">runtime</span><span class="p">.</span><span class="nf">Callers</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="nx">pcs</span><span class="p">[:])</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">pc</span> <span class="p">=</span> <span class="nx">pcs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">r</span> <span class="o">:=</span> <span class="nf">NewRecord</span><span class="p">(</span><span class="nx">time</span><span class="p">.</span><span class="nf">Now</span><span class="p">(),</span> <span class="nx">level</span><span class="p">,</span> <span class="nx">msg</span><span class="p">,</span> <span class="nx">pc</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">r</span><span class="p">.</span><span class="nf">Add</span><span class="p">(</span><span class="nx">args</span><span class="o">...</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="nx">ctx</span> <span class="o">==</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">ctx</span> <span class="p">=</span> <span class="nx">context</span><span class="p">.</span><span class="nf">Background</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">_</span> <span class="p">=</span> <span class="nx">l</span><span class="p">.</span><span class="nf">Handler</span><span class="p">().</span><span class="nf">Handle</span><span class="p">(</span><span class="nx">ctx</span><span class="p">,</span> <span class="nx">r</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>你可以看到，它做的第一件事是调用 <code>Enabled()</code> 函数，它依赖于与处理程序相同的函数。然后，如果处理程序响应“是，我已启用”，我们将分多个阶段生成日志条目记录。看完这段代码后，我意识到了什么？我知道有两个函数（特别是 <code>Enabled()</code> 和 <code>Handle()</code> ）的存在是有原因的：构建日志记录不是一个免费操作;从性能的角度来看，首先构建记录，然后才检查日志级别（如果我们只有函数 <code>Handle()</code> ）将不是最佳的。</p>
+<p>您可能已经意识到我们需要应用的快速修复程序，以避免在非活动状态期间进行间谍开销：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"> <span class="kd">func</span> <span class="p">(</span><span class="nx">h</span> <span class="o">*</span><span class="nx">SpyHandler</span><span class="p">)</span> <span class="nf">Enabled</span><span class="p">(</span><span class="nx">ctx</span> <span class="nx">context</span><span class="p">.</span><span class="nx">Context</span><span class="p">,</span> <span class="nx">level</span> <span class="nx">slog</span><span class="p">.</span><span class="nx">Level</span><span class="p">)</span> <span class="kt">bool</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl"><span class="o">-</span>  <span class="k">return</span> <span class="kc">true</span>
+</span></span><span class="line"><span class="cl"><span class="o">+</span>  <span class="k">return</span> <span class="nx">h</span><span class="p">.</span><span class="nx">active</span>
+</span></span><span class="line"><span class="cl"> <span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>而这个变化之后的基准测试结果要好得多：</p>
+<p>我们可以看到，开销现在在误差范围内。</p>
+<p>当我们将这个概念验证转变为更强大的解决方案时，让我跳过这一部分（通过用原子替换布尔活动字段以实现安全的并发，并在输出中引入缓冲区）。相反，我想谈谈我们在查看 slog 源代码时发现的另一个优化。</p>
+<p>嘿，您可以在 GitHub 上找到完整版的 SpyHandler：<a class="link" href="https://github.com/palkan/slog-spy"  target="_blank" rel="noopener"
+    >palkan/slog-spy</a>. 。它是从 AnyCable+ 中提取的，并且是开源的，尽情享受吧！</p>
+<h2 id="ignorepc的故事">IgnorePC的故事</h2>
+<p>你有没有注意到这个内部配置参数， <code>internal.IgnorePC</code> ？它负责将调用方指针附加到日志记录，因此我们可以将该 <code>AddSource: true</code> 选项与内置处理程序一起使用。</p>
+<p>在开发中向日志添加源代码行是一个不错的功能，但在生产中不需要。因此，我决定看看禁用此功能是否会带来任何性能提升。为此，我调整了 slog 源代码，将 <code>IgnorePC</code> var 设置为 true，然后再次运行基准测试：</p>
+<p>The effect of removing the caller information from the log record turned out to be quite good. I wondered why there wasn’t an option to disable this feature (or why we don’t automatically disable it when the <code>AddSource</code> option is set to false). There was an opportunity for a pull request and a contribution here but… this fairy tale had no happy ending: this situation is already known to the Go team (and actually, there’s a <a class="link" href="https://github.com/golang/go/blob/44f18706661db8b865719d15a5cfa0515d1a4fca/src/log/slog/internal/benchmarks/benchmarks_test.go#L18"  target="_blank" rel="noopener"
+    >benchmark in the slog package</a>) and <a class="link" href="https://github.com/rs/zerolog/issues/571#issuecomment-1697479194"  target="_blank" rel="noopener"
+    >they decided not to overoptimize</a>. Maybe, that will change in the future. We’ll see.</p>
+<p>现在，您可以使用一些编译器级别的 hacky 来更改项目中的值 <code>IgnorePC</code> ，如下所示：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">//go:linkname IgnorePC log/slog/internal.IgnorePC
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">var</span> <span class="nx">IgnorePC</span> <span class="p">=</span> <span class="kc">true</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>如果你想让日志记录更快，请将这个咒语放在代码中的某个位置。（不过，对于大多数应用程序来说，slog 肯定已经足够快了——投入其中的工作和想法非常出色。</p>
+<h2 id="参考">参考</h2>
+<p>本文翻译于 <a class="link" href="https://evilmartians.com/chronicles/realtime-diagnostic-logging-or-how-to-really-spy-on-your-go-web-apps"  target="_blank" rel="noopener"
+    >Realtime diagnostic logging, or how to really spy on your Go web apps</a></p>
+
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/">读书笔记</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">Related content</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/go-%E4%B8%AD%E7%9A%84-7-%E4%B8%AA%E5%B8%B8%E8%A7%81%E6%8E%A5%E5%8F%A3%E9%94%99%E8%AF%AF/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Go 中的 7 个常见接口错误</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/golang-context-%E5%AE%8C%E6%95%B4%E6%8C%87%E5%8D%97/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Golang Context 完整指南</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/%E9%80%82%E9%85%8D%E5%99%A8%E6%A8%A1%E5%BC%8F/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">适配器模式</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/exec-%E6%89%A7%E8%A1%8C%E6%88%90%E5%8A%9F%E4%BD%86%E5%A4%B1%E8%B4%A5/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Exec 执行成功但失败!</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script src="https://utteranc.es/client.js" 
+        repo="ixugo/ixugo.github.io"
+        issue-term="pathname"
+        
+        crossorigin="anonymous"
+        async
+        >
+</script>
+
+<style>
+    .utterances {
+        max-width: unset;
+    }
+</style>
+
+<script>
+    function setUtterancesTheme(theme) {
+        let utterances = document.querySelector('.utterances iframe');
+        if (utterances) {
+            utterances.contentWindow.postMessage(
+                {
+                    type: 'set-theme',
+                    theme: `github-${theme}`
+                },
+                'https://utteranc.es'
+            );
+        }
+    }
+
+    addEventListener('message', event => {
+        if (event.origin !== 'https://utteranc.es') return;
+        setUtterancesTheme(document.documentElement.dataset.scheme)
+    });
+
+    window.addEventListener('onColorSchemeChange', (e) => {
+        setUtterancesTheme(e.detail)
+    })
+</script>
+
+
+    
+
+    <footer class="site-footer">
+  <section class="copyright">
+    &copy;
+    
+    2018 -
+    
+    2024 ixugo
+  </section>
+  <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+  <section class="powerby">
+
+    
+    <span id="busuanzi_container_page_pv">本文阅读量
+      <span style="font-size: 14px" id="busuanzi_value_page_pv"></span>
+      次，</span>
+    <span id="busuanzi_container_site_pv">总访问量
+      <span style="font-size: 14px" id="busuanzi_value_site_pv"></span>
+      次 </span>，总访客数
+    <span style="font-size: 14px" id="busuanzi_value_site_uv"></span> 人
+    <br />
+
+
+    Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> .&nbsp;&nbsp;
+    Theme <a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener"
+      data-version="3.16.0">Stack</a> designed by <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a>
+  </section>
+
+
+
+
+  <script>
+    function count() {
+      let href = window.location.href;
+      let regexp = /^https?:\/\/blog.golang.space\/?(page\/[\d]+\/?)?$/;
+      if (regexp.test(href)) {
+        let e = document.getElementById("busuanzi_container_page_pv");
+        e.innerText = "";
+      }
+    }
+    window.onload = count;
+  </script>
+</footer>
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

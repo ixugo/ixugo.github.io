@@ -1,0 +1,1132 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='SOLID 原则是一组设计指南，可帮助开发人员编写更可维护、可扩展和可测试的代码。
+构建软件是一个不断变化的挑战。为了应对这种复杂性，开发人员依靠经过验证的设计原则来编写健壮、适应性强且易于管理的代码。其中一组原则是 SOLID（由 Robert C. Martin 首先提出）。
+SOLID 代表：单一职责、开闭式、里氏替换、接口隔离和依赖倒置。每条原则在提高程序的可维护性、可扩展性和可测试性方面都发挥着至关重要的作用。
+尽管Golang不是纯粹的面向对象语言，但我们仍然可以应用SOLID原则来改进我们的Go代码。在这篇文章中，我们将深入研究每个原则，探索其含义，并发现如何在 Go 中有效地利用它。
+S - 单一责任原则 单一职责原则 (Single Responsibility Principle) 规定结构/包应专注于单个明确定义的功能区域。将每个结构想象成具有特定专业知识的专家。这可以使您的代码保持井井有条并降低复杂性。对结构功能的更改是隔离的，使维护和未来的更新变得轻而易举。
+A class should have one, and only one, reason to change.
+Robert C. Martin
+Go 擅长结构体，而不是类。但不用担心，SRP 建议在这里仍然适用。将每个结构想象为一个紧密结合的模块，负责一个明确定义的任务。这种模块化方法可以保持代码整洁、降低复杂性并提高可维护性。
+SRP 的魔力也延伸到了 Go 包中。理想情况下，包应该专注于单一功能领域。这可以最大限度地减少依赖性并使事情井井有条。通过在结构和包中采用 SRP，您可以为干净、可维护和可扩展的 Go 应用程序奠定基础。
+一些好的包的例子：
+coding/json - 提供 JSON 的编码/解码。 net/url - 解析 URL。 不太好的例子：
+utils - 杂项垃圾场？ 让我们看一个 Go 中的示例，其中有一个 struct Survey，其中包含一些属性和几个方法：GetTitle()、Validate() 和 Save()：
+1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 package survey type Survey struct { Title string Questions []string } func (s *Survey) GetTitle() string { return s.'>
+<title>通过 Go 示例掌握 SOLID 原则</title>
+
+<link rel='canonical' href='https://blog.golang.space/p/%E9%80%9A%E8%BF%87-go-%E7%A4%BA%E4%BE%8B%E6%8E%8C%E6%8F%A1-solid-%E5%8E%9F%E5%88%99/'>
+
+<link rel="stylesheet" href="/scss/style.min.8191399262444ab68b72a18c97392f5349be20a1615d77445be51e974c144cff.css"><meta property='og:title' content='通过 Go 示例掌握 SOLID 原则'>
+<meta property='og:description' content='SOLID 原则是一组设计指南，可帮助开发人员编写更可维护、可扩展和可测试的代码。
+构建软件是一个不断变化的挑战。为了应对这种复杂性，开发人员依靠经过验证的设计原则来编写健壮、适应性强且易于管理的代码。其中一组原则是 SOLID（由 Robert C. Martin 首先提出）。
+SOLID 代表：单一职责、开闭式、里氏替换、接口隔离和依赖倒置。每条原则在提高程序的可维护性、可扩展性和可测试性方面都发挥着至关重要的作用。
+尽管Golang不是纯粹的面向对象语言，但我们仍然可以应用SOLID原则来改进我们的Go代码。在这篇文章中，我们将深入研究每个原则，探索其含义，并发现如何在 Go 中有效地利用它。
+S - 单一责任原则 单一职责原则 (Single Responsibility Principle) 规定结构/包应专注于单个明确定义的功能区域。将每个结构想象成具有特定专业知识的专家。这可以使您的代码保持井井有条并降低复杂性。对结构功能的更改是隔离的，使维护和未来的更新变得轻而易举。
+A class should have one, and only one, reason to change.
+Robert C. Martin
+Go 擅长结构体，而不是类。但不用担心，SRP 建议在这里仍然适用。将每个结构想象为一个紧密结合的模块，负责一个明确定义的任务。这种模块化方法可以保持代码整洁、降低复杂性并提高可维护性。
+SRP 的魔力也延伸到了 Go 包中。理想情况下，包应该专注于单一功能领域。这可以最大限度地减少依赖性并使事情井井有条。通过在结构和包中采用 SRP，您可以为干净、可维护和可扩展的 Go 应用程序奠定基础。
+一些好的包的例子：
+coding/json - 提供 JSON 的编码/解码。 net/url - 解析 URL。 不太好的例子：
+utils - 杂项垃圾场？ 让我们看一个 Go 中的示例，其中有一个 struct Survey，其中包含一些属性和几个方法：GetTitle()、Validate() 和 Save()：
+1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 package survey type Survey struct { Title string Questions []string } func (s *Survey) GetTitle() string { return s.'>
+<meta property='og:url' content='https://blog.golang.space/p/%E9%80%9A%E8%BF%87-go-%E7%A4%BA%E4%BE%8B%E6%8E%8C%E6%8F%A1-solid-%E5%8E%9F%E5%88%99/'>
+<meta property='og:site_name' content='ixugo'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='读书笔记' /><meta property='article:tag' content='Golang' /><meta property='article:published_time' content='2024-07-10T00:00:00&#43;00:00'/><meta property='article:modified_time' content='2024-07-10T00:00:00&#43;00:00'/>
+<meta name="twitter:title" content="通过 Go 示例掌握 SOLID 原则">
+<meta name="twitter:description" content="SOLID 原则是一组设计指南，可帮助开发人员编写更可维护、可扩展和可测试的代码。
+构建软件是一个不断变化的挑战。为了应对这种复杂性，开发人员依靠经过验证的设计原则来编写健壮、适应性强且易于管理的代码。其中一组原则是 SOLID（由 Robert C. Martin 首先提出）。
+SOLID 代表：单一职责、开闭式、里氏替换、接口隔离和依赖倒置。每条原则在提高程序的可维护性、可扩展性和可测试性方面都发挥着至关重要的作用。
+尽管Golang不是纯粹的面向对象语言，但我们仍然可以应用SOLID原则来改进我们的Go代码。在这篇文章中，我们将深入研究每个原则，探索其含义，并发现如何在 Go 中有效地利用它。
+S - 单一责任原则 单一职责原则 (Single Responsibility Principle) 规定结构/包应专注于单个明确定义的功能区域。将每个结构想象成具有特定专业知识的专家。这可以使您的代码保持井井有条并降低复杂性。对结构功能的更改是隔离的，使维护和未来的更新变得轻而易举。
+A class should have one, and only one, reason to change.
+Robert C. Martin
+Go 擅长结构体，而不是类。但不用担心，SRP 建议在这里仍然适用。将每个结构想象为一个紧密结合的模块，负责一个明确定义的任务。这种模块化方法可以保持代码整洁、降低复杂性并提高可维护性。
+SRP 的魔力也延伸到了 Go 包中。理想情况下，包应该专注于单一功能领域。这可以最大限度地减少依赖性并使事情井井有条。通过在结构和包中采用 SRP，您可以为干净、可维护和可扩展的 Go 应用程序奠定基础。
+一些好的包的例子：
+coding/json - 提供 JSON 的编码/解码。 net/url - 解析 URL。 不太好的例子：
+utils - 杂项垃圾场？ 让我们看一个 Go 中的示例，其中有一个 struct Survey，其中包含一些属性和几个方法：GetTitle()、Validate() 和 Save()：
+1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 package survey type Survey struct { Title string Questions []string } func (s *Survey) GetTitle() string { return s.">
+    <link rel="shortcut icon" href="img/favicon.ico" />
+
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+	(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+	m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+	})(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+	ga('create', 'UA-192125643-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="Toggle Menu">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu0b04ba6d7249c9f90c92db974439eb8c_208246_300x0_resize_box_3.png" width="300"
+                            height="321" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🧐</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">ixugo</a></h1>
+            <h2 class="site-description">走出舒适区</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/ixugo'
+                        target="_blank"
+                        title="GitHub"
+                        rel="me"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>Home</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/about/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>About</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>Archives</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>Search</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>Dark Mode</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">Table of contents</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#s---单一责任原则">S - 单一责任原则</a></li>
+    <li><a href="#o开闭原则">O——开闭原则</a></li>
+    <li><a href="#l---里氏替换原理">L - 里氏替换原理</a></li>
+    <li><a href="#i接口隔离原则">I——接口隔离原则</a></li>
+    <li><a href="#d---依赖倒置原则">D - 依赖倒置原则</a></li>
+    <li><a href="#结论">结论</a></li>
+    <li><a href="#参考">参考</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+            <main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+    <header class="article-category">
+        
+            <a href="/categories/golang/" >
+                Golang
+            </a>
+        
+    </header>
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/%E9%80%9A%E8%BF%87-go-%E7%A4%BA%E4%BE%8B%E6%8E%8C%E6%8F%A1-solid-%E5%8E%9F%E5%88%99/">通过 Go 示例掌握 SOLID 原则</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    
+    
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Jul 10, 2024</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    4 minute read
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+
+</header>
+
+    <section class="article-content">
+    
+    
+    <p>SOLID 原则是一组设计指南，可帮助开发人员编写更可维护、可扩展和可测试的代码。</p>
+<p>构建软件是一个不断变化的挑战。为了应对这种复杂性，开发人员依靠经过验证的设计原则来编写健壮、适应性强且易于管理的代码。其中一组原则是 SOLID（由 Robert C. Martin 首先提出）。</p>
+<p>SOLID 代表：单一职责、开闭式、里氏替换、接口隔离和依赖倒置。每条原则在提高程序的可维护性、可扩展性和可测试性方面都发挥着至关重要的作用。</p>
+<p><img src="http://img.golang.space/img-1721291513669.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20240718163153573"
+	
+	
+></p>
+<p>尽管Golang不是纯粹的面向对象语言，但我们仍然可以应用SOLID原则来改进我们的Go代码。在这篇文章中，我们将深入研究每个原则，探索其含义，并发现如何在 Go 中有效地利用它。</p>
+<h2 id="s---单一责任原则">S - 单一责任原则</h2>
+<p>单一职责原则 (Single Responsibility Principle) 规定结构/包应专注于单个明确定义的功能区域。将每个结构想象成具有特定专业知识的专家。这可以使您的代码保持井井有条并降低复杂性。对结构功能的更改是隔离的，使维护和未来的更新变得轻而易举。</p>
+<blockquote>
+<p><em>A class should have one, and only one, reason to change.</em></p>
+<p><em>Robert C. Martin</em></p>
+</blockquote>
+<p>Go 擅长结构体，而不是类。但不用担心，SRP 建议在这里仍然适用。将每个结构想象为一个紧密结合的模块，负责一个明确定义的任务。这种模块化方法可以保持代码整洁、降低复杂性并提高可维护性。</p>
+<p>SRP 的魔力也延伸到了 Go 包中。理想情况下，包应该专注于单一功能领域。这可以最大限度地减少依赖性并使事情井井有条。通过在结构和包中采用 SRP，您可以为干净、可维护和可扩展的 Go 应用程序奠定基础。</p>
+<p>一些好的包的例子：</p>
+<ul>
+<li>coding/json - 提供 JSON 的编码/解码。</li>
+<li>net/url - 解析 URL。</li>
+</ul>
+<p>不太好的例子：</p>
+<ul>
+<li>utils - 杂项垃圾场？</li>
+</ul>
+<p>让我们看一个 Go 中的示例，其中有一个 struct Survey，其中包含一些属性和几个方法：GetTitle()、Validate() 和 Save()：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kn">package</span> <span class="nx">survey</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">Survey</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">Title</span> <span class="kt">string</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">Questions</span> <span class="p">[]</span><span class="kt">string</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">s</span> <span class="o">*</span><span class="nx">Survey</span><span class="p">)</span> <span class="nf">GetTitle</span><span class="p">()</span> <span class="kt">string</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="nx">s</span><span class="p">.</span><span class="nx">Title</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">s</span> <span class="o">*</span><span class="nx">Survey</span><span class="p">)</span> <span class="nf">Validate</span><span class="p">()</span> <span class="kt">bool</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="nx">s</span><span class="p">.</span><span class="nx">Questions</span><span class="p">)</span> <span class="p">&gt;</span> <span class="mi">0</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">s</span> <span class="o">*</span><span class="nx">Survey</span><span class="p">)</span> <span class="nf">Save</span><span class="p">()</span> <span class="kt">error</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// saves the survey to the database
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="k">return</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>我们当前的 Survey 结构似乎设计得很好，除了 Save() 方法之外。它的存在违反了 SRP。由于数据存储和调查逻辑位于同一结构中，维护、测试和扩展变得更具挑战性。</p>
+<p>为了遵守 SRP，我们应该区分这些问题：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kn">package</span> <span class="nx">survey</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">Survey</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">Title</span>     <span class="kt">string</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">Questions</span> <span class="p">[]</span><span class="kt">string</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">s</span> <span class="o">*</span><span class="nx">Survey</span><span class="p">)</span> <span class="nf">GetTitle</span><span class="p">()</span> <span class="kt">string</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="nx">s</span><span class="p">.</span><span class="nx">Title</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">s</span> <span class="o">*</span><span class="nx">Survey</span><span class="p">)</span> <span class="nf">Validate</span><span class="p">()</span> <span class="kt">bool</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="nx">s</span><span class="p">.</span><span class="nx">Questions</span><span class="p">)</span> <span class="p">&gt;</span> <span class="mi">0</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">Repository</span> <span class="kd">interface</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nf">Save</span><span class="p">(</span><span class="nx">survey</span> <span class="o">*</span><span class="nx">Survey</span><span class="p">)</span> <span class="kt">error</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// One of many possible implementations
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">type</span> <span class="nx">InMemoryRepository</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">surveys</span> <span class="p">[]</span><span class="o">*</span><span class="nx">Survey</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">r</span> <span class="o">*</span><span class="nx">InMemoryRepository</span><span class="p">)</span> <span class="nf">Save</span><span class="p">(</span><span class="nx">survey</span> <span class="o">*</span><span class="nx">Survey</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">r</span><span class="p">.</span><span class="nx">surveys</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">r</span><span class="p">.</span><span class="nx">surveys</span><span class="p">,</span> <span class="nx">survey</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">SaveSurvey</span><span class="p">(</span><span class="nx">survey</span> <span class="o">*</span><span class="nx">Survey</span><span class="p">,</span> <span class="nx">repo</span> <span class="nx">Repository</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="nx">repo</span><span class="p">.</span><span class="nf">Save</span><span class="p">(</span><span class="nx">survey</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>现在，Survey 结构只负责管理调查数据，而 Repository 接口和 InMemoryRepository 结构则处理数据库操作。</p>
+<h2 id="o开闭原则">O——开闭原则</h2>
+<p>开闭原则 (Open-Closed Principle) 是良好软件设计的基石。它规定软件实体（类、模块、功能等）的设计应考虑到未来的增长。这意味着它们应该开放扩展，允许添加新特性和功能，同时保持关闭修改。修改现有代码来适应新的需求是有风险的，因为它可能会引入错误并使未来的维护成为一场噩梦。</p>
+<blockquote>
+<p><em>A module should be open for extension but closed for modification.</em></p>
+<p><em>Robert C. Martin</em></p>
+</blockquote>
+<p>回到我们的调查示例。让我们向结构体添加一个新方法 - Export()，它可以将调查数据导出到某些外部服务/存储中。由于可能有多个导出目标，因此 Export() 方法有一个 switch 块。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kn">package</span> <span class="nx">survey</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// ...
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">ExportSurvey</span><span class="p">(</span><span class="nx">s</span> <span class="o">*</span><span class="nx">Survey</span><span class="p">,</span> <span class="nx">dst</span> <span class="kt">string</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">switch</span> <span class="nx">dst</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">case</span> <span class="s">&#34;s3&#34;</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">		<span class="c1">// export to s3
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="k">return</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl">	<span class="k">case</span> <span class="s">&#34;gcs&#34;</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">		<span class="c1">// export to gcs
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="k">return</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl">	<span class="k">default</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>如果我们需要添加对其他服务的支持，则当前的实现需要修改，这违反了 OCP。</p>
+<p>为了遵守 OCP，我们可以定义一个 Exporter 接口，这样我们就可以为不同的目标添加新的导出器，而无需修改现有的代码库。</p>
+<p>这遵循 OCP，提高了代码的灵活性和可维护性。我们的代码对扩展开放（我们可以添加新的导出器），但对修改关闭（我们不需要更改 Export() 函数）。</p>
+<h2 id="l---里氏替换原理">L - 里氏替换原理</h2>
+<p>里氏替换原则 (Liskov Substitution Principle) 确保可以在不破坏程序的情况下交换对象。虽然 Go 缺乏传统的继承，但接口实现了这一点。任何类型都可以通过具有与其签名相匹配的方法来“实现”接口。这提高了灵活性——使用接口的代码可以与各种类型一起工作，只要它们履行合同。</p>
+<blockquote>
+<p><em>If S is a subtype of T, then objects of type T may be replaced with objects of type S, without breaking the program</em></p>
+<p><em>B. Liskov</em></p>
+</blockquote>
+<p>在 Go 中，LSP 的一个很好的例子是 io.Writer 接口：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">Writer</span> <span class="kd">interface</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">     <span class="nf">Write</span><span class="p">(</span><span class="nx">buf</span> <span class="p">[]</span><span class="kt">byte</span><span class="p">)</span> <span class="p">(</span><span class="nx">n</span> <span class="kt">int</span><span class="p">,</span> <span class="nx">err</span> <span class="kt">error</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>io.Writer 的神奇之处在于它能够将字节切片写入任何流：文件、HTTP 响应等。</p>
+<p>现在回到我们的 Survey 结构，我们可以添加一个方法 Write() 来将调查对象写入某处。我们可以简单地让它接受 io.Writer，这样实现就可以决定将其写入何处。</p>
+<p>这个函数的用户现在有很大的灵活性，因为他们只需要使用一些实现 io.Writer 的结构，例如：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="nx">file</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">os</span><span class="p">.</span><span class="nf">Open</span><span class="p">(</span><span class="s">&#34;file.go&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">log</span><span class="p">.</span><span class="nf">Fatal</span><span class="p">(</span><span class="nx">err</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="nx">survey</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="nx">Survey</span><span class="p">{</span><span class="nx">Title</span><span class="p">:</span> <span class="s">&#34;Feedback Form&#34;</span><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="nf">WriteSurvey</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">Survey</span><span class="p">,</span> <span class="nx">file</span><span class="p">)</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h2 id="i接口隔离原则">I——接口隔离原则</h2>
+<p>接口隔离原则 (Interface Segregation Principle) 规定客户端不应被迫依赖于他们不使用的接口。这一原则鼓励创建更小、更集中的界面，而不是大型、单一的界面。</p>
+<blockquote>
+<p><em>Clients should not be forced to depend on methods they do not use.</em></p>
+<p><em>Robert C. Martin</em></p>
+</blockquote>
+<p>同样，Go 的 io 包就是一个很好的例子。它有多个小接口及其组合，例如 io.Reader、io.ReadWriter、io.ReadCloser、io.ReadWriteCloser 等。</p>
+<p>在我们的调查示例中，假设我们有多种问题类型：文本和下拉列表。我们可以定义一个通用的 Question 接口。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">Question</span> <span class="kd">interface</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nf">SetTitle</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">	<span class="nf">AddOption</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">TextQuestion</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">Title</span> <span class="kt">string</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">q</span> <span class="o">*</span><span class="nx">TextQuestion</span><span class="p">)</span> <span class="nf">SetTitle</span><span class="p">(</span><span class="nx">title</span> <span class="kt">string</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">q</span><span class="p">.</span><span class="nx">Title</span> <span class="p">=</span> <span class="nx">title</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">q</span> <span class="o">*</span><span class="nx">TextQuestion</span><span class="p">)</span> <span class="nf">AddOption</span><span class="p">(</span><span class="nx">option</span> <span class="kt">string</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// not supported as text fields don&#39;t have options
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">DropdownQuestion</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">Title</span>   <span class="kt">string</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">Options</span> <span class="p">[]</span><span class="kt">string</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">q</span> <span class="o">*</span><span class="nx">DropdownQuestion</span><span class="p">)</span> <span class="nf">SetTitle</span><span class="p">(</span><span class="nx">title</span> <span class="kt">string</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">q</span><span class="p">.</span><span class="nx">Title</span> <span class="p">=</span> <span class="nx">title</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">q</span> <span class="o">*</span><span class="nx">DropdownQuestion</span><span class="p">)</span> <span class="nf">AddOption</span><span class="p">(</span><span class="nx">option</span> <span class="kt">string</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">q</span><span class="p">.</span><span class="nx">Options</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">q</span><span class="p">.</span><span class="nx">Options</span><span class="p">,</span> <span class="nx">option</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>Question 界面中的 AddOption() 方法很突出。这对于 TextQuestion 来说没有意义并且违反了 ISP。以下是我们如何遵循 ISP 并改进设计：将问题界面拆分为更小、更集中的界面：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">Question</span> <span class="kd">interface</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nf">SetTitle</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">QuestionWithOptions</span> <span class="kd">interface</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">Question</span>
+</span></span><span class="line"><span class="cl">	<span class="nf">AddOption</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">TextQuestion</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">Title</span> <span class="kt">string</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">q</span> <span class="o">*</span><span class="nx">TextQuestion</span><span class="p">)</span> <span class="nf">SetTitle</span><span class="p">(</span><span class="nx">title</span> <span class="kt">string</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">q</span><span class="p">.</span><span class="nx">Title</span> <span class="p">=</span> <span class="nx">title</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">DropdownQuestion</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">Title</span>   <span class="kt">string</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">Options</span> <span class="p">[]</span><span class="kt">string</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">q</span> <span class="o">*</span><span class="nx">DropdownQuestion</span><span class="p">)</span> <span class="nf">SetTitle</span><span class="p">(</span><span class="nx">title</span> <span class="kt">string</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">q</span><span class="p">.</span><span class="nx">Title</span> <span class="p">=</span> <span class="nx">title</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">q</span> <span class="o">*</span><span class="nx">DropdownQuestion</span><span class="p">)</span> <span class="nf">AddOption</span><span class="p">(</span><span class="nx">option</span> <span class="kt">string</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">q</span><span class="p">.</span><span class="nx">Options</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">q</span><span class="p">.</span><span class="nx">Options</span><span class="p">,</span> <span class="nx">option</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h2 id="d---依赖倒置原则">D - 依赖倒置原则</h2>
+<p>依赖倒置原则 (Dependency Inversion Principle) 规定高级模块不应依赖于低级模块。两者都应该依赖于抽象。</p>
+<p>简单来说，DIP 建议您的代码应该依赖于接口或抽象类，而不是具体的类或函数。这种控制反转减少了软件不同部分之间的耦合，使其更加模块化、可扩展且易于测试。</p>
+<blockquote>
+<p><em>Abstractions should not depend on details. Details should depend on abstractions.</em></p>
+<p><em>Robert C. Martin</em></p>
+</blockquote>
+<p>作为示例，我们可以引入一个处理调查创建的 SurveyManager 结构，您可以想象它依赖于数据库。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">InMemoryRepository</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">surveys</span> <span class="p">[]</span><span class="o">*</span><span class="nx">Survey</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">SurveyManager</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">store</span> <span class="nx">InMemoryRepository</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">NewSurveyManager</span><span class="p">()</span> <span class="o">*</span><span class="nx">SurveyManager</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="o">&amp;</span><span class="nx">SurveyManager</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">store</span><span class="p">:</span> <span class="nx">InMemoryRepository</span><span class="p">{},</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">m</span> <span class="o">*</span><span class="nx">SurveyManager</span><span class="p">)</span> <span class="nf">Save</span><span class="p">(</span><span class="nx">survey</span> <span class="o">*</span><span class="nx">Survey</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="nx">m</span><span class="p">.</span><span class="nx">store</span><span class="p">.</span><span class="nf">Save</span><span class="p">(</span><span class="nx">survey</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>这里糟糕的设计是它严重依赖InMemoryRepository，违反了高层模块不应该依赖低层模块的原则。</p>
+<p>同样，接口和构造函数可以帮助我们解耦事物：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">Repository</span> <span class="kd">interface</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nf">Save</span><span class="p">(</span><span class="nx">survey</span> <span class="o">*</span><span class="nx">Survey</span><span class="p">)</span> <span class="kt">error</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">SurveyManager</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">store</span> <span class="nx">Repository</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">NewSurveyManager</span><span class="p">(</span><span class="nx">store</span> <span class="nx">Repository</span><span class="p">)</span> <span class="o">*</span><span class="nx">SurveyManager</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="o">&amp;</span><span class="nx">SurveyManager</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">store</span><span class="p">:</span> <span class="nx">store</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">m</span> <span class="o">*</span><span class="nx">SurveyManager</span><span class="p">)</span> <span class="nf">Save</span><span class="p">(</span><span class="nx">survey</span> <span class="o">*</span><span class="nx">Survey</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="nx">m</span><span class="p">.</span><span class="nx">store</span><span class="p">.</span><span class="nf">Save</span><span class="p">(</span><span class="nx">survey</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h2 id="结论">结论</h2>
+<p>SOLID 原则是构建干净、可维护和可扩展软件的基石。虽然具体的实现细节可能会因编程语言的不同而有所不同（例如在 Go 中使用接口组合而不是继承），但 SOLID 的核心原则仍然普遍适用。通过遵循这些原则，开发人员可以编写更具适应性、更容易测试并最终更能适应变化的代码，无论他们选择哪种语言。</p>
+<h2 id="参考">参考</h2>
+<p>本文翻译于 <a class="link" href="https://packagemain.tech/p/mastering-solid-principles-with-go"  target="_blank" rel="noopener"
+    >Mastering SOLID Principles with Go Examples </a></p>
+
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/">读书笔记</a>
+        
+            <a href="/tags/golang/">Golang</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">Related content</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/%E5%9C%A8-go-%E4%B8%AD%E9%87%8D%E7%BD%AE%E8%AE%A1%E6%97%B6%E5%99%A8/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">在 Go 中重置计时器</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/%E9%80%9A%E8%BF%87%E9%85%8D%E7%BD%AE%E6%96%87%E4%BB%B6%E5%BC%95%E5%AF%BC%E4%BC%98%E5%8C%96%E6%8F%90%E5%8D%87-go-%E5%BA%94%E7%94%A8%E7%A8%8B%E5%BA%8F%E7%9A%84%E6%80%A7%E8%83%BD/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">通过配置文件引导优化提升 Go 应用程序的性能</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/json/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">JSON</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/%E7%9F%A5%E9%81%93%E4%BD%95%E6%97%B6-go-%E7%9A%84-http.defaultclient-%E6%96%AD%E5%BC%80/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">知道何时 Go 的 http.DefaultClient 断开</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/%E5%87%8F%E5%B0%8F-go-%E4%BA%8C%E8%BF%9B%E5%88%B6%E6%96%87%E4%BB%B6%E5%A4%A7%E5%B0%8F/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">减小 Go 二进制文件大小</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script src="https://utteranc.es/client.js" 
+        repo="ixugo/ixugo.github.io"
+        issue-term="pathname"
+        
+        crossorigin="anonymous"
+        async
+        >
+</script>
+
+<style>
+    .utterances {
+        max-width: unset;
+    }
+</style>
+
+<script>
+    function setUtterancesTheme(theme) {
+        let utterances = document.querySelector('.utterances iframe');
+        if (utterances) {
+            utterances.contentWindow.postMessage(
+                {
+                    type: 'set-theme',
+                    theme: `github-${theme}`
+                },
+                'https://utteranc.es'
+            );
+        }
+    }
+
+    addEventListener('message', event => {
+        if (event.origin !== 'https://utteranc.es') return;
+        setUtterancesTheme(document.documentElement.dataset.scheme)
+    });
+
+    window.addEventListener('onColorSchemeChange', (e) => {
+        setUtterancesTheme(e.detail)
+    })
+</script>
+
+
+    
+
+    <footer class="site-footer">
+  <section class="copyright">
+    &copy;
+    
+    2018 -
+    
+    2024 ixugo
+  </section>
+  <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+  <section class="powerby">
+
+    
+    <span id="busuanzi_container_page_pv">本文阅读量
+      <span style="font-size: 14px" id="busuanzi_value_page_pv"></span>
+      次，</span>
+    <span id="busuanzi_container_site_pv">总访问量
+      <span style="font-size: 14px" id="busuanzi_value_site_pv"></span>
+      次 </span>，总访客数
+    <span style="font-size: 14px" id="busuanzi_value_site_uv"></span> 人
+    <br />
+
+
+    Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> .&nbsp;&nbsp;
+    Theme <a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener"
+      data-version="3.16.0">Stack</a> designed by <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a>
+  </section>
+
+
+
+
+  <script>
+    function count() {
+      let href = window.location.href;
+      let regexp = /^https?:\/\/blog.golang.space\/?(page\/[\d]+\/?)?$/;
+      if (regexp.test(href)) {
+        let e = document.getElementById("busuanzi_container_page_pv");
+        e.innerText = "";
+      }
+    }
+    window.onload = count;
+  </script>
+</footer>
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

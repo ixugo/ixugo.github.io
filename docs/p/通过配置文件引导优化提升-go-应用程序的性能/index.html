@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='2023 年，Go 1.21 引入了配置文件引导优化（PGO）。使用 PGO，您可以在运行时向 Go 编译器提供应用程序的配置文件，然后 Go 编译器使用该配置文件就如何在下一个构建中优化代码做出更明智的决策。
+Google 和 Uber 的团队从 2021 年开始合作构建 PGO。我们一起尝试了各种优化，以提高计算效率并降低成本。如今，Uber 已在整个车队范围内推出了 PGO，降低了许多服务的 CPU 利用率。阅读更多内容，了解如何在 Go 应用程序中使用 PGO。
+什么是PGO？ 当您构建 Go 二进制文件时，Go 编译器会执行优化，尝试生成性能最佳的二进制文件。但这并不总是一件容易的事：在许多情况下，过度激进的优化实际上可能会损害性能或导致构建时间过长，需要权衡取舍。在不知道代码在运行时如何使用的情况下，编译器使用静态启发式方法来对代码最常调用的路径进行最佳猜测，然后进行相应的优化。
+但是，如果您可以准确地告诉编译器您的代码在运行时如何使用呢？有了 PGO，您就可以做到。如果您在生产中收集应用程序的配置文件，然后在下一个构建中使用此配置文件，编译器可以做出更明智的决策，例如更积极地优化最常用的函数，或更准确地选择函数内的常见情况。
+在 Go 应用程序中使用 PGO 使用 PGO 非常简单。只需在运行时收集应用程序的配置文件，然后在下一次构建时向编译器提供配置文件即可。具体做法如下：
+导入并启用分析：在 main 包中，导入 net/http/pprof 包。这会自动将 /debug/pprof/profile 端点添加到服务器以获取 CPU 配置文件。
+收集配置文件：照常构建您的项目，然后在代表性环境（例如生产、登台）或实际测试条件下运行您的应用程序。当您的应用程序正在运行并经历典型负载时，从您在上一步中创建的服务器端点下载配置文件。例如，如果您的应用程序在本地运行：
+1 curl -o cpu.pprof &amp;#34;http://localhost:8080/debug/pprof/profile?seconds=30&amp;#34; 使用配置文件优化您的下一个构建：现在您有了配置文件，您可以在下一个构建中使用它。当 Go 工具链在主包目录中找到名为 default.pgo 的配置文件时，它会自动启用 PGO。或者， go build 的 -pgo 标志采用用于 PGO 的配置文件的路径。我们建议将 default.pgo 文件提交到您的存储库，以便用户自动访问该配置文件，并且您的构建保持可重现（并且高性能！）：
+1 2 $ mv cpu.'>
+<title>通过配置文件引导优化提升 Go 应用程序的性能</title>
+
+<link rel='canonical' href='https://blog.golang.space/p/%E9%80%9A%E8%BF%87%E9%85%8D%E7%BD%AE%E6%96%87%E4%BB%B6%E5%BC%95%E5%AF%BC%E4%BC%98%E5%8C%96%E6%8F%90%E5%8D%87-go-%E5%BA%94%E7%94%A8%E7%A8%8B%E5%BA%8F%E7%9A%84%E6%80%A7%E8%83%BD/'>
+
+<link rel="stylesheet" href="/scss/style.min.8191399262444ab68b72a18c97392f5349be20a1615d77445be51e974c144cff.css"><meta property='og:title' content='通过配置文件引导优化提升 Go 应用程序的性能'>
+<meta property='og:description' content='2023 年，Go 1.21 引入了配置文件引导优化（PGO）。使用 PGO，您可以在运行时向 Go 编译器提供应用程序的配置文件，然后 Go 编译器使用该配置文件就如何在下一个构建中优化代码做出更明智的决策。
+Google 和 Uber 的团队从 2021 年开始合作构建 PGO。我们一起尝试了各种优化，以提高计算效率并降低成本。如今，Uber 已在整个车队范围内推出了 PGO，降低了许多服务的 CPU 利用率。阅读更多内容，了解如何在 Go 应用程序中使用 PGO。
+什么是PGO？ 当您构建 Go 二进制文件时，Go 编译器会执行优化，尝试生成性能最佳的二进制文件。但这并不总是一件容易的事：在许多情况下，过度激进的优化实际上可能会损害性能或导致构建时间过长，需要权衡取舍。在不知道代码在运行时如何使用的情况下，编译器使用静态启发式方法来对代码最常调用的路径进行最佳猜测，然后进行相应的优化。
+但是，如果您可以准确地告诉编译器您的代码在运行时如何使用呢？有了 PGO，您就可以做到。如果您在生产中收集应用程序的配置文件，然后在下一个构建中使用此配置文件，编译器可以做出更明智的决策，例如更积极地优化最常用的函数，或更准确地选择函数内的常见情况。
+在 Go 应用程序中使用 PGO 使用 PGO 非常简单。只需在运行时收集应用程序的配置文件，然后在下一次构建时向编译器提供配置文件即可。具体做法如下：
+导入并启用分析：在 main 包中，导入 net/http/pprof 包。这会自动将 /debug/pprof/profile 端点添加到服务器以获取 CPU 配置文件。
+收集配置文件：照常构建您的项目，然后在代表性环境（例如生产、登台）或实际测试条件下运行您的应用程序。当您的应用程序正在运行并经历典型负载时，从您在上一步中创建的服务器端点下载配置文件。例如，如果您的应用程序在本地运行：
+1 curl -o cpu.pprof &amp;#34;http://localhost:8080/debug/pprof/profile?seconds=30&amp;#34; 使用配置文件优化您的下一个构建：现在您有了配置文件，您可以在下一个构建中使用它。当 Go 工具链在主包目录中找到名为 default.pgo 的配置文件时，它会自动启用 PGO。或者， go build 的 -pgo 标志采用用于 PGO 的配置文件的路径。我们建议将 default.pgo 文件提交到您的存储库，以便用户自动访问该配置文件，并且您的构建保持可重现（并且高性能！）：
+1 2 $ mv cpu.'>
+<meta property='og:url' content='https://blog.golang.space/p/%E9%80%9A%E8%BF%87%E9%85%8D%E7%BD%AE%E6%96%87%E4%BB%B6%E5%BC%95%E5%AF%BC%E4%BC%98%E5%8C%96%E6%8F%90%E5%8D%87-go-%E5%BA%94%E7%94%A8%E7%A8%8B%E5%BA%8F%E7%9A%84%E6%80%A7%E8%83%BD/'>
+<meta property='og:site_name' content='ixugo'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='读书笔记' /><meta property='article:tag' content='Golang' /><meta property='article:published_time' content='2024-07-12T00:00:00&#43;00:00'/><meta property='article:modified_time' content='2024-07-12T00:00:00&#43;00:00'/>
+<meta name="twitter:title" content="通过配置文件引导优化提升 Go 应用程序的性能">
+<meta name="twitter:description" content="2023 年，Go 1.21 引入了配置文件引导优化（PGO）。使用 PGO，您可以在运行时向 Go 编译器提供应用程序的配置文件，然后 Go 编译器使用该配置文件就如何在下一个构建中优化代码做出更明智的决策。
+Google 和 Uber 的团队从 2021 年开始合作构建 PGO。我们一起尝试了各种优化，以提高计算效率并降低成本。如今，Uber 已在整个车队范围内推出了 PGO，降低了许多服务的 CPU 利用率。阅读更多内容，了解如何在 Go 应用程序中使用 PGO。
+什么是PGO？ 当您构建 Go 二进制文件时，Go 编译器会执行优化，尝试生成性能最佳的二进制文件。但这并不总是一件容易的事：在许多情况下，过度激进的优化实际上可能会损害性能或导致构建时间过长，需要权衡取舍。在不知道代码在运行时如何使用的情况下，编译器使用静态启发式方法来对代码最常调用的路径进行最佳猜测，然后进行相应的优化。
+但是，如果您可以准确地告诉编译器您的代码在运行时如何使用呢？有了 PGO，您就可以做到。如果您在生产中收集应用程序的配置文件，然后在下一个构建中使用此配置文件，编译器可以做出更明智的决策，例如更积极地优化最常用的函数，或更准确地选择函数内的常见情况。
+在 Go 应用程序中使用 PGO 使用 PGO 非常简单。只需在运行时收集应用程序的配置文件，然后在下一次构建时向编译器提供配置文件即可。具体做法如下：
+导入并启用分析：在 main 包中，导入 net/http/pprof 包。这会自动将 /debug/pprof/profile 端点添加到服务器以获取 CPU 配置文件。
+收集配置文件：照常构建您的项目，然后在代表性环境（例如生产、登台）或实际测试条件下运行您的应用程序。当您的应用程序正在运行并经历典型负载时，从您在上一步中创建的服务器端点下载配置文件。例如，如果您的应用程序在本地运行：
+1 curl -o cpu.pprof &amp;#34;http://localhost:8080/debug/pprof/profile?seconds=30&amp;#34; 使用配置文件优化您的下一个构建：现在您有了配置文件，您可以在下一个构建中使用它。当 Go 工具链在主包目录中找到名为 default.pgo 的配置文件时，它会自动启用 PGO。或者， go build 的 -pgo 标志采用用于 PGO 的配置文件的路径。我们建议将 default.pgo 文件提交到您的存储库，以便用户自动访问该配置文件，并且您的构建保持可重现（并且高性能！）：
+1 2 $ mv cpu.">
+    <link rel="shortcut icon" href="img/favicon.ico" />
+
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+	(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+	m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+	})(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+	ga('create', 'UA-192125643-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="Toggle Menu">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu0b04ba6d7249c9f90c92db974439eb8c_208246_300x0_resize_box_3.png" width="300"
+                            height="321" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🧐</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">ixugo</a></h1>
+            <h2 class="site-description">走出舒适区</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/ixugo'
+                        target="_blank"
+                        title="GitHub"
+                        rel="me"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>Home</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/about/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>About</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>Archives</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>Search</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>Dark Mode</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">Table of contents</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#什么是pgo"><strong>什么是PGO？</strong></a></li>
+    <li><a href="#在-go-应用程序中使用-pgo"><strong>在 Go 应用程序中使用 PGO</strong></a></li>
+    <li><a href="#参考">参考</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+            <main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+    <header class="article-category">
+        
+            <a href="/categories/golang/" >
+                Golang
+            </a>
+        
+    </header>
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/%E9%80%9A%E8%BF%87%E9%85%8D%E7%BD%AE%E6%96%87%E4%BB%B6%E5%BC%95%E5%AF%BC%E4%BC%98%E5%8C%96%E6%8F%90%E5%8D%87-go-%E5%BA%94%E7%94%A8%E7%A8%8B%E5%BA%8F%E7%9A%84%E6%80%A7%E8%83%BD/">通过配置文件引导优化提升 Go 应用程序的性能</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    
+    
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Jul 12, 2024</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    1 minute read
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+
+</header>
+
+    <section class="article-content">
+    
+    
+    <p>2023 年，Go 1.21 引入了配置文件引导优化（PGO）。使用 PGO，您可以在运行时向 Go 编译器提供应用程序的配置文件，然后 Go 编译器使用该配置文件就如何在下一个构建中优化代码做出更明智的决策。</p>
+<p>Google 和 Uber 的团队从 2021 年开始合作构建 PGO。我们一起尝试了各种优化，以提高计算效率并降低成本。如今，Uber 已在整个车队范围内推出了 PGO，降低了许多服务的 CPU 利用率。阅读更多内容，了解如何在 Go 应用程序中使用 PGO。</p>
+<h2 id="什么是pgo"><strong>什么是PGO？</strong></h2>
+<p>当您构建 Go 二进制文件时，Go 编译器会执行优化，尝试生成性能最佳的二进制文件。但这并不总是一件容易的事：在许多情况下，过度激进的优化实际上可能会损害性能或导致构建时间过长，需要权衡取舍。在不知道代码在运行时如何使用的情况下，编译器使用静态启发式方法来对代码最常调用的路径进行最佳猜测，然后进行相应的优化。</p>
+<p>但是，如果您可以准确地告诉编译器您的代码在运行时如何使用呢？有了 PGO，您就可以做到。如果您在生产中收集应用程序的配置文件，然后在下一个构建中使用此配置文件，编译器可以做出更明智的决策，例如更积极地优化最常用的函数，或更准确地选择函数内的常见情况。</p>
+<h2 id="在-go-应用程序中使用-pgo"><strong>在 Go 应用程序中使用 PGO</strong></h2>
+<p>使用 PGO 非常简单。只需在运行时收集应用程序的配置文件，然后在下一次构建时向编译器提供配置文件即可。具体做法如下：</p>
+<ol>
+<li>
+<p>导入并启用分析：在 <code>main</code> 包中，导入 <code>net/http/pprof</code> 包。这会自动将 <code>/debug/pprof/profile</code> 端点添加到服务器以获取 CPU 配置文件。</p>
+</li>
+<li>
+<p>收集配置文件：照常构建您的项目，然后在代表性环境（例如生产、登台）或实际测试条件下运行您的应用程序。当您的应用程序正在运行并经历典型负载时，从您在上一步中创建的服务器端点下载配置文件。例如，如果您的应用程序在本地运行：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">curl -o cpu.pprof <span class="s2">&#34;http://localhost:8080/debug/pprof/profile?seconds=30&#34;</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div></li>
+<li>
+<p>使用配置文件优化您的下一个构建：现在您有了配置文件，您可以在下一个构建中使用它。当 Go 工具链在主包目录中找到名为 <code>default.pgo</code> 的配置文件时，它会自动启用 PGO。或者， <code>go build</code> 的 <code>-pgo</code> 标志采用用于 PGO 的配置文件的路径。我们建议将 <code>default.pgo</code> 文件提交到您的存储库，以便用户自动访问该配置文件，并且您的构建保持可重现（并且高性能！）：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">$ mv cpu.pprof default.pgo
+</span></span><span class="line"><span class="cl">$ go build
+</span></span></code></pre></td></tr></table>
+</div>
+</div></li>
+<li>
+<p>衡量改进：如果您能够复制创建第一个配置文件的条件（例如，使用每秒提供恒定数量查询的负载测试），那么您可以使用优化的构建和收集新的配置文件使用 <code>go tool pprof</code> 命令将其与第一个进行比较，以测量 CPU 使用率的减少情况：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">$ go tool pprof -diff_base nopgo.pprof yespgo.pprof
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>有关如何对性能改进进行基准测试的详细示例以及更多信息，请务必查看 Go 博客中的<a class="link" href="https://go.dev/blog/pgo"  target="_blank" rel="noopener"
+    >这篇文章</a> 。您还可以了解 PGO 在幕后的工作原理以及如何在 <a class="link" href="https://go.dev/doc/pgo"  target="_blank" rel="noopener"
+    >Go docs</a> 中生成更强大的分析策略。</p>
+</li>
+</ol>
+<h2 id="参考">参考</h2>
+<p>本文翻译于 <a class="link" href="https://cloud.google.com/blog/products/application-development/using-profile-guided-optimization-for-your-go-apps"  target="_blank" rel="noopener"
+    ><strong>Boost performance of Go applications with profile-guided optimization</strong></a></p>
+
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/">读书笔记</a>
+        
+            <a href="/tags/golang/">Golang</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">Related content</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/%E5%9C%A8-go-%E4%B8%AD%E9%87%8D%E7%BD%AE%E8%AE%A1%E6%97%B6%E5%99%A8/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">在 Go 中重置计时器</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/%E9%80%9A%E8%BF%87-go-%E7%A4%BA%E4%BE%8B%E6%8E%8C%E6%8F%A1-solid-%E5%8E%9F%E5%88%99/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">通过 Go 示例掌握 SOLID 原则</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/json/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">JSON</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/%E7%9F%A5%E9%81%93%E4%BD%95%E6%97%B6-go-%E7%9A%84-http.defaultclient-%E6%96%AD%E5%BC%80/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">知道何时 Go 的 http.DefaultClient 断开</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/%E5%87%8F%E5%B0%8F-go-%E4%BA%8C%E8%BF%9B%E5%88%B6%E6%96%87%E4%BB%B6%E5%A4%A7%E5%B0%8F/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">减小 Go 二进制文件大小</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script src="https://utteranc.es/client.js" 
+        repo="ixugo/ixugo.github.io"
+        issue-term="pathname"
+        
+        crossorigin="anonymous"
+        async
+        >
+</script>
+
+<style>
+    .utterances {
+        max-width: unset;
+    }
+</style>
+
+<script>
+    function setUtterancesTheme(theme) {
+        let utterances = document.querySelector('.utterances iframe');
+        if (utterances) {
+            utterances.contentWindow.postMessage(
+                {
+                    type: 'set-theme',
+                    theme: `github-${theme}`
+                },
+                'https://utteranc.es'
+            );
+        }
+    }
+
+    addEventListener('message', event => {
+        if (event.origin !== 'https://utteranc.es') return;
+        setUtterancesTheme(document.documentElement.dataset.scheme)
+    });
+
+    window.addEventListener('onColorSchemeChange', (e) => {
+        setUtterancesTheme(e.detail)
+    })
+</script>
+
+
+    
+
+    <footer class="site-footer">
+  <section class="copyright">
+    &copy;
+    
+    2018 -
+    
+    2024 ixugo
+  </section>
+  <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+  <section class="powerby">
+
+    
+    <span id="busuanzi_container_page_pv">本文阅读量
+      <span style="font-size: 14px" id="busuanzi_value_page_pv"></span>
+      次，</span>
+    <span id="busuanzi_container_site_pv">总访问量
+      <span style="font-size: 14px" id="busuanzi_value_site_pv"></span>
+      次 </span>，总访客数
+    <span style="font-size: 14px" id="busuanzi_value_site_uv"></span> 人
+    <br />
+
+
+    Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> .&nbsp;&nbsp;
+    Theme <a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener"
+      data-version="3.16.0">Stack</a> designed by <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a>
+  </section>
+
+
+
+
+  <script>
+    function count() {
+      let href = window.location.href;
+      let regexp = /^https?:\/\/blog.golang.space\/?(page\/[\d]+\/?)?$/;
+      if (regexp.test(href)) {
+        let e = document.getElementById("busuanzi_container_page_pv");
+        e.innerText = "";
+      }
+    }
+    window.onload = count;
+  </script>
+</footer>
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>
