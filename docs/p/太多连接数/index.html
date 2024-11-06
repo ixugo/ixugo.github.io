@@ -1,18 +1,39 @@
 <!DOCTYPE html>
 <html lang="zh-cn" dir="ltr">
     <head><meta charset='utf-8'>
-<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content=''>
-<title>网络</title>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='背景 遇到线上服务提示 too many open files，可以通过 /proc/&amp;lt;进程 ID&amp;gt;/limits 来查看限制的进程最大连接数，一般是 4096，可以简单的通过修改最大打开文件数量来解决问题，但知其然，更要知其所以然。
+分析 通过 lsof -p &amp;lt;进程 ID&amp;gt; 列出以下信息，从下图中可以看到好几千连接数都是这个。
+补充一下图所示分别表示什么意思
+PID: 进程 ID USER: 启动进程的用户 FD: 文件描述符 TYPE: 文件类型，此处的 sock 表示 套接字。 DEVICE: 设备号 SIZE/OFF: 文件大小或偏移量 NODE: 文件的 iode 节点号码 NAME: 文件名称或路径/ socket 的详细信息 What Fuck?，在这里得知了 2 个条件。
+90% 的连接数都是同类 占用竟然全是 TCPv6 的 sock 连接，根据业务判断，不可能同时有这么多连接数，显然是资源泄漏。 通过 netstat -anp | grep 16683 查看连接情况。
+由下图可知没有几千个 tcp6 的链接，但 sock 文件描述符还在。
+基于此，大概问题范围被圈定了，在我们业务中有 2 个地方，会产生这些大量的连接。
+登录网页端，在 2 个业务分别操作，检查占用文件描述符数量是否上涨，最终定位最大嫌疑。'>
+<title>太多连接数</title>
 
-<link rel='canonical' href='https://blog.golang.space/p/%E7%BD%91%E7%BB%9C/'>
+<link rel='canonical' href='https://blog.golang.space/p/%E5%A4%AA%E5%A4%9A%E8%BF%9E%E6%8E%A5%E6%95%B0/'>
 
-<link rel="stylesheet" href="/scss/style.min.8191399262444ab68b72a18c97392f5349be20a1615d77445be51e974c144cff.css"><meta property='og:title' content='网络'>
-<meta property='og:description' content=''>
-<meta property='og:url' content='https://blog.golang.space/p/%E7%BD%91%E7%BB%9C/'>
+<link rel="stylesheet" href="/scss/style.min.8191399262444ab68b72a18c97392f5349be20a1615d77445be51e974c144cff.css"><meta property='og:title' content='太多连接数'>
+<meta property='og:description' content='背景 遇到线上服务提示 too many open files，可以通过 /proc/&amp;lt;进程 ID&amp;gt;/limits 来查看限制的进程最大连接数，一般是 4096，可以简单的通过修改最大打开文件数量来解决问题，但知其然，更要知其所以然。
+分析 通过 lsof -p &amp;lt;进程 ID&amp;gt; 列出以下信息，从下图中可以看到好几千连接数都是这个。
+补充一下图所示分别表示什么意思
+PID: 进程 ID USER: 启动进程的用户 FD: 文件描述符 TYPE: 文件类型，此处的 sock 表示 套接字。 DEVICE: 设备号 SIZE/OFF: 文件大小或偏移量 NODE: 文件的 iode 节点号码 NAME: 文件名称或路径/ socket 的详细信息 What Fuck?，在这里得知了 2 个条件。
+90% 的连接数都是同类 占用竟然全是 TCPv6 的 sock 连接，根据业务判断，不可能同时有这么多连接数，显然是资源泄漏。 通过 netstat -anp | grep 16683 查看连接情况。
+由下图可知没有几千个 tcp6 的链接，但 sock 文件描述符还在。
+基于此，大概问题范围被圈定了，在我们业务中有 2 个地方，会产生这些大量的连接。
+登录网页端，在 2 个业务分别操作，检查占用文件描述符数量是否上涨，最终定位最大嫌疑。'>
+<meta property='og:url' content='https://blog.golang.space/p/%E5%A4%AA%E5%A4%9A%E8%BF%9E%E6%8E%A5%E6%95%B0/'>
 <meta property='og:site_name' content='ixugo'>
-<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='读书笔记' /><meta property='article:published_time' content='2022-06-01T00:00:00&#43;00:00'/><meta property='article:modified_time' content='2022-06-01T00:00:00&#43;00:00'/>
-<meta name="twitter:title" content="网络">
-<meta name="twitter:description" content="">
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:published_time' content='2024-08-22T00:00:00&#43;00:00'/><meta property='article:modified_time' content='2024-08-22T00:00:00&#43;00:00'/>
+<meta name="twitter:title" content="太多连接数">
+<meta name="twitter:description" content="背景 遇到线上服务提示 too many open files，可以通过 /proc/&amp;lt;进程 ID&amp;gt;/limits 来查看限制的进程最大连接数，一般是 4096，可以简单的通过修改最大打开文件数量来解决问题，但知其然，更要知其所以然。
+分析 通过 lsof -p &amp;lt;进程 ID&amp;gt; 列出以下信息，从下图中可以看到好几千连接数都是这个。
+补充一下图所示分别表示什么意思
+PID: 进程 ID USER: 启动进程的用户 FD: 文件描述符 TYPE: 文件类型，此处的 sock 表示 套接字。 DEVICE: 设备号 SIZE/OFF: 文件大小或偏移量 NODE: 文件的 iode 节点号码 NAME: 文件名称或路径/ socket 的详细信息 What Fuck?，在这里得知了 2 个条件。
+90% 的连接数都是同类 占用竟然全是 TCPv6 的 sock 连接，根据业务判断，不可能同时有这么多连接数，显然是资源泄漏。 通过 netstat -anp | grep 16683 查看连接情况。
+由下图可知没有几千个 tcp6 的链接，但 sock 文件描述符还在。
+基于此，大概问题范围被圈定了，在我们业务中有 2 个地方，会产生这些大量的连接。
+登录网页端，在 2 个业务分别操作，检查占用文件描述符数量是否上涨，最终定位最大嫌疑。">
     <link rel="shortcut icon" href="img/favicon.ico" />
 
 <script type="application/javascript">
@@ -217,7 +238,40 @@ if (!doNotTrack) {
     </ol>
 </aside>
 
-    
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">Table of contents</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#背景">背景</a></li>
+    <li><a href="#分析">分析</a></li>
+    <li><a href="#验证分析">验证分析</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
 
             <main class="main full-width">
     <article class="main-article">
@@ -227,8 +281,8 @@ if (!doNotTrack) {
     
     <header class="article-category">
         
-            <a href="/categories/%E7%BD%91%E7%BB%9C/" >
-                网络
+            <a href="/categories/%E5%90%8E%E7%AB%AF/" >
+                后端
             </a>
         
     </header>
@@ -236,7 +290,7 @@ if (!doNotTrack) {
 
     <div class="article-title-wrapper">
         <h2 class="article-title">
-            <a href="/p/%E7%BD%91%E7%BB%9C/">网络</a>
+            <a href="/p/%E5%A4%AA%E5%A4%9A%E8%BF%9E%E6%8E%A5%E6%95%B0/">太多连接数</a>
         </h2>
     
         
@@ -258,7 +312,7 @@ if (!doNotTrack) {
   <path d="M3 11h16" />
   <path d="M18 16.496v1.504l1 1" />
 </svg>
-                <time class="article-time--published">Jun 01, 2022</time>
+                <time class="article-time--published">Aug 22, 2024</time>
             </div>
         
 
@@ -273,7 +327,7 @@ if (!doNotTrack) {
 
 
                 <time class="article-time--reading">
-                    0 minute read
+                    1 minute read
                 </time>
             </div>
         
@@ -288,18 +342,58 @@ if (!doNotTrack) {
     <section class="article-content">
     
     
-    
+    <h2 id="背景">背景</h2>
+<p>遇到线上服务提示 <code>too many open files</code>，可以通过 <code>/proc/&lt;进程 ID&gt;/limits</code> 来查看限制的进程最大连接数，一般是 4096，可以简单的通过修改最大打开文件数量来解决问题，但知其然，更要知其所以然。</p>
+<h2 id="分析">分析</h2>
+<p>通过 <code>lsof -p &lt;进程 ID&gt;</code>  列出以下信息，从下图中可以看到好几千连接数都是这个。</p>
+<p>补充一下图所示分别表示什么意思</p>
+<ul>
+<li>PID: 进程 ID</li>
+<li>USER: 启动进程的用户</li>
+<li>FD: 文件描述符</li>
+<li>TYPE: 文件类型，此处的 sock 表示 套接字。</li>
+<li>DEVICE: 设备号</li>
+<li>SIZE/OFF: 文件大小或偏移量</li>
+<li>NODE: 文件的 iode 节点号码</li>
+<li>NAME: 文件名称或路径/ socket 的详细信息</li>
+</ul>
+<p><code>What Fuck?</code>，在这里得知了 2 个条件。</p>
+<ol>
+<li>90% 的连接数都是同类</li>
+<li>占用竟然全是 TCPv6 的 sock 连接，根据业务判断，不可能同时有这么多连接数，显然是资源泄漏。</li>
+</ol>
+<p><img src="http://img.golang.space/img-1724294839070.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20240822104718879"
+	
+	
+></p>
+<p>通过 <code> netstat -anp | grep 16683</code> 查看连接情况。</p>
+<p>由下图可知没有几千个 tcp6 的链接，但 sock 文件描述符还在。</p>
+<p><img src="http://img.golang.space/img-1724295757844.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20240822110237683"
+	
+	
+></p>
+<p>基于此，大概问题范围被圈定了，在我们业务中有 2 个地方，会产生这些大量的连接。</p>
+<p>登录网页端，在 2 个业务分别操作，检查占用文件描述符数量是否上涨，最终定位最大嫌疑。</p>
+<p>首先可以确定 socket 是关闭的，所以 ss/netstat 查询不到信息，但文件描述符一直占用，大概率是本地服务还在处理那个关闭的 socket (猜测)，检查对应业务的协程数量是否与文件描述符数量相差无几。</p>
+<h2 id="验证分析">验证分析</h2>
+
 </section>
 
 
     <footer class="article-footer">
     
-    <section class="article-tags">
-        
-            <a href="/tags/%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/">读书笔记</a>
-        
-    </section>
-
 
     
     <section class="article-copyright">
@@ -322,6 +416,80 @@ if (!doNotTrack) {
     
 
     
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">Related content</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/%E8%AE%BE%E7%BD%AE-gitea-actions/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">设置 Gitea Actions</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/%E8%AF%81%E4%B9%A6%E8%87%AA%E5%8A%A8%E7%BB%AD%E7%AD%BE%E6%96%B9%E6%A1%88/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">证书自动续签方案</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/api-%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">API 设计模式</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/%E5%88%86%E5%B8%83%E5%BC%8F%E4%BA%8B%E5%8A%A1/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">分布式事务</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/%E4%BF%9D%E8%AF%81%E6%8E%A5%E5%8F%A3%E6%95%B0%E6%8D%AE%E5%AE%89%E5%85%A8%E7%9A%84%E6%96%B9%E6%A1%88/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">保证接口数据安全的方案</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
 
      
     

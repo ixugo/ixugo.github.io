@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='蠢萌的死法: 指针中的随机值 最近有人提出「是否可以将非指针放入 unsafe.Pointer 变量」的问题。普遍的反应是「NO，这是一个坏主意」。我同意，但如果我们从不探索糟糕的想法，永远不会&amp;hellip;嗯，实际上，如果从不探索糟糕的想法，绝对不会出问题。
+让我们探讨一下这个 Bad idea
+为什么是坏主意? 主要是可能是会让 Go 的垃圾收集器崩溃。Go GC 会查看程序可见的每个指针，以查看哪些内存仍在使用，以及哪些内存可以释放。如果它跟随的指针未指向有效的内存地址，则可能会崩溃。
+让我们尝试一下，分配十亿个 unsafe.Pointers 并将他们全部设置为无效指针的值。
+1 2 3 4 5 6 7 8 9 10 11 func TestRandomUnsafePointers(t *testing.T) { x := make([]unsafe.Pointer, 1e9) for i := range x { // Possible misuse of unsafe.Pointer? Definite misuse of unsafe.Pointer! x[i] = unsafe.Pointer(uintptr(i * 8)) } runtime.GC() runtime.KeepAlive(x) } 此代码创建一个包含 10 亿个unsafe.Pointer的切片，然后强制 GC 运行。它不会崩溃。
+我们可以用真正的随机值再试一次，并且做一些傻事。
+1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 func TestRandomUnsafePointers2(t *testing.'>
+<title>指针中的随机值</title>
+
+<link rel='canonical' href='https://blog.golang.space/p/%E6%8C%87%E9%92%88%E4%B8%AD%E7%9A%84%E9%9A%8F%E6%9C%BA%E5%80%BC/'>
+
+<link rel="stylesheet" href="/scss/style.min.8191399262444ab68b72a18c97392f5349be20a1615d77445be51e974c144cff.css"><meta property='og:title' content='指针中的随机值'>
+<meta property='og:description' content='蠢萌的死法: 指针中的随机值 最近有人提出「是否可以将非指针放入 unsafe.Pointer 变量」的问题。普遍的反应是「NO，这是一个坏主意」。我同意，但如果我们从不探索糟糕的想法，永远不会&amp;hellip;嗯，实际上，如果从不探索糟糕的想法，绝对不会出问题。
+让我们探讨一下这个 Bad idea
+为什么是坏主意? 主要是可能是会让 Go 的垃圾收集器崩溃。Go GC 会查看程序可见的每个指针，以查看哪些内存仍在使用，以及哪些内存可以释放。如果它跟随的指针未指向有效的内存地址，则可能会崩溃。
+让我们尝试一下，分配十亿个 unsafe.Pointers 并将他们全部设置为无效指针的值。
+1 2 3 4 5 6 7 8 9 10 11 func TestRandomUnsafePointers(t *testing.T) { x := make([]unsafe.Pointer, 1e9) for i := range x { // Possible misuse of unsafe.Pointer? Definite misuse of unsafe.Pointer! x[i] = unsafe.Pointer(uintptr(i * 8)) } runtime.GC() runtime.KeepAlive(x) } 此代码创建一个包含 10 亿个unsafe.Pointer的切片，然后强制 GC 运行。它不会崩溃。
+我们可以用真正的随机值再试一次，并且做一些傻事。
+1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 func TestRandomUnsafePointers2(t *testing.'>
+<meta property='og:url' content='https://blog.golang.space/p/%E6%8C%87%E9%92%88%E4%B8%AD%E7%9A%84%E9%9A%8F%E6%9C%BA%E5%80%BC/'>
+<meta property='og:site_name' content='ixugo'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='读书笔记' /><meta property='article:tag' content='GO' /><meta property='article:published_time' content='2024-09-16T00:00:00&#43;00:00'/><meta property='article:modified_time' content='2024-09-16T00:00:00&#43;00:00'/>
+<meta name="twitter:title" content="指针中的随机值">
+<meta name="twitter:description" content="蠢萌的死法: 指针中的随机值 最近有人提出「是否可以将非指针放入 unsafe.Pointer 变量」的问题。普遍的反应是「NO，这是一个坏主意」。我同意，但如果我们从不探索糟糕的想法，永远不会&amp;hellip;嗯，实际上，如果从不探索糟糕的想法，绝对不会出问题。
+让我们探讨一下这个 Bad idea
+为什么是坏主意? 主要是可能是会让 Go 的垃圾收集器崩溃。Go GC 会查看程序可见的每个指针，以查看哪些内存仍在使用，以及哪些内存可以释放。如果它跟随的指针未指向有效的内存地址，则可能会崩溃。
+让我们尝试一下，分配十亿个 unsafe.Pointers 并将他们全部设置为无效指针的值。
+1 2 3 4 5 6 7 8 9 10 11 func TestRandomUnsafePointers(t *testing.T) { x := make([]unsafe.Pointer, 1e9) for i := range x { // Possible misuse of unsafe.Pointer? Definite misuse of unsafe.Pointer! x[i] = unsafe.Pointer(uintptr(i * 8)) } runtime.GC() runtime.KeepAlive(x) } 此代码创建一个包含 10 亿个unsafe.Pointer的切片，然后强制 GC 运行。它不会崩溃。
+我们可以用真正的随机值再试一次，并且做一些傻事。
+1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 func TestRandomUnsafePointers2(t *testing.">
+    <link rel="shortcut icon" href="img/favicon.ico" />
+
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+	(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+	m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+	})(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+	ga('create', 'UA-192125643-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="Toggle Menu">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu0b04ba6d7249c9f90c92db974439eb8c_208246_300x0_resize_box_3.png" width="300"
+                            height="321" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🧐</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">ixugo</a></h1>
+            <h2 class="site-description">走出舒适区</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/ixugo'
+                        target="_blank"
+                        title="GitHub"
+                        rel="me"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>Home</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/about/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>About</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>Archives</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>Search</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>Dark Mode</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">Table of contents</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#蠢萌的死法-指针中的随机值">蠢萌的死法: 指针中的随机值</a></li>
+    <li><a href="#参考">参考</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+            <main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+    <header class="article-category">
+        
+            <a href="/categories/%E7%BF%BB%E8%AF%91/" >
+                翻译
+            </a>
+        
+    </header>
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/%E6%8C%87%E9%92%88%E4%B8%AD%E7%9A%84%E9%9A%8F%E6%9C%BA%E5%80%BC/">指针中的随机值</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    
+    
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Sep 16, 2024</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    2 minute read
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+
+</header>
+
+    <section class="article-content">
+    
+    
+    <h2 id="蠢萌的死法-指针中的随机值">蠢萌的死法: 指针中的随机值</h2>
+<p>最近有人提出「是否可以将非指针放入 unsafe.Pointer 变量」的问题。普遍的反应是「NO，这是一个坏主意」。我同意，但如果我们从不探索糟糕的想法，永远不会&hellip;嗯，实际上，如果从不探索糟糕的想法，绝对不会出问题。</p>
+<p><strong>让我们探讨一下这个 Bad idea</strong></p>
+<p>为什么是坏主意? 主要是可能是会让 Go 的垃圾收集器崩溃。Go GC 会查看程序可见的每个指针，以查看哪些内存仍在使用，以及哪些内存可以释放。如果它跟随的指针未指向有效的内存地址，则可能会崩溃。</p>
+<p>让我们尝试一下，分配十亿个 unsafe.Pointers 并将他们全部设置为无效指针的值。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">TestRandomUnsafePointers</span><span class="p">(</span><span class="nx">t</span> <span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">x</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">([]</span><span class="nx">unsafe</span><span class="p">.</span><span class="nx">Pointer</span><span class="p">,</span> <span class="mf">1e9</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">x</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="c1">// Possible misuse of unsafe.Pointer? Definite misuse of unsafe.Pointer!
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="nx">x</span><span class="p">[</span><span class="nx">i</span><span class="p">]</span> <span class="p">=</span> <span class="nx">unsafe</span><span class="p">.</span><span class="nf">Pointer</span><span class="p">(</span><span class="nb">uintptr</span><span class="p">(</span><span class="nx">i</span> <span class="o">*</span> <span class="mi">8</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="nx">runtime</span><span class="p">.</span><span class="nf">GC</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">runtime</span><span class="p">.</span><span class="nf">KeepAlive</span><span class="p">(</span><span class="nx">x</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>此代码创建一个包含 10 亿个<code>unsafe.Pointer</code>的切片，然后强制 GC 运行。它不会崩溃。</p>
+<p>我们可以用真正的随机值再试一次，并且做一些傻事。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">TestRandomUnsafePointers2</span><span class="p">(</span><span class="nx">t</span> <span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">x</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">([]</span><span class="nx">unsafe</span><span class="p">.</span><span class="nx">Pointer</span><span class="p">,</span> <span class="mf">1e9</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">x</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="c1">// Possible misuse of unsafe.Pointer? Definite misuse of unsafe.Pointer!
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="nx">x</span><span class="p">[</span><span class="nx">i</span><span class="p">]</span> <span class="p">=</span> <span class="nx">unsafe</span><span class="p">.</span><span class="nf">Pointer</span><span class="p">(</span><span class="nb">uintptr</span><span class="p">(</span><span class="nx">rand</span><span class="p">.</span><span class="nf">Int64</span><span class="p">()))</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="nx">runtime</span><span class="p">.</span><span class="nf">GC</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">for</span> <span class="k">range</span> <span class="mi">10</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">x</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="c1">// Possible misuse of unsafe.Pointer? Definite misuse of unsafe.Pointer!
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>			<span class="nx">x</span><span class="p">[</span><span class="nx">i</span><span class="p">]</span> <span class="p">=</span> <span class="nx">unsafe</span><span class="p">.</span><span class="nf">Add</span><span class="p">(</span><span class="nx">x</span><span class="p">[</span><span class="nx">i</span><span class="p">],</span> <span class="mi">3</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="nx">runtime</span><span class="p">.</span><span class="nf">GC</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">runtime</span><span class="p">.</span><span class="nf">KeepAlive</span><span class="p">(</span><span class="nx">x</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>仍旧未崩溃。</p>
+<p><strong>如果我们不够聪明怎么办？</strong></p>
+<p>Go 可能会查看这些值并思考「啊嘞」，然后忽略他。 Go 可以与 C 交互，因此它需要能够处理在其控制之外分配的内存。多年来，我还使用 Go 直接通过系统调用分配的内存，没有任何问题（祈祷）。</p>
+<p>如果指针的值看起来像它应该关心的内存，Go 可能会发现它更困难。如果我们存储的值曾经是 Go 本身分配的有效内存地址，但我们知道它不再有效怎么办？</p>
+<p>这里我们分配一个足够大的切片，以便始终分配在堆上。然后，我们获取支持该切片的数组的地址，并将其放入 uintptr 中。我们知道 Go 不会将 uintptr 视为指针，因此将值保存在 uintptr 中不应导致 Go 保留分配。</p>
+<p>如果我们随后删除对切片的引用并强制执行 GC，则应该释放内存。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="nx">y</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">([]</span><span class="kt">int</span><span class="p">,</span> <span class="mf">1e4</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="nx">yptr</span> <span class="o">:=</span> <span class="nb">uintptr</span><span class="p">(</span><span class="nx">unsafe</span><span class="p">.</span><span class="nf">Pointer</span><span class="p">(</span><span class="nx">unsafe</span><span class="p">.</span><span class="nf">SliceData</span><span class="p">(</span><span class="nx">y</span><span class="p">)))</span>
+</span></span><span class="line"><span class="cl"><span class="nx">y</span> <span class="p">=</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl"><span class="nx">runtime</span><span class="p">.</span><span class="nf">GC</span><span class="p">()</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>现在，如果我们将此值存储在<code>unsafe.Pointer</code>中并再次运行 GC，我们可能会遇到麻烦。这是完整的测试。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">TestUnsafePointerBadNumber</span><span class="p">(</span><span class="nx">t</span> <span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">y</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">([]</span><span class="kt">int</span><span class="p">,</span> <span class="mf">1e4</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">yptr</span> <span class="o">:=</span> <span class="nb">uintptr</span><span class="p">(</span><span class="nx">unsafe</span><span class="p">.</span><span class="nf">Pointer</span><span class="p">(</span><span class="nx">unsafe</span><span class="p">.</span><span class="nf">SliceData</span><span class="p">(</span><span class="nx">y</span><span class="p">)))</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">y</span> <span class="p">=</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">runtime</span><span class="p">.</span><span class="nf">GC</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">runtime</span><span class="p">.</span><span class="nf">GC</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">x</span> <span class="o">:=</span> <span class="nx">unsafe</span><span class="p">.</span><span class="nf">Pointer</span><span class="p">(</span><span class="nx">yptr</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">runtime</span><span class="p">.</span><span class="nf">GC</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">runtime</span><span class="p">.</span><span class="nf">GC</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="nx">runtime</span><span class="p">.</span><span class="nf">KeepAlive</span><span class="p">(</span><span class="nx">x</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>事实上，这确实引起了 panic 。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="nx">runtime</span><span class="p">:</span> <span class="nx">pointer</span> <span class="mh">0xc000162000</span> <span class="nx">to</span> <span class="nx">unallocated</span> <span class="nx">span</span> <span class="nx">span</span><span class="p">.</span><span class="nf">base</span><span class="p">()=</span><span class="mh">0xc000288000</span> <span class="nx">span</span><span class="p">.</span><span class="nx">limit</span><span class="p">=</span><span class="mh">0xc000290000</span> <span class="nx">span</span><span class="p">.</span><span class="nx">state</span><span class="p">=</span><span class="mi">0</span>
+</span></span><span class="line"><span class="cl"><span class="nx">runtime</span><span class="p">:</span> <span class="nx">found</span> <span class="nx">in</span> <span class="nx">object</span> <span class="nx">at</span> <span class="o">*</span><span class="p">(</span><span class="mh">0xc00005ff58</span><span class="o">+</span><span class="mh">0x0</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="nx">object</span><span class="p">=</span><span class="mh">0xc00005ff58</span> <span class="nx">s</span><span class="p">.</span><span class="nf">base</span><span class="p">()=</span><span class="mh">0xc00005e000</span> <span class="nx">s</span><span class="p">.</span><span class="nx">limit</span><span class="p">=</span><span class="mh">0xc000066000</span> <span class="nx">s</span><span class="p">.</span><span class="nx">spanclass</span><span class="p">=</span><span class="mi">0</span> <span class="nx">s</span><span class="p">.</span><span class="nx">elemsize</span><span class="p">=</span><span class="mi">2048</span> <span class="nx">s</span><span class="p">.</span><span class="nx">state</span><span class="p">=</span><span class="nx">mSpanManual</span>
+</span></span><span class="line"><span class="cl"><span class="p">:</span>
+</span></span><span class="line"><span class="cl"><span class="p">:</span>
+</span></span><span class="line"><span class="cl"> <span class="o">...</span>
+</span></span><span class="line"><span class="cl"><span class="nx">fatal</span> <span class="kt">error</span><span class="p">:</span> <span class="nx">found</span> <span class="nx">bad</span> <span class="nx">pointer</span> <span class="nx">in</span> <span class="nx">Go</span> <span class="nf">heap</span> <span class="p">(</span><span class="nx">incorrect</span> <span class="nx">use</span> <span class="nx">of</span> <span class="nx">unsafe</span> <span class="nx">or</span> <span class="nx">cgo</span><span class="err">?</span><span class="p">)</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>如果您想知道为什么要多次调用<code>runtime.GC()</code> ，我也是。这似乎使它更可靠地崩溃。</p>
+<p><strong>这意味着什么？</strong></p>
+<p>Go 的垃圾收集器非常强大，可以处理很多滥用情况。您可以将值存储在 GC 不知道的指针中，或者甚至不是有效的内存地址。</p>
+<p>但如果你存储了 GC 认为它能控制的内存地址，那么它就会发生 Panic。如果您将非指针值存储在<code>unsafe.Pointer</code>中，您可能不会立即看到问题。你的测试可能不会显示任何问题。但有一天，总会有异常甩你脸上，而你却不知道为什么。</p>
+<p>我的结论如下。</p>
+<ol>
+<li>除非确实必要，否则不要使用<code>unsafe.Pointer</code> 。</li>
+<li>除非确实有必要，否则不要保留<code>unsafe.Pointer</code>指针值。大多数使用<code>unsafe.Pointer</code>的安全操作仅将其用作瞬态值，同时将某些内容转换为其他内容。</li>
+<li>你可能不需要。</li>
+<li>仅将内存地址存储在<code>unsafe.Pointer</code>中。</li>
+<li>也许只有在 Go 运行时之外分配的内存地址（例如通过直接调用 mmap 系统调用）。</li>
+</ol>
+<h2 id="参考">参考</h2>
+<p>本文翻译于<a class="link" href="https://philpearl.github.io/post/dumb_ways_to_die_random_pointers/"  target="_blank" rel="noopener"
+    >Dumb ways to die: Random Values in Pointers</a></p>
+
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/">读书笔记</a>
+        
+            <a href="/tags/go/">Go</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">Related content</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/%E4%B8%8D%E8%A6%81%E5%9C%A8%E5%8F%AF%E5%86%99%E6%96%87%E4%BB%B6%E4%B8%8A%E5%BB%B6%E8%BF%9F-close/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">不要在可写文件上延迟 Close</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script src="https://utteranc.es/client.js" 
+        repo="ixugo/ixugo.github.io"
+        issue-term="pathname"
+        
+        crossorigin="anonymous"
+        async
+        >
+</script>
+
+<style>
+    .utterances {
+        max-width: unset;
+    }
+</style>
+
+<script>
+    function setUtterancesTheme(theme) {
+        let utterances = document.querySelector('.utterances iframe');
+        if (utterances) {
+            utterances.contentWindow.postMessage(
+                {
+                    type: 'set-theme',
+                    theme: `github-${theme}`
+                },
+                'https://utteranc.es'
+            );
+        }
+    }
+
+    addEventListener('message', event => {
+        if (event.origin !== 'https://utteranc.es') return;
+        setUtterancesTheme(document.documentElement.dataset.scheme)
+    });
+
+    window.addEventListener('onColorSchemeChange', (e) => {
+        setUtterancesTheme(e.detail)
+    })
+</script>
+
+
+    
+
+    <footer class="site-footer">
+  <section class="copyright">
+    &copy;
+    
+    2018 -
+    
+    2024 ixugo
+  </section>
+  <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+  <section class="powerby">
+
+    
+    <span id="busuanzi_container_page_pv">本文阅读量
+      <span style="font-size: 14px" id="busuanzi_value_page_pv"></span>
+      次，</span>
+    <span id="busuanzi_container_site_pv">总访问量
+      <span style="font-size: 14px" id="busuanzi_value_site_pv"></span>
+      次 </span>，总访客数
+    <span style="font-size: 14px" id="busuanzi_value_site_uv"></span> 人
+    <br />
+
+
+    Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> .&nbsp;&nbsp;
+    Theme <a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener"
+      data-version="3.16.0">Stack</a> designed by <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a>
+  </section>
+
+
+
+
+  <script>
+    function count() {
+      let href = window.location.href;
+      let regexp = /^https?:\/\/blog.golang.space\/?(page\/[\d]+\/?)?$/;
+      if (regexp.test(href)) {
+        let e = document.getElementById("busuanzi_container_page_pv");
+        e.innerText = "";
+      }
+    }
+    window.onload = count;
+  </script>
+</footer>
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

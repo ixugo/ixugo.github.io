@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='对于 Go 程序员来说，这是一个很快就会死记硬背的习惯用法：每当你想出一个实现io.Closer接口的值时，在检查错误后，你会立即defer其Close()方法。在发出 HTTP 请求时最常看到这种情况：
+1 2 3 4 5 resp, err := http.Get(&amp;#34;https://joeshaw.org&amp;#34;) if err != nil { return err } defer resp.Body.Close() 或打开文件：
+1 2 3 4 5 f, err := os.Open(&amp;#34;/home/joeshaw/notes.txt&amp;#34;) if err != nil { return err } defer f.Close() 但这种习惯用法实际上对可写文件有害，因为延迟函数调用会忽略其返回值，并且Close()方法可能会返回错误。对于可写文件，Go 程序员应该避免defer习惯用法，否则会出现非常罕见的令人抓狂的错误。
+为什么您会从Close()中收到错误，但在之前的Write()调用中却没有收到错误？为了回答这个问题，我们需要补充一下计算机体系结构领域知识。
+一般来说，当你从 CPU 向外移动时，操作的速度会变得慢几个数量级。写入 CPU 寄存器非常快。访问系统 RAM 相对较慢。进行磁盘或网络 I/O 则慢得多。
+如果每个Write()调用都将数据同步提交到磁盘，我们系统的性能将会慢得无法使用。虽然同步写入对于某些类型的软件（例如数据库）非常重要，但大多数时候它是多余的。
+最糟糕的情况是一次写入一个字节到文件中。硬盘驱动器——粗暴的机械设备——需要将磁头物理移动到盘片上的位置，并可能需要等待整盘的旋转才能将数据持久化。固态硬盘（SSD），它们以块的形式存储数据，并且每个块的写入周期是有限的，会因为块被反复写入和覆盖而迅速磨损。
+幸运的是，这种情况不会发生，因为硬件和软件的多个层次实现了缓存和写入缓冲。当你调用 Write() 时，数据不会立即被写入到介质上。操作系统、存储控制器和介质本身都在缓存数据，以便将较小的写入操作批量处理，优化数据在介质上的存储，并决定何时最佳地提交数据。这将我们的写入操作从缓慢的、阻塞的同步操作转变为快速的、异步的操作，这些操作不会直接触及更慢的 I/O 设备。一次写入一个字节从来不是最有效的做法，但至少我们不会因为这样做而耗损硬件。
+当然，这些字节最终必须被写入磁盘。操作系统知道当我们关闭一个文件时，我们已经完成了对它的操作，不会有后续的写入操作发生。它还知道关闭文件是它最后一次告诉我们是否出现了问题的机会。
+在 Linux 和 macOS 等 POSIX 系统上，关闭文件是通过close系统调用来处理的。 close(2)的 BSD 手册页讨论了它可能返回的错误：'>
+<title>不要在可写文件上延迟 Close</title>
+
+<link rel='canonical' href='https://blog.golang.space/p/%E4%B8%8D%E8%A6%81%E5%9C%A8%E5%8F%AF%E5%86%99%E6%96%87%E4%BB%B6%E4%B8%8A%E5%BB%B6%E8%BF%9F-close/'>
+
+<link rel="stylesheet" href="/scss/style.min.8191399262444ab68b72a18c97392f5349be20a1615d77445be51e974c144cff.css"><meta property='og:title' content='不要在可写文件上延迟 Close'>
+<meta property='og:description' content='对于 Go 程序员来说，这是一个很快就会死记硬背的习惯用法：每当你想出一个实现io.Closer接口的值时，在检查错误后，你会立即defer其Close()方法。在发出 HTTP 请求时最常看到这种情况：
+1 2 3 4 5 resp, err := http.Get(&amp;#34;https://joeshaw.org&amp;#34;) if err != nil { return err } defer resp.Body.Close() 或打开文件：
+1 2 3 4 5 f, err := os.Open(&amp;#34;/home/joeshaw/notes.txt&amp;#34;) if err != nil { return err } defer f.Close() 但这种习惯用法实际上对可写文件有害，因为延迟函数调用会忽略其返回值，并且Close()方法可能会返回错误。对于可写文件，Go 程序员应该避免defer习惯用法，否则会出现非常罕见的令人抓狂的错误。
+为什么您会从Close()中收到错误，但在之前的Write()调用中却没有收到错误？为了回答这个问题，我们需要补充一下计算机体系结构领域知识。
+一般来说，当你从 CPU 向外移动时，操作的速度会变得慢几个数量级。写入 CPU 寄存器非常快。访问系统 RAM 相对较慢。进行磁盘或网络 I/O 则慢得多。
+如果每个Write()调用都将数据同步提交到磁盘，我们系统的性能将会慢得无法使用。虽然同步写入对于某些类型的软件（例如数据库）非常重要，但大多数时候它是多余的。
+最糟糕的情况是一次写入一个字节到文件中。硬盘驱动器——粗暴的机械设备——需要将磁头物理移动到盘片上的位置，并可能需要等待整盘的旋转才能将数据持久化。固态硬盘（SSD），它们以块的形式存储数据，并且每个块的写入周期是有限的，会因为块被反复写入和覆盖而迅速磨损。
+幸运的是，这种情况不会发生，因为硬件和软件的多个层次实现了缓存和写入缓冲。当你调用 Write() 时，数据不会立即被写入到介质上。操作系统、存储控制器和介质本身都在缓存数据，以便将较小的写入操作批量处理，优化数据在介质上的存储，并决定何时最佳地提交数据。这将我们的写入操作从缓慢的、阻塞的同步操作转变为快速的、异步的操作，这些操作不会直接触及更慢的 I/O 设备。一次写入一个字节从来不是最有效的做法，但至少我们不会因为这样做而耗损硬件。
+当然，这些字节最终必须被写入磁盘。操作系统知道当我们关闭一个文件时，我们已经完成了对它的操作，不会有后续的写入操作发生。它还知道关闭文件是它最后一次告诉我们是否出现了问题的机会。
+在 Linux 和 macOS 等 POSIX 系统上，关闭文件是通过close系统调用来处理的。 close(2)的 BSD 手册页讨论了它可能返回的错误：'>
+<meta property='og:url' content='https://blog.golang.space/p/%E4%B8%8D%E8%A6%81%E5%9C%A8%E5%8F%AF%E5%86%99%E6%96%87%E4%BB%B6%E4%B8%8A%E5%BB%B6%E8%BF%9F-close/'>
+<meta property='og:site_name' content='ixugo'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='读书笔记' /><meta property='article:tag' content='GO' /><meta property='article:published_time' content='2024-09-17T00:00:00&#43;00:00'/><meta property='article:modified_time' content='2024-09-17T00:00:00&#43;00:00'/>
+<meta name="twitter:title" content="不要在可写文件上延迟 Close">
+<meta name="twitter:description" content="对于 Go 程序员来说，这是一个很快就会死记硬背的习惯用法：每当你想出一个实现io.Closer接口的值时，在检查错误后，你会立即defer其Close()方法。在发出 HTTP 请求时最常看到这种情况：
+1 2 3 4 5 resp, err := http.Get(&amp;#34;https://joeshaw.org&amp;#34;) if err != nil { return err } defer resp.Body.Close() 或打开文件：
+1 2 3 4 5 f, err := os.Open(&amp;#34;/home/joeshaw/notes.txt&amp;#34;) if err != nil { return err } defer f.Close() 但这种习惯用法实际上对可写文件有害，因为延迟函数调用会忽略其返回值，并且Close()方法可能会返回错误。对于可写文件，Go 程序员应该避免defer习惯用法，否则会出现非常罕见的令人抓狂的错误。
+为什么您会从Close()中收到错误，但在之前的Write()调用中却没有收到错误？为了回答这个问题，我们需要补充一下计算机体系结构领域知识。
+一般来说，当你从 CPU 向外移动时，操作的速度会变得慢几个数量级。写入 CPU 寄存器非常快。访问系统 RAM 相对较慢。进行磁盘或网络 I/O 则慢得多。
+如果每个Write()调用都将数据同步提交到磁盘，我们系统的性能将会慢得无法使用。虽然同步写入对于某些类型的软件（例如数据库）非常重要，但大多数时候它是多余的。
+最糟糕的情况是一次写入一个字节到文件中。硬盘驱动器——粗暴的机械设备——需要将磁头物理移动到盘片上的位置，并可能需要等待整盘的旋转才能将数据持久化。固态硬盘（SSD），它们以块的形式存储数据，并且每个块的写入周期是有限的，会因为块被反复写入和覆盖而迅速磨损。
+幸运的是，这种情况不会发生，因为硬件和软件的多个层次实现了缓存和写入缓冲。当你调用 Write() 时，数据不会立即被写入到介质上。操作系统、存储控制器和介质本身都在缓存数据，以便将较小的写入操作批量处理，优化数据在介质上的存储，并决定何时最佳地提交数据。这将我们的写入操作从缓慢的、阻塞的同步操作转变为快速的、异步的操作，这些操作不会直接触及更慢的 I/O 设备。一次写入一个字节从来不是最有效的做法，但至少我们不会因为这样做而耗损硬件。
+当然，这些字节最终必须被写入磁盘。操作系统知道当我们关闭一个文件时，我们已经完成了对它的操作，不会有后续的写入操作发生。它还知道关闭文件是它最后一次告诉我们是否出现了问题的机会。
+在 Linux 和 macOS 等 POSIX 系统上，关闭文件是通过close系统调用来处理的。 close(2)的 BSD 手册页讨论了它可能返回的错误：">
+    <link rel="shortcut icon" href="img/favicon.ico" />
+
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+	(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+	m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+	})(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+	ga('create', 'UA-192125643-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="Toggle Menu">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu0b04ba6d7249c9f90c92db974439eb8c_208246_300x0_resize_box_3.png" width="300"
+                            height="321" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🧐</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">ixugo</a></h1>
+            <h2 class="site-description">走出舒适区</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/ixugo'
+                        target="_blank"
+                        title="GitHub"
+                        rel="me"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>Home</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/about/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>About</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>Archives</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>Search</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>Dark Mode</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+
+    
+
+            <main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+    <header class="article-category">
+        
+            <a href="/categories/%E7%BF%BB%E8%AF%91/" >
+                翻译
+            </a>
+        
+    </header>
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/%E4%B8%8D%E8%A6%81%E5%9C%A8%E5%8F%AF%E5%86%99%E6%96%87%E4%BB%B6%E4%B8%8A%E5%BB%B6%E8%BF%9F-close/">不要在可写文件上延迟 Close</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    
+    
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Sep 17, 2024</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    3 minute read
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+
+</header>
+
+    <section class="article-content">
+    
+    
+    <p>对于 Go 程序员来说，这是一个很快就会死记硬背的习惯用法：每当你想出一个实现<code>io.Closer</code>接口的值时，在检查错误后，你会立即<code>defer</code>其<code>Close()</code>方法。在发出 HTTP 请求时最常看到这种情况：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="nx">resp</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">http</span><span class="p">.</span><span class="nf">Get</span><span class="p">(</span><span class="s">&#34;https://joeshaw.org&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="k">defer</span> <span class="nx">resp</span><span class="p">.</span><span class="nx">Body</span><span class="p">.</span><span class="nf">Close</span><span class="p">()</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>或打开文件：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="nx">f</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">os</span><span class="p">.</span><span class="nf">Open</span><span class="p">(</span><span class="s">&#34;/home/joeshaw/notes.txt&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="k">defer</span> <span class="nx">f</span><span class="p">.</span><span class="nf">Close</span><span class="p">()</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>但这种习惯用法实际上对可写文件有害，因为延迟函数调用会忽略其返回值，并且<code>Close()</code>方法可能会返回错误。<strong>对于可写文件，Go 程序员应该避免<code>defer</code>习惯用法，否则会出现非常罕见的令人抓狂的错误。</strong></p>
+<p>为什么您会从<code>Close()</code>中收到错误，但在之前的<code>Write()</code>调用中却没有收到错误？为了回答这个问题，我们需要补充一下计算机体系结构领域知识。</p>
+<p>一般来说，当你从 CPU 向外移动时，操作的速度会变得慢几个数量级。写入 CPU 寄存器非常快。访问系统 RAM 相对较慢。进行磁盘或网络 I/O 则慢得多。</p>
+<p>如果每个<code>Write()</code>调用都将数据同步提交到磁盘，我们系统的性能将会慢得无法使用。虽然同步写入对于某些类型的软件（例如数据库）非常重要，但大多数时候它是多余的。</p>
+<p>最糟糕的情况是一次写入一个字节到文件中。硬盘驱动器——粗暴的机械设备——需要将磁头物理移动到盘片上的位置，并可能需要等待整盘的旋转才能将数据持久化。固态硬盘（SSD），它们以块的形式存储数据，并且每个块的写入周期是有限的，会因为块被反复写入和覆盖而迅速磨损。</p>
+<p>幸运的是，这种情况不会发生，因为硬件和软件的多个层次实现了缓存和写入缓冲。当你调用 Write() 时，数据不会立即被写入到介质上。操作系统、存储控制器和介质本身都在缓存数据，以便将较小的写入操作批量处理，优化数据在介质上的存储，并决定何时最佳地提交数据。这将我们的写入操作从缓慢的、阻塞的同步操作转变为快速的、异步的操作，这些操作不会直接触及更慢的 I/O 设备。一次写入一个字节从来不是最有效的做法，但至少我们不会因为这样做而耗损硬件。</p>
+<p>当然，这些字节最终必须被写入磁盘。操作系统知道当我们关闭一个文件时，我们已经完成了对它的操作，不会有后续的写入操作发生。它还知道关闭文件是它最后一次告诉我们是否出现了问题的机会。</p>
+<p>在 Linux 和 macOS 等 POSIX 系统上，关闭文件是通过<code>close</code>系统调用来处理的。 <code>close(2)</code>的 BSD 手册页讨论了它可能返回的错误：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span><span class="lnt">9
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">ERRORS
+</span></span><span class="line"><span class="cl">     The close<span class="o">()</span> system call will fail <span class="k">if</span>:
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">     <span class="o">[</span>EBADF<span class="o">]</span>            fildes is not a valid, active file descriptor.
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">     <span class="o">[</span>EINTR<span class="o">]</span>            Its execution was interrupted by a signal.
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">     <span class="o">[</span>EIO<span class="o">]</span>              A previously-uncommitted write<span class="o">(</span>2<span class="o">)</span> encountered an input/output
+</span></span><span class="line"><span class="cl">                        error.
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>EIO 正是我们担心的错误。这意味着我们在尝试将数据保存到磁盘时丢失了数据，我们的 Go 程序在这种情况下绝对不应返回 nil 错误。</p>
+<p>解决这个问题最简单的方法就是在写入文件时不使用<code>defer</code> ：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">helloNotes</span><span class="p">()</span> <span class="kt">error</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">f</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">os</span><span class="p">.</span><span class="nf">Create</span><span class="p">(</span><span class="s">&#34;/home/joeshaw/notes.txt&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="nx">err</span> <span class="p">=</span> <span class="nx">io</span><span class="p">.</span><span class="nf">WriteString</span><span class="p">(</span><span class="nx">f</span><span class="p">,</span> <span class="s">&#34;hello world&#34;</span><span class="p">);</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">f</span><span class="p">.</span><span class="nf">Close</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="nx">f</span><span class="p">.</span><span class="nf">Close</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>这确实意味着在出现错误时需要对文件进行额外的记录：在<code>io.WriteString()</code>失败的情况下，我们必须显式关闭它（并忽略它的错误，因为写入错误优先）。但它很清晰、直接，并且可以正确检查<code>f.Close()</code>调用中的错误。</p>
+<p><em>有</em>一种方法可以通过使用命名返回值和闭包<code>defer</code>处理这种情况：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">helloNotes</span><span class="p">()</span> <span class="p">(</span><span class="nx">err</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kd">var</span> <span class="nx">f</span> <span class="o">*</span><span class="nx">os</span><span class="p">.</span><span class="nx">File</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">f</span><span class="p">,</span> <span class="nx">err</span> <span class="p">=</span> <span class="nx">os</span><span class="p">.</span><span class="nf">Create</span><span class="p">(</span><span class="s">&#34;/home/joeshaw/notes.txt&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">defer</span> <span class="kd">func</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">cerr</span> <span class="o">:=</span> <span class="nx">f</span><span class="p">.</span><span class="nf">Close</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="nx">err</span> <span class="o">==</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="nx">err</span> <span class="p">=</span> <span class="nx">cerr</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}()</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="nx">err</span> <span class="p">=</span> <span class="nx">io</span><span class="p">.</span><span class="nf">WriteString</span><span class="p">(</span><span class="nx">f</span><span class="p">,</span> <span class="s">&#34;hello world&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>此模式的主要好处是不可能忘记关闭文件，因为延迟关闭始终会执行。在具有更多<code>if err != nil</code>条件分支的较长函数中，此模式还可以减少代码行数和重复次数。</p>
+<p>尽管如此，我还是觉得这种模式有点魔法了。我不喜欢使用命名返回值，并且即使对于经验丰富的 Go 程序员来说，在核心函数完成后修改返回值也不是直观上清楚的。</p>
+<p>我愿意接受更具可读性和易于理解的代码的权衡，因为需要不断地审查代码以确保文件在所有情况下都已关闭，这就是我在向其他人提供的代码审查中推荐的方法。</p>
+<p><strong>更新 1</strong></p>
+<p><a class="link" href="https://twitter.com/benbjohnson/status/874286396411961345"  target="_blank" rel="noopener"
+    >Ben Johnson 在 Twitter 上建议</a>，对文件多次运行<code>Close()</code>可能是安全的，如下所示：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">doSomething</span><span class="p">()</span> <span class="kt">error</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">f</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">os</span><span class="p">.</span><span class="nf">Create</span><span class="p">(</span><span class="s">&#34;foo&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">defer</span> <span class="nx">f</span><span class="p">.</span><span class="nf">Close</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">f</span><span class="p">.</span><span class="nf">Write</span><span class="p">([]</span><span class="nb">byte</span><span class="p">(</span><span class="s">&#34;bar&#34;</span><span class="p">);</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="nx">f</span><span class="p">.</span><span class="nf">Close</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><code>io.Closer</code>上的 Go 文档<a class="link" href="https://golang.org/pkg/io/#Closer"  target="_blank" rel="noopener"
+    >明确指出</a>，在第一次调用后的接口级别行为是未指定的，但特定的实现可能会记录其自己的行为。</p>
+<p>不幸的是， <code>*os.File</code>的文档<a class="link" href="https://golang.org/pkg/os/#File.Close"  target="_blank" rel="noopener"
+    >并不清楚</a>它的行为，只是说，“Close 关闭文件，使其无法用于 I/O。如果有的话，它会返回一个错误。”然而，从 1.8 开始的实现显示：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">f</span> <span class="o">*</span><span class="nx">File</span><span class="p">)</span> <span class="nf">Close</span><span class="p">()</span> <span class="kt">error</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="nx">f</span> <span class="o">==</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="nx">ErrInvalid</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="nx">f</span><span class="p">.</span><span class="nx">file</span><span class="p">.</span><span class="nb">close</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">file</span> <span class="o">*</span><span class="nx">file</span><span class="p">)</span> <span class="nb">close</span><span class="p">()</span> <span class="kt">error</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="nx">file</span> <span class="o">==</span> <span class="kc">nil</span> <span class="o">||</span> <span class="nx">file</span><span class="p">.</span><span class="nx">fd</span> <span class="o">==</span> <span class="nx">badFd</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="nx">syscall</span><span class="p">.</span><span class="nx">EINVAL</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="kd">var</span> <span class="nx">err</span> <span class="kt">error</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="nx">e</span> <span class="o">:=</span> <span class="nx">syscall</span><span class="p">.</span><span class="nf">Close</span><span class="p">(</span><span class="nx">file</span><span class="p">.</span><span class="nx">fd</span><span class="p">);</span> <span class="nx">e</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">err</span> <span class="p">=</span> <span class="o">&amp;</span><span class="nx">PathError</span><span class="p">{</span><span class="s">&#34;close&#34;</span><span class="p">,</span> <span class="nx">file</span><span class="p">.</span><span class="nx">name</span><span class="p">,</span> <span class="nx">e</span><span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">file</span><span class="p">.</span><span class="nx">fd</span> <span class="p">=</span> <span class="o">-</span><span class="mi">1</span> <span class="c1">// so it can&#39;t be closed again
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// no need for a finalizer anymore
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="nx">runtime</span><span class="p">.</span><span class="nf">SetFinalizer</span><span class="p">(</span><span class="nx">file</span><span class="p">,</span> <span class="kc">nil</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>为了清楚起见， <code>badFd</code>被定义为 -1 ，因此随后尝试关闭<code>*os.File</code>将不会执行任何操作并返回<code>syscall.EINVAL</code> 。但由于我们忽略了<code>defer</code>的错误，所以这并不重要。确切地说，它不是幂等的，但正如 Ben 后来在 Twitter 帖子中所说的那样， <a class="link" href="https://twitter.com/benbjohnson/status/874289044800368640"  target="_blank" rel="noopener"
+    >“won’t blow shit up if you call it twice.”</a></p>
+<p><strong>更新 2</strong></p>
+<p>关闭文件是操作系统告诉我们问题的最后机会，但关闭文件时缓冲区不一定会被刷新。关闭文件<em>后</em>完全有可能将写入缓冲区刷新到磁盘，并且无法捕获其中的故障。如果发生这种情况，通常意味着出现严重错误，例如磁盘出现故障。</p>
+<p>但是，您可以使用<code>*os.File</code>上的<code>Sync()</code>方法强制写入磁盘，该方法调用<code>fsync</code>系统调用。您应该检查该调用中的错误，但我认为忽略<code>Close()</code>中的错误是安全的。调用<code>fsync</code>对性能有严重影响：它将写入缓冲区刷新到速度较慢的磁盘。但如果您真的非常想要将数据存储在磁盘上，那么最好遵循的模式可能是：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">helloNotes</span><span class="p">()</span> <span class="kt">error</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">f</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">os</span><span class="p">.</span><span class="nf">Create</span><span class="p">(</span><span class="s">&#34;/home/joeshaw/notes.txt&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">defer</span> <span class="nx">f</span><span class="p">.</span><span class="nf">Close</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="nx">err</span> <span class="p">=</span> <span class="nx">io</span><span class="p">.</span><span class="nf">WriteString</span><span class="p">(</span><span class="nx">f</span><span class="p">,</span> <span class="s">&#34;hello world&#34;</span><span class="p">);</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="nx">f</span><span class="p">.</span><span class="nf">Sync</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div>
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/">读书笔记</a>
+        
+            <a href="/tags/go/">Go</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">Related content</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/%E6%8C%87%E9%92%88%E4%B8%AD%E7%9A%84%E9%9A%8F%E6%9C%BA%E5%80%BC/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">指针中的随机值</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script src="https://utteranc.es/client.js" 
+        repo="ixugo/ixugo.github.io"
+        issue-term="pathname"
+        
+        crossorigin="anonymous"
+        async
+        >
+</script>
+
+<style>
+    .utterances {
+        max-width: unset;
+    }
+</style>
+
+<script>
+    function setUtterancesTheme(theme) {
+        let utterances = document.querySelector('.utterances iframe');
+        if (utterances) {
+            utterances.contentWindow.postMessage(
+                {
+                    type: 'set-theme',
+                    theme: `github-${theme}`
+                },
+                'https://utteranc.es'
+            );
+        }
+    }
+
+    addEventListener('message', event => {
+        if (event.origin !== 'https://utteranc.es') return;
+        setUtterancesTheme(document.documentElement.dataset.scheme)
+    });
+
+    window.addEventListener('onColorSchemeChange', (e) => {
+        setUtterancesTheme(e.detail)
+    })
+</script>
+
+
+    
+
+    <footer class="site-footer">
+  <section class="copyright">
+    &copy;
+    
+    2018 -
+    
+    2024 ixugo
+  </section>
+  <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+  <section class="powerby">
+
+    
+    <span id="busuanzi_container_page_pv">本文阅读量
+      <span style="font-size: 14px" id="busuanzi_value_page_pv"></span>
+      次，</span>
+    <span id="busuanzi_container_site_pv">总访问量
+      <span style="font-size: 14px" id="busuanzi_value_site_pv"></span>
+      次 </span>，总访客数
+    <span style="font-size: 14px" id="busuanzi_value_site_uv"></span> 人
+    <br />
+
+
+    Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> .&nbsp;&nbsp;
+    Theme <a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener"
+      data-version="3.16.0">Stack</a> designed by <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a>
+  </section>
+
+
+
+
+  <script>
+    function count() {
+      let href = window.location.href;
+      let regexp = /^https?:\/\/blog.golang.space\/?(page\/[\d]+\/?)?$/;
+      if (regexp.test(href)) {
+        let e = document.getElementById("busuanzi_container_page_pv");
+        e.innerText = "";
+      }
+    }
+    window.onload = count;
+  </script>
+</footer>
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

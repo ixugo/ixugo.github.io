@@ -6,7 +6,61 @@
         <description>Recent content in 后端 on ixugo</description>
         <generator>Hugo -- gohugo.io</generator>
         <language>zh-cn</language>
-        <lastBuildDate>Sun, 28 Apr 2024 00:00:00 +0000</lastBuildDate><atom:link href="https://blog.golang.space/categories/%E5%90%8E%E7%AB%AF/index.xml" rel="self" type="application/rss+xml" /><item>
+        <lastBuildDate>Thu, 22 Aug 2024 00:00:00 +0000</lastBuildDate><atom:link href="https://blog.golang.space/categories/%E5%90%8E%E7%AB%AF/index.xml" rel="self" type="application/rss+xml" /><item>
+        <title>太多连接数</title>
+        <link>https://blog.golang.space/p/%E5%A4%AA%E5%A4%9A%E8%BF%9E%E6%8E%A5%E6%95%B0/</link>
+        <pubDate>Thu, 22 Aug 2024 00:00:00 +0000</pubDate>
+        
+        <guid>https://blog.golang.space/p/%E5%A4%AA%E5%A4%9A%E8%BF%9E%E6%8E%A5%E6%95%B0/</guid>
+        <description>&lt;h2 id=&#34;背景&#34;&gt;背景&lt;/h2&gt;
+&lt;p&gt;遇到线上服务提示 &lt;code&gt;too many open files&lt;/code&gt;，可以通过 &lt;code&gt;/proc/&amp;lt;进程 ID&amp;gt;/limits&lt;/code&gt; 来查看限制的进程最大连接数，一般是 4096，可以简单的通过修改最大打开文件数量来解决问题，但知其然，更要知其所以然。&lt;/p&gt;
+&lt;h2 id=&#34;分析&#34;&gt;分析&lt;/h2&gt;
+&lt;p&gt;通过 &lt;code&gt;lsof -p &amp;lt;进程 ID&amp;gt;&lt;/code&gt;  列出以下信息，从下图中可以看到好几千连接数都是这个。&lt;/p&gt;
+&lt;p&gt;补充一下图所示分别表示什么意思&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;PID: 进程 ID&lt;/li&gt;
+&lt;li&gt;USER: 启动进程的用户&lt;/li&gt;
+&lt;li&gt;FD: 文件描述符&lt;/li&gt;
+&lt;li&gt;TYPE: 文件类型，此处的 sock 表示 套接字。&lt;/li&gt;
+&lt;li&gt;DEVICE: 设备号&lt;/li&gt;
+&lt;li&gt;SIZE/OFF: 文件大小或偏移量&lt;/li&gt;
+&lt;li&gt;NODE: 文件的 iode 节点号码&lt;/li&gt;
+&lt;li&gt;NAME: 文件名称或路径/ socket 的详细信息&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;code&gt;What Fuck?&lt;/code&gt;，在这里得知了 2 个条件。&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;90% 的连接数都是同类&lt;/li&gt;
+&lt;li&gt;占用竟然全是 TCPv6 的 sock 连接，根据业务判断，不可能同时有这么多连接数，显然是资源泄漏。&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;&lt;img src=&#34;http://img.golang.space/img-1724294839070.png&#34;
+	
+	
+	
+	loading=&#34;lazy&#34;
+	
+		alt=&#34;image-20240822104718879&#34;
+	
+	
+&gt;&lt;/p&gt;
+&lt;p&gt;通过 &lt;code&gt; netstat -anp | grep 16683&lt;/code&gt; 查看连接情况。&lt;/p&gt;
+&lt;p&gt;由下图可知没有几千个 tcp6 的链接，但 sock 文件描述符还在。&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;http://img.golang.space/img-1724295757844.png&#34;
+	
+	
+	
+	loading=&#34;lazy&#34;
+	
+		alt=&#34;image-20240822110237683&#34;
+	
+	
+&gt;&lt;/p&gt;
+&lt;p&gt;基于此，大概问题范围被圈定了，在我们业务中有 2 个地方，会产生这些大量的连接。&lt;/p&gt;
+&lt;p&gt;登录网页端，在 2 个业务分别操作，检查占用文件描述符数量是否上涨，最终定位最大嫌疑。&lt;/p&gt;
+&lt;p&gt;首先可以确定 socket 是关闭的，所以 ss/netstat 查询不到信息，但文件描述符一直占用，大概率是本地服务还在处理那个关闭的 socket (猜测)，检查对应业务的协程数量是否与文件描述符数量相差无几。&lt;/p&gt;
+&lt;h2 id=&#34;验证分析&#34;&gt;验证分析&lt;/h2&gt;
+</description>
+        </item>
+        <item>
         <title>设置 Gitea Actions</title>
         <link>https://blog.golang.space/p/%E8%AE%BE%E7%BD%AE-gitea-actions/</link>
         <pubDate>Sun, 28 Apr 2024 00:00:00 +0000</pubDate>
