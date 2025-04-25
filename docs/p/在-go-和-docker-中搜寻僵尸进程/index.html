@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='上周，我遇到了一个棘手的问题：僵尸进程导致我的演示服务器崩溃 🧟‍♂️ 如果你有过在 Go 或 Docker 中处理进程管理的经验，你可能会对这段经历感同身受。下面是对这个问题的深入技术分析，以及我是如何追踪并解决它的。
+我们有一个功能，在 Stormkit 中可以根据自托管用户的需求启动 Node.js 服务器，使用动态端口分配在同一服务器上运行多个实例。它是用 Go 编写的，利用 os/exec 来管理进程。该系统一直非常稳定——没有宕机时间，用户也很满意。
+最近，我设置了一个用于托管 Next.js 和 Svelte 服务器端应用的演示服务器。一切看起来都正常，直到服务器开始随机出现 Redis 发布/订阅错误而崩溃。
+我将 Redis 升级到了 7.x 版本，检查了日志并尝试在本地重现问题——没有发现任何问题。崩溃是随机且难以捉摸的。然后，我禁用了 Next.js 应用，崩溃就停止了。我怀疑是 Next.js 本身的问题，于是深入研究了其运行时行为，但没有发现什么异常。
+查看服务器指标时，我发现内存使用率在崩溃前会激增。快速运行 ps aux 命令后，我发现有一堆遗留的 Next.js 进程没有被终止。我们的关机逻辑失败了，导致内存泄漏，最终耗尽了服务器资源。
+罪魁祸首在于我们的 Go 代码。我使用 os.Process.Kill 来终止进程，但没有杀死由 npm 启动的子进程（例如， npm run start 启动了 next start ）。这导致孤儿进程不断累积。这里有一个原始代码的简化版本：
+1 2 3 4 5 6 7 func stopProcess(cmd *exec.Cmd) error { if cmd.Process != nil { return cmd.'>
+<title>在 Go 和 Docker 中搜寻僵尸进程</title>
+
+<link rel='canonical' href='https://blog.golang.space/p/%E5%9C%A8-go-%E5%92%8C-docker-%E4%B8%AD%E6%90%9C%E5%AF%BB%E5%83%B5%E5%B0%B8%E8%BF%9B%E7%A8%8B/'>
+
+<link rel="stylesheet" href="/scss/style.min.8191399262444ab68b72a18c97392f5349be20a1615d77445be51e974c144cff.css"><meta property='og:title' content='在 Go 和 Docker 中搜寻僵尸进程'>
+<meta property='og:description' content='上周，我遇到了一个棘手的问题：僵尸进程导致我的演示服务器崩溃 🧟‍♂️ 如果你有过在 Go 或 Docker 中处理进程管理的经验，你可能会对这段经历感同身受。下面是对这个问题的深入技术分析，以及我是如何追踪并解决它的。
+我们有一个功能，在 Stormkit 中可以根据自托管用户的需求启动 Node.js 服务器，使用动态端口分配在同一服务器上运行多个实例。它是用 Go 编写的，利用 os/exec 来管理进程。该系统一直非常稳定——没有宕机时间，用户也很满意。
+最近，我设置了一个用于托管 Next.js 和 Svelte 服务器端应用的演示服务器。一切看起来都正常，直到服务器开始随机出现 Redis 发布/订阅错误而崩溃。
+我将 Redis 升级到了 7.x 版本，检查了日志并尝试在本地重现问题——没有发现任何问题。崩溃是随机且难以捉摸的。然后，我禁用了 Next.js 应用，崩溃就停止了。我怀疑是 Next.js 本身的问题，于是深入研究了其运行时行为，但没有发现什么异常。
+查看服务器指标时，我发现内存使用率在崩溃前会激增。快速运行 ps aux 命令后，我发现有一堆遗留的 Next.js 进程没有被终止。我们的关机逻辑失败了，导致内存泄漏，最终耗尽了服务器资源。
+罪魁祸首在于我们的 Go 代码。我使用 os.Process.Kill 来终止进程，但没有杀死由 npm 启动的子进程（例如， npm run start 启动了 next start ）。这导致孤儿进程不断累积。这里有一个原始代码的简化版本：
+1 2 3 4 5 6 7 func stopProcess(cmd *exec.Cmd) error { if cmd.Process != nil { return cmd.'>
+<meta property='og:url' content='https://blog.golang.space/p/%E5%9C%A8-go-%E5%92%8C-docker-%E4%B8%AD%E6%90%9C%E5%AF%BB%E5%83%B5%E5%B0%B8%E8%BF%9B%E7%A8%8B/'>
+<meta property='og:site_name' content='ixugo'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='读书笔记' /><meta property='article:tag' content='GO' /><meta property='article:published_time' content='2025-04-25T00:00:00&#43;00:00'/><meta property='article:modified_time' content='2025-04-25T00:00:00&#43;00:00'/>
+<meta name="twitter:title" content="在 Go 和 Docker 中搜寻僵尸进程">
+<meta name="twitter:description" content="上周，我遇到了一个棘手的问题：僵尸进程导致我的演示服务器崩溃 🧟‍♂️ 如果你有过在 Go 或 Docker 中处理进程管理的经验，你可能会对这段经历感同身受。下面是对这个问题的深入技术分析，以及我是如何追踪并解决它的。
+我们有一个功能，在 Stormkit 中可以根据自托管用户的需求启动 Node.js 服务器，使用动态端口分配在同一服务器上运行多个实例。它是用 Go 编写的，利用 os/exec 来管理进程。该系统一直非常稳定——没有宕机时间，用户也很满意。
+最近，我设置了一个用于托管 Next.js 和 Svelte 服务器端应用的演示服务器。一切看起来都正常，直到服务器开始随机出现 Redis 发布/订阅错误而崩溃。
+我将 Redis 升级到了 7.x 版本，检查了日志并尝试在本地重现问题——没有发现任何问题。崩溃是随机且难以捉摸的。然后，我禁用了 Next.js 应用，崩溃就停止了。我怀疑是 Next.js 本身的问题，于是深入研究了其运行时行为，但没有发现什么异常。
+查看服务器指标时，我发现内存使用率在崩溃前会激增。快速运行 ps aux 命令后，我发现有一堆遗留的 Next.js 进程没有被终止。我们的关机逻辑失败了，导致内存泄漏，最终耗尽了服务器资源。
+罪魁祸首在于我们的 Go 代码。我使用 os.Process.Kill 来终止进程，但没有杀死由 npm 启动的子进程（例如， npm run start 启动了 next start ）。这导致孤儿进程不断累积。这里有一个原始代码的简化版本：
+1 2 3 4 5 6 7 func stopProcess(cmd *exec.Cmd) error { if cmd.Process != nil { return cmd.">
+    <link rel="shortcut icon" href="img/favicon.ico" />
+
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+	(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+	m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+	})(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+	ga('create', 'UA-192125643-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="Toggle Menu">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu0b04ba6d7249c9f90c92db974439eb8c_208246_300x0_resize_box_3.png" width="300"
+                            height="321" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🧐</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">ixugo</a></h1>
+            <h2 class="site-description">走出舒适区</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/ixugo'
+                        target="_blank"
+                        title="GitHub"
+                        rel="me"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>Home</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/about/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>About</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>Archives</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>Search</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>Dark Mode</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">Table of contents</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#解决尝试进程组">解决尝试：进程组</a></li>
+    <li><a href="#僵尸进程-101">僵尸进程 101</a></li>
+    <li><a href="#docker-的僵尸进程问题">Docker 的僵尸进程问题</a></li>
+    <li><a href="#解决方案tini">解决方案：Tini</a></li>
+    <li><a href="#总结">总结</a></li>
+    <li><a href="#参考">参考</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+            <main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+    <header class="article-category">
+        
+            <a href="/categories/%E7%BF%BB%E8%AF%91/" >
+                翻译
+            </a>
+        
+    </header>
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/%E5%9C%A8-go-%E5%92%8C-docker-%E4%B8%AD%E6%90%9C%E5%AF%BB%E5%83%B5%E5%B0%B8%E8%BF%9B%E7%A8%8B/">在 Go 和 Docker 中搜寻僵尸进程</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    
+    
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Apr 25, 2025</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    2 minute read
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+
+</header>
+
+    <section class="article-content">
+    
+    
+    <p>上周，我遇到了一个棘手的问题：僵尸进程导致我的演示服务器崩溃 🧟‍♂️ 如果你有过在 Go 或 Docker 中处理进程管理的经验，你可能会对这段经历感同身受。下面是对这个问题的深入技术分析，以及我是如何追踪并解决它的。</p>
+<p>我们有一个功能，在 Stormkit 中可以根据自托管用户的需求启动 Node.js 服务器，使用动态端口分配在同一服务器上运行多个实例。它是用 Go 编写的，利用 <code>os/exec</code> 来管理进程。该系统一直非常稳定——没有宕机时间，用户也很满意。</p>
+<p>最近，我设置了一个用于托管 Next.js 和 Svelte 服务器端应用的演示服务器。一切看起来都正常，直到服务器开始随机出现 Redis 发布/订阅错误而崩溃。</p>
+<p>我将 Redis 升级到了 7.x 版本，检查了日志并尝试在本地重现问题——没有发现任何问题。崩溃是随机且难以捉摸的。然后，我禁用了 Next.js 应用，崩溃就停止了。我怀疑是 Next.js 本身的问题，于是深入研究了其运行时行为，但没有发现什么异常。</p>
+<p>查看服务器指标时，我发现内存使用率在崩溃前会激增。快速运行 <code>ps aux</code> 命令后，我发现有一堆遗留的 Next.js 进程没有被终止。我们的关机逻辑失败了，导致内存泄漏，最终耗尽了服务器资源。</p>
+<p>罪魁祸首在于我们的 Go 代码。我使用 <code>os.Process.Kill</code> 来终止进程，但没有杀死由 npm 启动的子进程（例如， <code>npm run start</code> 启动了 <code>next start</code> ）。这导致孤儿进程不断累积。这里有一个原始代码的简化版本：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">stopProcess</span><span class="p">(</span><span class="nx">cmd</span> <span class="o">*</span><span class="nx">exec</span><span class="p">.</span><span class="nx">Cmd</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">cmd</span><span class="p">.</span><span class="nx">Process</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="nx">cmd</span><span class="p">.</span><span class="nx">Process</span><span class="p">.</span><span class="nf">Kill</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="k">return</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>我通过启动一个带有子进程的 Node.js 进程并杀死父进程来本地重现了这个问题。果然，子进程还在运行。在 Go 中， <code>os.Process.Kill</code> 向进程发送信号，但不处理其子进程。</p>
+<h2 id="解决尝试进程组">解决尝试：进程组</h2>
+<p>要杀死子进程，我修改代码使用了进程组。通过使用 <code>syscall.SysProcAttr</code> 设置进程组 ID（PGID），我可以向整个组发送信号。这是更新后的代码（简化版）：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kn">package</span> <span class="nx">main</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kn">import</span> <span class="p">(</span>
+</span></span><span class="line"><span class="cl">  <span class="s">&#34;log&#34;</span>
+</span></span><span class="line"><span class="cl">  <span class="s">&#34;os/exec&#34;</span>
+</span></span><span class="line"><span class="cl">  <span class="s">&#34;syscall&#34;</span>
+</span></span><span class="line"><span class="cl"><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">startProcess</span><span class="p">()</span> <span class="p">(</span><span class="o">*</span><span class="nx">exec</span><span class="p">.</span><span class="nx">Cmd</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">cmd</span> <span class="o">:=</span> <span class="nx">exec</span><span class="p">.</span><span class="nf">Command</span><span class="p">(</span><span class="s">&#34;npm&#34;</span><span class="p">,</span> <span class="s">&#34;run&#34;</span> <span class="s">&#34;start&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">cmd</span><span class="p">.</span><span class="nx">SysProcAttr</span> <span class="p">=</span> <span class="o">&amp;</span><span class="nx">syscall</span><span class="p">.</span><span class="nx">SysProcAttr</span><span class="p">{</span><span class="nx">Setpgid</span><span class="p">:</span> <span class="kc">true</span><span class="p">}</span> <span class="c1">// Assign PGID
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">cmd</span><span class="p">.</span><span class="nf">Start</span><span class="p">();</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="k">return</span> <span class="nx">cmd</span><span class="p">,</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">stopProcess</span><span class="p">(</span><span class="nx">cmd</span> <span class="o">*</span><span class="nx">exec</span><span class="p">.</span><span class="nx">Cmd</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">cmd</span><span class="p">.</span><span class="nx">Process</span> <span class="o">==</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// Send SIGTERM to the process group
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">pgid</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">syscall</span><span class="p">.</span><span class="nf">Getpgid</span><span class="p">(</span><span class="nx">cmd</span><span class="p">.</span><span class="nx">Process</span><span class="p">.</span><span class="nx">Pid</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="k">return</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="k">return</span> <span class="nx">syscall</span><span class="p">.</span><span class="nf">Kill</span><span class="p">(</span><span class="o">-</span><span class="nx">pgid</span><span class="p">,</span> <span class="nx">syscall</span><span class="p">.</span><span class="nx">SIGTERM</span><span class="p">)</span> <span class="c1">// Negative PGID targets group
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>这在本地工作了：杀死父进程也终止了子进程。我将一个测试版本部署到我们的远程服务器上，期望胜利。但 <code>ps aux</code> 显示 <code>&lt;defunct&gt;</code> 接近进程旁边——僵尸进程！🧠</p>
+<h2 id="僵尸进程-101">僵尸进程 101</h2>
+<p>在 Linux 中，当一个子进程终止，但其父进程没有收集其退出状态（通过 wait 或 waitpid）时，就会出现僵尸进程。该进程会停留在进程表中，标记为 <code>&lt;defunct&gt;</code> 。少量的僵尸进程是无害的，但当它们积累时，会耗尽进程表，阻止新进程的启动。</p>
+<p>在本地，我的 Go 二进制文件可以正常回收进程。但在远程，僵尸进程仍然存在。关键区别在于远程服务器在 Docker 容器中运行了 Stormkit。</p>
+<h2 id="docker-的僵尸进程问题">Docker 的僵尸进程问题</h2>
+<p>Docker 将 PID 1 分配给容器的入口点（即我们的 Go 二进制文件）。在 Linux 中，PID 1（ <code>init/systemd</code> ）负责收养孤儿进程并回收其自身的僵尸子进程，包括它已经收养的前孤儿进程。如果 PID 1 没有处理 <code>SIGCHLD</code> 信号并调用 wait，僵尸进程就会累积。我们的 Go 程序并没有设计成一个初始化系统，所以它忽略了孤儿进程。</p>
+<h2 id="解决方案tini">解决方案：Tini</h2>
+<p>经过进一步调查，我发现回收僵尸进程是 Docker 长期存在的问题，所以市场上已经有了解决方案。最终我找到了 Tini，这是一个为容器设计的轻量级初始化系统。Tini 作为 PID 1 运行，通过处理 SIGCHLD 和 wait 所有进程来正确回收僵尸进程。我更新了我们的 Dockerfile：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="nx">ENTRYPOINT</span> <span class="p">[</span><span class="s">&#34;/usr/bin/tini&#34;</span><span class="p">,</span> <span class="s">&#34;--&#34;</span><span class="p">]</span>
+</span></span><span class="line"><span class="cl"><span class="nx">CMD</span> <span class="p">[</span><span class="s">&#34;/app/stormkit&#34;</span><span class="p">]</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>或者，我可以使用 Docker 的 &ndash;init 标志，该标志会自动添加 Tini。</p>
+<p>使用 Tini 部署后， <code>ps aux</code> 干净了——没有僵尸进程！🎉 服务器稳定了，Redis 错误消失了，因为它们是资源耗尽的副作用。</p>
+<h2 id="总结">总结</h2>
+<ul>
+<li>Go 进程管理：os.Process.Kill 不处理子进程。使用进程组或适当的信号处理以实现干净终止。</li>
+<li>Docker PID 1：如果你的应用程序作为 PID 1 运行，它需要回收僵尸进程或委托给像 Tini 这样的初始化系统。</li>
+<li>调试提示：处理崩溃时，请始终检查 <code>ps aux</code> 查看进程。</li>
+<li>根本原因很重要：Redis 错误只是一个误导——僵尸进程导致的内存耗尽才是真正的问题。</li>
+</ul>
+<h2 id="参考">参考</h2>
+<p>本文翻译于 <a class="link" href="https://www.stormkit.io/blog/hunting-zombie-processes-in-go-and-docker"  target="_blank" rel="noopener"
+    >Hunting Zombie Processes in Go and Docker  </a></p>
+
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/">读书笔记</a>
+        
+            <a href="/tags/go/">Go</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">Related content</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/%E4%B8%8D%E8%A6%81%E5%9C%A8%E5%8F%AF%E5%86%99%E6%96%87%E4%BB%B6%E4%B8%8A%E5%BB%B6%E8%BF%9F-close/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">不要在可写文件上延迟 Close</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/%E6%8C%87%E9%92%88%E4%B8%AD%E7%9A%84%E9%9A%8F%E6%9C%BA%E5%80%BC/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">指针中的随机值</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script src="https://utteranc.es/client.js" 
+        repo="ixugo/ixugo.github.io"
+        issue-term="pathname"
+        
+        crossorigin="anonymous"
+        async
+        >
+</script>
+
+<style>
+    .utterances {
+        max-width: unset;
+    }
+</style>
+
+<script>
+    function setUtterancesTheme(theme) {
+        let utterances = document.querySelector('.utterances iframe');
+        if (utterances) {
+            utterances.contentWindow.postMessage(
+                {
+                    type: 'set-theme',
+                    theme: `github-${theme}`
+                },
+                'https://utteranc.es'
+            );
+        }
+    }
+
+    addEventListener('message', event => {
+        if (event.origin !== 'https://utteranc.es') return;
+        setUtterancesTheme(document.documentElement.dataset.scheme)
+    });
+
+    window.addEventListener('onColorSchemeChange', (e) => {
+        setUtterancesTheme(e.detail)
+    })
+</script>
+
+
+    
+
+    <footer class="site-footer">
+  <section class="copyright">
+    &copy;
+    
+    2018 -
+    
+    2025 ixugo
+  </section>
+  <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+  <section class="powerby">
+
+    
+    <span id="busuanzi_container_page_pv">本文阅读量
+      <span style="font-size: 14px" id="busuanzi_value_page_pv"></span>
+      次，</span>
+    <span id="busuanzi_container_site_pv">总访问量
+      <span style="font-size: 14px" id="busuanzi_value_site_pv"></span>
+      次 </span>，总访客数
+    <span style="font-size: 14px" id="busuanzi_value_site_uv"></span> 人
+    <br />
+
+
+    Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> .&nbsp;&nbsp;
+    Theme <a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener"
+      data-version="3.16.0">Stack</a> designed by <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a>
+  </section>
+
+
+
+
+  <script>
+    function count() {
+      let href = window.location.href;
+      let regexp = /^https?:\/\/blog.golang.space\/?(page\/[\d]+\/?)?$/;
+      if (regexp.test(href)) {
+        let e = document.getElementById("busuanzi_container_page_pv");
+        e.innerText = "";
+      }
+    }
+    window.onload = count;
+  </script>
+</footer>
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>
