@@ -9,7 +9,7 @@ build:
 
 push:
 	git add .
-	git commit -m $(m) >> build.log
+	git commit -m "$(m)" >> build.log
 	echo "正在发送到服务器..."
 	git push 
 	@echo "OK"

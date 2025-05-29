@@ -1,18 +1,54 @@
 <!DOCTYPE html>
 <html lang="zh-cn" dir="ltr">
     <head><meta charset='utf-8'>
-<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content=''>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='流媒体服务器 16 核 64GB 存储，尝试 RTMP 推流 1000 路，服务器没有跑满，但是画面产生了延迟或停顿，以及断开连接。
+以下是记录我的解决方案:
+查询 memstats 信息 我尝试通过 /debug/vars 查询程序内信息，此时 GC 次数是 168 次，占用 CPU 比例是 2%，GC 总共停止时间是 263毫秒。
+当前数值的消耗，不应该对程序影响那么大。
+看看 cpu 运行消耗 取一下 CPU 信息，/debug/pprof/profile?seconds=30s
+局部放大
+小对象(mallocgcSmallNoscan)分配占用 34.18% 堆扩容(growslice)占用 7.31% 将涉及到频繁分配对象的代码注释掉，再压测一下看看视频流确实流畅多了，但依然存在卡顿。
+再抓一次 cpu 信息，可以看到主要消耗是系统调用
+多推一会流，在抓 cpu，grow 是一个内存分配的函数，程序在频繁内存扩容
+提前创建一定大小的内存，避免扩容后，节省一半性能
+网络情况
+tx 是出站
+tx 是入站'>
 <title></title>
 
 <link rel='canonical' href='https://blog.golang.space/p/'>
 
 <link rel="stylesheet" href="/scss/style.min.8191399262444ab68b72a18c97392f5349be20a1615d77445be51e974c144cff.css"><meta property='og:title' content=''>
-<meta property='og:description' content=''>
+<meta property='og:description' content='流媒体服务器 16 核 64GB 存储，尝试 RTMP 推流 1000 路，服务器没有跑满，但是画面产生了延迟或停顿，以及断开连接。
+以下是记录我的解决方案:
+查询 memstats 信息 我尝试通过 /debug/vars 查询程序内信息，此时 GC 次数是 168 次，占用 CPU 比例是 2%，GC 总共停止时间是 263毫秒。
+当前数值的消耗，不应该对程序影响那么大。
+看看 cpu 运行消耗 取一下 CPU 信息，/debug/pprof/profile?seconds=30s
+局部放大
+小对象(mallocgcSmallNoscan)分配占用 34.18% 堆扩容(growslice)占用 7.31% 将涉及到频繁分配对象的代码注释掉，再压测一下看看视频流确实流畅多了，但依然存在卡顿。
+再抓一次 cpu 信息，可以看到主要消耗是系统调用
+多推一会流，在抓 cpu，grow 是一个内存分配的函数，程序在频繁内存扩容
+提前创建一定大小的内存，避免扩容后，节省一半性能
+网络情况
+tx 是出站
+tx 是入站'>
 <meta property='og:url' content='https://blog.golang.space/p/'>
 <meta property='og:site_name' content='ixugo'>
 <meta property='og:type' content='article'><meta property='article:section' content='Post' />
 <meta name="twitter:title" content="">
-<meta name="twitter:description" content="">
+<meta name="twitter:description" content="流媒体服务器 16 核 64GB 存储，尝试 RTMP 推流 1000 路，服务器没有跑满，但是画面产生了延迟或停顿，以及断开连接。
+以下是记录我的解决方案:
+查询 memstats 信息 我尝试通过 /debug/vars 查询程序内信息，此时 GC 次数是 168 次，占用 CPU 比例是 2%，GC 总共停止时间是 263毫秒。
+当前数值的消耗，不应该对程序影响那么大。
+看看 cpu 运行消耗 取一下 CPU 信息，/debug/pprof/profile?seconds=30s
+局部放大
+小对象(mallocgcSmallNoscan)分配占用 34.18% 堆扩容(growslice)占用 7.31% 将涉及到频繁分配对象的代码注释掉，再压测一下看看视频流确实流畅多了，但依然存在卡顿。
+再抓一次 cpu 信息，可以看到主要消耗是系统调用
+多推一会流，在抓 cpu，grow 是一个内存分配的函数，程序在频繁内存扩容
+提前创建一定大小的内存，避免扩容后，节省一半性能
+网络情况
+tx 是出站
+tx 是入站">
     <link rel="shortcut icon" href="img/favicon.ico" />
 
 <script type="application/javascript">
@@ -252,7 +288,7 @@ if (!doNotTrack) {
 
 
                 <time class="article-time--reading">
-                    0 minute read
+                    1 minute read
                 </time>
             </div>
         
