@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='我费了好大劲才弄清楚，为什么这样一个看似无关紧要的变化会导致如此巨大的性能差异。最终，最有帮助的是 Go 工具链中一个很棒的工具：使用 -base 选项可视化两个性能配置文件之间的差异， pprof 。
+使用 pprof 获取两个配置文件的差异 Go 语言自带一个强大的性能分析工具 pprof 。与其他一些语言不同，您必须在代码中显式启用它才能获取性能分析结果；您无法事后或使用命令行参数启用它。这很简单，但您必须编写代码才能实现。在我们的例子中，我将其直接放在要分析的测试方法中。
+1 2 3 4 5 6 7 8 func TestRegressionTests(t *testing.T) { // We&amp;#39;ll only run this on GitHub Actions, so set this environment variable to run locally if _, ok := os.LookupEnv(&amp;#34;REGRESSION_TESTING&amp;#34;); !ok { // t.Skip() } p := profile.Start(profile.CPUProfile) defer p.Stop() 此代码片段的最后两行启动 CPU 性能分析，并在方法完成时停止。它使用了 github.com/pkg/profile 包，该包为内置性能分析器库提供了一个更符合人体工程学的包装器。运行执行此操作的代码，您将看到如下输出：
+1 2025/06/20 14:10:40.548730 profile: cpu profiling disabled, C:\Users\ZACHMU~1\AppData\Local\Temp\profile1113350212\cpu.pprof 这是运行生成的配置文件的位置，您应该记下它或将其复制到具有更容易记住的名称的其他位置。'>
+<title>比较两个 go pprof 文件来查找性能问题</title>
+
+<link rel='canonical' href='https://blog.golang.space/p/%E6%AF%94%E8%BE%83%E4%B8%A4%E4%B8%AA-go-pprof-%E6%96%87%E4%BB%B6%E6%9D%A5%E6%9F%A5%E6%89%BE%E6%80%A7%E8%83%BD%E9%97%AE%E9%A2%98/'>
+
+<link rel="stylesheet" href="/scss/style.min.8191399262444ab68b72a18c97392f5349be20a1615d77445be51e974c144cff.css"><meta property='og:title' content='比较两个 go pprof 文件来查找性能问题'>
+<meta property='og:description' content='我费了好大劲才弄清楚，为什么这样一个看似无关紧要的变化会导致如此巨大的性能差异。最终，最有帮助的是 Go 工具链中一个很棒的工具：使用 -base 选项可视化两个性能配置文件之间的差异， pprof 。
+使用 pprof 获取两个配置文件的差异 Go 语言自带一个强大的性能分析工具 pprof 。与其他一些语言不同，您必须在代码中显式启用它才能获取性能分析结果；您无法事后或使用命令行参数启用它。这很简单，但您必须编写代码才能实现。在我们的例子中，我将其直接放在要分析的测试方法中。
+1 2 3 4 5 6 7 8 func TestRegressionTests(t *testing.T) { // We&amp;#39;ll only run this on GitHub Actions, so set this environment variable to run locally if _, ok := os.LookupEnv(&amp;#34;REGRESSION_TESTING&amp;#34;); !ok { // t.Skip() } p := profile.Start(profile.CPUProfile) defer p.Stop() 此代码片段的最后两行启动 CPU 性能分析，并在方法完成时停止。它使用了 github.com/pkg/profile 包，该包为内置性能分析器库提供了一个更符合人体工程学的包装器。运行执行此操作的代码，您将看到如下输出：
+1 2025/06/20 14:10:40.548730 profile: cpu profiling disabled, C:\Users\ZACHMU~1\AppData\Local\Temp\profile1113350212\cpu.pprof 这是运行生成的配置文件的位置，您应该记下它或将其复制到具有更容易记住的名称的其他位置。'>
+<meta property='og:url' content='https://blog.golang.space/p/%E6%AF%94%E8%BE%83%E4%B8%A4%E4%B8%AA-go-pprof-%E6%96%87%E4%BB%B6%E6%9D%A5%E6%9F%A5%E6%89%BE%E6%80%A7%E8%83%BD%E9%97%AE%E9%A2%98/'>
+<meta property='og:site_name' content='ixugo'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='读书笔记' /><meta property='article:tag' content='翻译' /><meta property='article:published_time' content='2025-06-30T00:00:00&#43;00:00'/><meta property='article:modified_time' content='2025-06-30T00:00:00&#43;00:00'/>
+<meta name="twitter:title" content="比较两个 go pprof 文件来查找性能问题">
+<meta name="twitter:description" content="我费了好大劲才弄清楚，为什么这样一个看似无关紧要的变化会导致如此巨大的性能差异。最终，最有帮助的是 Go 工具链中一个很棒的工具：使用 -base 选项可视化两个性能配置文件之间的差异， pprof 。
+使用 pprof 获取两个配置文件的差异 Go 语言自带一个强大的性能分析工具 pprof 。与其他一些语言不同，您必须在代码中显式启用它才能获取性能分析结果；您无法事后或使用命令行参数启用它。这很简单，但您必须编写代码才能实现。在我们的例子中，我将其直接放在要分析的测试方法中。
+1 2 3 4 5 6 7 8 func TestRegressionTests(t *testing.T) { // We&amp;#39;ll only run this on GitHub Actions, so set this environment variable to run locally if _, ok := os.LookupEnv(&amp;#34;REGRESSION_TESTING&amp;#34;); !ok { // t.Skip() } p := profile.Start(profile.CPUProfile) defer p.Stop() 此代码片段的最后两行启动 CPU 性能分析，并在方法完成时停止。它使用了 github.com/pkg/profile 包，该包为内置性能分析器库提供了一个更符合人体工程学的包装器。运行执行此操作的代码，您将看到如下输出：
+1 2025/06/20 14:10:40.548730 profile: cpu profiling disabled, C:\Users\ZACHMU~1\AppData\Local\Temp\profile1113350212\cpu.pprof 这是运行生成的配置文件的位置，您应该记下它或将其复制到具有更容易记住的名称的其他位置。">
+    <link rel="shortcut icon" href="img/favicon.ico" />
+
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+	(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+	m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+	})(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+	ga('create', 'UA-192125643-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="Toggle Menu">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu0b04ba6d7249c9f90c92db974439eb8c_208246_300x0_resize_box_3.png" width="300"
+                            height="321" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🧐</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">ixugo</a></h1>
+            <h2 class="site-description">走出舒适区</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/ixugo'
+                        target="_blank"
+                        title="GitHub"
+                        rel="me"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>Home</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/about/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>About</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>Archives</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>Search</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>Dark Mode</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">Table of contents</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#使用-pprof-获取两个配置文件的差异">使用 <code>pprof</code> 获取两个配置文件的差异</a></li>
+    <li><a href="#检查性能差异">检查性能差异</a></li>
+    <li><a href="#参考">参考</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+            <main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+    <header class="article-category">
+        
+            <a href="/categories/go/" >
+                Go
+            </a>
+        
+    </header>
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/%E6%AF%94%E8%BE%83%E4%B8%A4%E4%B8%AA-go-pprof-%E6%96%87%E4%BB%B6%E6%9D%A5%E6%9F%A5%E6%89%BE%E6%80%A7%E8%83%BD%E9%97%AE%E9%A2%98/">比较两个 go pprof 文件来查找性能问题</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    
+    
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Jun 30, 2025</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    3 minute read
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+
+</header>
+
+    <section class="article-content">
+    
+    
+    <p>我费了好大劲才弄清楚，为什么这样一个看似无关紧要的变化会导致如此巨大的性能差异。最终，最有帮助的是 Go 工具链中一个很棒的工具：使用 <code>-base</code> 选项可视化两个性能配置文件之间的差异， <code>pprof</code> 。</p>
+<h2 id="使用-pprof-获取两个配置文件的差异">使用 <code>pprof</code> 获取两个配置文件的差异</h2>
+<p>Go 语言自带一个强大的性能分析工具 <code>pprof</code> 。与其他一些语言不同，您必须在代码中显式启用它才能获取性能分析结果；您无法事后或使用命令行参数启用它。这很简单，但您必须编写代码才能实现。在我们的例子中，我将其直接放在要分析的测试方法中。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">TestRegressionTests</span><span class="p">(</span><span class="nx">t</span> <span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// We&#39;ll only run this on GitHub Actions, so set this environment variable to run locally
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="k">if</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">ok</span> <span class="o">:=</span> <span class="nx">os</span><span class="p">.</span><span class="nf">LookupEnv</span><span class="p">(</span><span class="s">&#34;REGRESSION_TESTING&#34;</span><span class="p">);</span> <span class="p">!</span><span class="nx">ok</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="c1">// t.Skip()
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="nx">p</span> <span class="o">:=</span> <span class="nx">profile</span><span class="p">.</span><span class="nf">Start</span><span class="p">(</span><span class="nx">profile</span><span class="p">.</span><span class="nx">CPUProfile</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="k">defer</span> <span class="nx">p</span><span class="p">.</span><span class="nf">Stop</span><span class="p">()</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>此代码片段的最后两行启动 CPU 性能分析，并在方法完成时停止。它使用了 <code>github.com/pkg/profile</code> 包，该包为内置性能分析器库提供了一个更符合人体工程学的包装器。运行执行此操作的代码，您将看到如下输出：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">2025/06/20 14:10:40.548730 profile: cpu profiling disabled, C:<span class="se">\U</span>sers<span class="se">\Z</span>ACHMU~1<span class="se">\A</span>ppData<span class="se">\L</span>ocal<span class="se">\T</span>emp<span class="se">\p</span>rofile1113350212<span class="se">\c</span>pu.pprof
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>这是运行生成的配置文件的位置，您应该记下它或将其复制到具有更容易记住的名称的其他位置。</p>
+<p>为了测试，我想看看 <code>main</code> 分支和当前分支之间的性能变化，所以我在每个分支上都启用了性能分析功能，并进行了测试。现在，我可以使用 <code>-base</code> 参数和 <code>pprof</code> 来比较它们。</p>
+<h2 id="检查性能差异">检查性能差异</h2>
+<p>获得每个分支的概况后，现在我只需要对它们进行比较。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">go tool pprof -http<span class="o">=</span>:8090 -base main.pprof branch.pprof
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><code>-base</code> 标志告诉 <code>pprof</code> 在报告性能数据时，从另一个配置文件中“减去”指定的配置文件。在本例中，我想查看 <code>branch.pprof</code> 中发生的情况，而不是 <code>main.pprof</code> 运行太慢了。我还一直使用 <code>-http</code> 参数，它会运行一个交互式 Web 服务器，而不是命令行界面。我发现在分析性能配置文件时，使用这个参数要方便得多。</p>
+<p>当我运行该命令时，我的 Web 浏览器会启动到默认显示界面，即一张按函数大致拓扑排序的累计 CPU 采样图，这样你就可以看到哪些函数调用了哪些函数。与普通的配置文件分析不同，这里显示的数字严格来说是两个配置文件之间的差异，而不是它们的绝对运行时间。以下是我在 Web 视图中看到的内容：</p>
+<p><img src="http://img.golang.space/img-1751246974283.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="cpu profile diff"
+	
+	
+></p>
+<p><code>Database.tableInsensitive</code> 函数用于获取查询引擎使用的表对象。不知何故，尽管我没有直接修改它，但我的修改却使这个函数变得非常非常慢。有了这个线索，我找到了性能问题。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// from tableInsensitive()
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>
+</span></span><span class="line"><span class="cl">    <span class="o">...</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="nx">tableNames</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">db</span><span class="p">.</span><span class="nf">getAllTableNames</span><span class="p">(</span><span class="nx">ctx</span><span class="p">,</span> <span class="nx">root</span><span class="p">,</span> <span class="kc">true</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="nx">doltdb</span><span class="p">.</span><span class="nx">TableName</span><span class="p">{},</span> <span class="kc">nil</span><span class="p">,</span> <span class="kc">false</span><span class="p">,</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="nx">root</span><span class="p">.</span><span class="nf">TableListHash</span><span class="p">()</span> <span class="o">!=</span> <span class="mi">0</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">tableMap</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">(</span><span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="kt">string</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">table</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">tableNames</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="nx">tableMap</span><span class="p">[</span><span class="nx">strings</span><span class="p">.</span><span class="nf">ToLower</span><span class="p">(</span><span class="nx">table</span><span class="p">)]</span> <span class="p">=</span> <span class="nx">table</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">dbState</span><span class="p">.</span><span class="nf">SessionCache</span><span class="p">().</span><span class="nf">CacheTableNameMap</span><span class="p">(</span><span class="nx">root</span><span class="p">.</span><span class="nf">TableListHash</span><span class="p">(),</span> <span class="nx">tableMap</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="nx">tableName</span><span class="p">,</span> <span class="nx">ok</span> <span class="p">=</span> <span class="nx">sql</span><span class="p">.</span><span class="nf">GetTableNameInsensitive</span><span class="p">(</span><span class="nx">tableName</span><span class="p">,</span> <span class="nx">tableNames</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">!</span><span class="nx">ok</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="nx">doltdb</span><span class="p">.</span><span class="nx">TableName</span><span class="p">{},</span> <span class="kc">nil</span><span class="p">,</span> <span class="kc">false</span><span class="p">,</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>如果所有表名尚未缓存在会话中，则代码片段的第一行会从数据库中加载它们。这是必要的，因为我们的表名存储时区分大小写，而 SQL 不区分大小写。因此，在从数据库加载表的过程中，我们需要将查询中请求的不区分大小写的名称更正为区分大小写的名称，以便在存储和 I/O 层使用。但是，对 <code>db.getAllTableNames()</code> 的调用包含一个最终参数： <code>includeGeneratedSystemTables</code> 。它被硬编码为 true，这意味着它总是调用新的、更昂贵的方法来获取生成的系统表的列表，其中包括潜在的磁盘访问以获取数据库模式集，然后对它们进行大量的迭代。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="nx">schemas</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">root</span><span class="p">.</span><span class="nf">GetDatabaseSchemas</span><span class="p">(</span><span class="nx">ctx</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// For dolt there are no stored schemas, search the default (empty string) schema
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nx">schemas</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">schemas</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">schemas</span><span class="p">,</span> <span class="nx">schema</span><span class="p">.</span><span class="nx">DatabaseSchema</span><span class="p">{</span><span class="nx">Name</span><span class="p">:</span> <span class="nx">doltdb</span><span class="p">.</span><span class="nx">DefaultSchemaName</span><span class="p">})</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">schema</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">schemas</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">tableNames</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">root</span><span class="p">.</span><span class="nf">GetTableNames</span><span class="p">(</span><span class="nx">ctx</span><span class="p">,</span> <span class="nx">schema</span><span class="p">.</span><span class="nx">Name</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">pre</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">doltdb</span><span class="p">.</span><span class="nx">GeneratedSystemTablePrefixes</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">tableName</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">tableNames</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">				<span class="nx">s</span><span class="p">.</span><span class="nf">Add</span><span class="p">(</span><span class="nx">doltdb</span><span class="p">.</span><span class="nx">TableName</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">					<span class="nx">Name</span><span class="p">:</span>   <span class="nx">pre</span> <span class="o">+</span> <span class="nx">tableName</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">					<span class="nx">Schema</span><span class="p">:</span> <span class="nx">schema</span><span class="p">.</span><span class="nx">Name</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">				<span class="p">})</span>
+</span></span><span class="line"><span class="cl">			<span class="p">}</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="c1">// For doltgres, we also support the legacy dolt_ table names, addressable in any user schema
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="k">if</span> <span class="nx">UseSearchPath</span> <span class="o">&amp;&amp;</span> <span class="nx">schema</span><span class="p">.</span><span class="nx">Name</span> <span class="o">!=</span> <span class="s">&#34;pg_catalog&#34;</span> <span class="o">&amp;&amp;</span> <span class="nx">schema</span><span class="p">.</span><span class="nx">Name</span> <span class="o">!=</span> <span class="nx">doltdb</span><span class="p">.</span><span class="nx">DoltNamespace</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">name</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">doltdb</span><span class="p">.</span><span class="nx">DoltGeneratedTableNames</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">				<span class="nx">s</span><span class="p">.</span><span class="nf">Add</span><span class="p">(</span><span class="nx">doltdb</span><span class="p">.</span><span class="nx">TableName</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">					<span class="nx">Name</span><span class="p">:</span>   <span class="nx">name</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">					<span class="nx">Schema</span><span class="p">:</span> <span class="nx">schema</span><span class="p">.</span><span class="nx">Name</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">				<span class="p">})</span>
+</span></span><span class="line"><span class="cl">			<span class="p">}</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>事实证明，硬编码的 <code>true</code> 完全是错误的——该方法根本不需要考虑系统生成的表名。但在我让生成这些名称的过程变得更加昂贵之前，这是一个相对无害的错误，并且多年来一直存在于代码中而未被注意到。将此值更改为 <code>false</code> 以消除不必要的工作，修复了性能回归问题，并且还稍微加快了 Dolt 的基准测试速度。</p>
+<div class="table-wrapper"><table>
+<thead>
+<tr>
+<th>read_tests 读取测试</th>
+<th>from_latency</th>
+<th>to_latency 延迟</th>
+<th>percent_change 百分比变化</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>covering_index_scan 覆盖索引扫描</td>
+<td>0.68</td>
+<td>0.67</td>
+<td>-1.4</td>
+</tr>
+<tr>
+<td>groupby_scan</td>
+<td>19.65</td>
+<td>19.29</td>
+<td>-1.83</td>
+</tr>
+<tr>
+<td>index_join 索引连接</td>
+<td>2.57</td>
+<td>2.52</td>
+<td>-1.95</td>
+</tr>
+<tr>
+<td>index_join_scan 索引连接扫描</td>
+<td>1.44</td>
+<td>1.44</td>
+<td>0.0</td>
+</tr>
+<tr>
+<td>index_scan 索引扫描</td>
+<td>30.26</td>
+<td>29.72</td>
+<td>-1.78</td>
+</tr>
+<tr>
+<td>oltp_point_select</td>
+<td>0.29</td>
+<td>0.28</td>
+<td>-3.45</td>
+</tr>
+<tr>
+<td>oltp_read_only</td>
+<td>5.37</td>
+<td>5.28</td>
+<td>-1.68</td>
+</tr>
+<tr>
+<td>select_random_points 选择随机点</td>
+<td>0.61</td>
+<td>0.6</td>
+<td>-1.64</td>
+</tr>
+<tr>
+<td>select_random_ranges 选择随机范围</td>
+<td>0.64</td>
+<td>0.62</td>
+<td>-3.13</td>
+</tr>
+<tr>
+<td>table_scan 表扫描</td>
+<td>32.53</td>
+<td>31.94</td>
+<td>-1.81</td>
+</tr>
+<tr>
+<td>types_table_scan 类型表扫描</td>
+<td>127.81</td>
+<td>125.52</td>
+<td>-1.79</td>
+</tr>
+</tbody>
+</table></div>
+<p>如果没有 <code>-base</code> 标志为我指明正确的方向，我不确定我是否能找出这种低效率的根源。</p>
+<h2 id="参考">参考</h2>
+<p>本文翻译于 <a class="link" href="https://www.dolthub.com/blog/2025-06-20-go-pprof-diffing/"  target="_blank" rel="noopener"
+    >Finding performance problems by diffing two Go profiles</a></p>
+
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/">读书笔记</a>
+        
+            <a href="/tags/%E7%BF%BB%E8%AF%91/">翻译</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">Related content</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/go-%E4%B8%AD%E7%9A%84-json-%E6%BC%94%E5%8F%98-%E4%BB%8E-v1-%E5%88%B0-v2/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Go 中的 JSON 演变, 从 v1 到 v2</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/go-%E4%B8%AD%E7%9A%84%E5%BC%B1%E6%8C%87%E9%92%88%E4%B8%BA%E4%BB%80%E4%B9%88%E4%BB%96%E4%BB%AC%E7%8E%B0%E5%9C%A8%E5%BE%88%E9%87%8D%E8%A6%81/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Go 中的弱指针:为什么他们现在很重要?</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/golang-io-cookbook/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Golang IO Cookbook</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/base64-%E7%BC%96%E8%A7%A3%E7%A0%81/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Base64 编解码</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/%E5%AE%9E%E6%97%B6%E8%AF%8A%E6%96%AD%E6%97%A5%E5%BF%97%E8%AE%B0%E5%BD%95%E5%A6%82%E4%BD%95%E7%9B%91%E8%A7%86-go-web-%E5%BA%94%E7%94%A8/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">实时诊断日志记录，如何监视 Go Web 应用</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script src="https://utteranc.es/client.js" 
+        repo="ixugo/ixugo.github.io"
+        issue-term="pathname"
+        
+        crossorigin="anonymous"
+        async
+        >
+</script>
+
+<style>
+    .utterances {
+        max-width: unset;
+    }
+</style>
+
+<script>
+    function setUtterancesTheme(theme) {
+        let utterances = document.querySelector('.utterances iframe');
+        if (utterances) {
+            utterances.contentWindow.postMessage(
+                {
+                    type: 'set-theme',
+                    theme: `github-${theme}`
+                },
+                'https://utteranc.es'
+            );
+        }
+    }
+
+    addEventListener('message', event => {
+        if (event.origin !== 'https://utteranc.es') return;
+        setUtterancesTheme(document.documentElement.dataset.scheme)
+    });
+
+    window.addEventListener('onColorSchemeChange', (e) => {
+        setUtterancesTheme(e.detail)
+    })
+</script>
+
+
+    
+
+    <footer class="site-footer">
+  <section class="copyright">
+    &copy;
+    
+    2018 -
+    
+    2025 ixugo
+  </section>
+  <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+  <section class="powerby">
+
+    
+    <span id="busuanzi_container_page_pv">本文阅读量
+      <span style="font-size: 14px" id="busuanzi_value_page_pv"></span>
+      次，</span>
+    <span id="busuanzi_container_site_pv">总访问量
+      <span style="font-size: 14px" id="busuanzi_value_site_pv"></span>
+      次 </span>，总访客数
+    <span style="font-size: 14px" id="busuanzi_value_site_uv"></span> 人
+    <br />
+
+
+    Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> .&nbsp;&nbsp;
+    Theme <a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener"
+      data-version="3.16.0">Stack</a> designed by <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a>
+  </section>
+
+
+
+
+  <script>
+    function count() {
+      let href = window.location.href;
+      let regexp = /^https?:\/\/blog.golang.space\/?(page\/[\d]+\/?)?$/;
+      if (regexp.test(href)) {
+        let e = document.getElementById("busuanzi_container_page_pv");
+        e.innerText = "";
+      }
+    }
+    window.onload = count;
+  </script>
+</footer>
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

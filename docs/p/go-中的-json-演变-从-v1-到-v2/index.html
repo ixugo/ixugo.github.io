@@ -1,0 +1,1551 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='Go 1.25 中 json 包的 v2 版本是一个重大更新，它有很多突破性的变化。v2 包添加了新功能，修复了 API 问题和行为缺陷，并提高了性能。让我们来看看发生了什么变化！
+Marshal 和 Unmarshal 的基本用例保持不变。此代码适用于 v1 和 v2：
+1 2 3 4 5 6 7 8 9 10 11 12 13 14 type Person struct { Name string Age int } alice := Person{Name: &amp;#34;Alice&amp;#34;, Age: 25} // Marshal Alice. b, err := json.Marshal(alice) fmt.Println(string(b), err) // Unmarshal Alice. err = json.Unmarshal(b, &amp;amp;alice) fmt.Println(alice, err) 但其余的则大不相同。
+MarshalWrite and UnmarshalRead 在 v1 中，是这样的'>
+<title>Go 中的 JSON 演变, 从 v1 到 v2</title>
+
+<link rel='canonical' href='https://blog.golang.space/p/go-%E4%B8%AD%E7%9A%84-json-%E6%BC%94%E5%8F%98-%E4%BB%8E-v1-%E5%88%B0-v2/'>
+
+<link rel="stylesheet" href="/scss/style.min.8191399262444ab68b72a18c97392f5349be20a1615d77445be51e974c144cff.css"><meta property='og:title' content='Go 中的 JSON 演变, 从 v1 到 v2'>
+<meta property='og:description' content='Go 1.25 中 json 包的 v2 版本是一个重大更新，它有很多突破性的变化。v2 包添加了新功能，修复了 API 问题和行为缺陷，并提高了性能。让我们来看看发生了什么变化！
+Marshal 和 Unmarshal 的基本用例保持不变。此代码适用于 v1 和 v2：
+1 2 3 4 5 6 7 8 9 10 11 12 13 14 type Person struct { Name string Age int } alice := Person{Name: &amp;#34;Alice&amp;#34;, Age: 25} // Marshal Alice. b, err := json.Marshal(alice) fmt.Println(string(b), err) // Unmarshal Alice. err = json.Unmarshal(b, &amp;amp;alice) fmt.Println(alice, err) 但其余的则大不相同。
+MarshalWrite and UnmarshalRead 在 v1 中，是这样的'>
+<meta property='og:url' content='https://blog.golang.space/p/go-%E4%B8%AD%E7%9A%84-json-%E6%BC%94%E5%8F%98-%E4%BB%8E-v1-%E5%88%B0-v2/'>
+<meta property='og:site_name' content='ixugo'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='读书笔记' /><meta property='article:tag' content='翻译' /><meta property='article:published_time' content='2025-06-29T00:00:00&#43;00:00'/><meta property='article:modified_time' content='2025-06-29T00:00:00&#43;00:00'/>
+<meta name="twitter:title" content="Go 中的 JSON 演变, 从 v1 到 v2">
+<meta name="twitter:description" content="Go 1.25 中 json 包的 v2 版本是一个重大更新，它有很多突破性的变化。v2 包添加了新功能，修复了 API 问题和行为缺陷，并提高了性能。让我们来看看发生了什么变化！
+Marshal 和 Unmarshal 的基本用例保持不变。此代码适用于 v1 和 v2：
+1 2 3 4 5 6 7 8 9 10 11 12 13 14 type Person struct { Name string Age int } alice := Person{Name: &amp;#34;Alice&amp;#34;, Age: 25} // Marshal Alice. b, err := json.Marshal(alice) fmt.Println(string(b), err) // Unmarshal Alice. err = json.Unmarshal(b, &amp;amp;alice) fmt.Println(alice, err) 但其余的则大不相同。
+MarshalWrite and UnmarshalRead 在 v1 中，是这样的">
+    <link rel="shortcut icon" href="img/favicon.ico" />
+
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+	(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+	m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+	})(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+	ga('create', 'UA-192125643-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="Toggle Menu">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu0b04ba6d7249c9f90c92db974439eb8c_208246_300x0_resize_box_3.png" width="300"
+                            height="321" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🧐</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">ixugo</a></h1>
+            <h2 class="site-description">走出舒适区</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/ixugo'
+                        target="_blank"
+                        title="GitHub"
+                        rel="me"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>Home</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/about/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>About</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>Archives</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>Search</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>Dark Mode</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">Table of contents</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#marshalwrite-and-unmarshalread">MarshalWrite and UnmarshalRead</a></li>
+    <li><a href="#marshalencode-and-unmarshaldecode">MarshalEncode and UnmarshalDecode</a></li>
+    <li><a href="#选项">选项</a></li>
+    <li><a href="#tags">Tags</a></li>
+    <li><a href="#自定义marshaling">自定义marshaling</a></li>
+    <li><a href="#默认行为">默认行为</a></li>
+    <li><a href="#表现">表现</a></li>
+    <li><a href="#最后的想法">最后的想法</a></li>
+    <li><a href="#参考">参考</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+            <main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+    <header class="article-category">
+        
+            <a href="/categories/go/" >
+                Go
+            </a>
+        
+    </header>
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/go-%E4%B8%AD%E7%9A%84-json-%E6%BC%94%E5%8F%98-%E4%BB%8E-v1-%E5%88%B0-v2/">Go 中的 JSON 演变, 从 v1 到 v2</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    
+    
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Jun 29, 2025</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    8 minute read
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+
+</header>
+
+    <section class="article-content">
+    
+    
+    <p>Go 1.25 中 <code>json</code> 包的 v2 版本是一个重大更新，它有很多突破性的变化。v2 包添加了新功能，修复了 API 问题和行为缺陷，并提高了性能。让我们来看看发生了什么变化！</p>
+<p><code>Marshal</code> 和 <code>Unmarshal</code> 的基本用例保持不变。此代码适用于 v1 和 v2：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">Person</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">Name</span> <span class="kt">string</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">Age</span>  <span class="kt">int</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="nx">alice</span> <span class="o">:=</span> <span class="nx">Person</span><span class="p">{</span><span class="nx">Name</span><span class="p">:</span> <span class="s">&#34;Alice&#34;</span><span class="p">,</span> <span class="nx">Age</span><span class="p">:</span> <span class="mi">25</span><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// Marshal Alice.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="nx">b</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">json</span><span class="p">.</span><span class="nf">Marshal</span><span class="p">(</span><span class="nx">alice</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="nx">fmt</span><span class="p">.</span><span class="nf">Println</span><span class="p">(</span><span class="nb">string</span><span class="p">(</span><span class="nx">b</span><span class="p">),</span> <span class="nx">err</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// Unmarshal Alice.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="nx">err</span> <span class="p">=</span> <span class="nx">json</span><span class="p">.</span><span class="nf">Unmarshal</span><span class="p">(</span><span class="nx">b</span><span class="p">,</span> <span class="o">&amp;</span><span class="nx">alice</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="nx">fmt</span><span class="p">.</span><span class="nf">Println</span><span class="p">(</span><span class="nx">alice</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>但其余的则大不相同。</p>
+<h2 id="marshalwrite-and-unmarshalread">MarshalWrite and UnmarshalRead</h2>
+<p>在 v1 中，是这样的</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// Marshal Alice.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="nx">alice</span> <span class="o">:=</span> <span class="nx">Person</span><span class="p">{</span><span class="nx">Name</span><span class="p">:</span> <span class="s">&#34;Alice&#34;</span><span class="p">,</span> <span class="nx">Age</span><span class="p">:</span> <span class="mi">25</span><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="nx">out</span> <span class="o">:=</span> <span class="nb">new</span><span class="p">(</span><span class="nx">strings</span><span class="p">.</span><span class="nx">Builder</span><span class="p">)</span> <span class="c1">// io.Writer
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="nx">enc</span> <span class="o">:=</span> <span class="nx">json</span><span class="p">.</span><span class="nf">NewEncoder</span><span class="p">(</span><span class="nx">out</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="nx">enc</span><span class="p">.</span><span class="nf">Encode</span><span class="p">(</span><span class="nx">alice</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="nx">fmt</span><span class="p">.</span><span class="nf">Println</span><span class="p">(</span><span class="nx">out</span><span class="p">.</span><span class="nf">String</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// Unmarshal Bob.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="nx">in</span> <span class="o">:=</span> <span class="nx">strings</span><span class="p">.</span><span class="nf">NewReader</span><span class="p">(</span><span class="s">`{&#34;Name&#34;:&#34;Bob&#34;,&#34;Age&#34;:30}`</span><span class="p">)</span> <span class="c1">// io.Reader
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="nx">dec</span> <span class="o">:=</span> <span class="nx">json</span><span class="p">.</span><span class="nf">NewDecoder</span><span class="p">(</span><span class="nx">in</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="kd">var</span> <span class="nx">bob</span> <span class="nx">Person</span>
+</span></span><span class="line"><span class="cl"><span class="nx">dec</span><span class="p">.</span><span class="nf">Decode</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">bob</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="nx">fmt</span><span class="p">.</span><span class="nf">Println</span><span class="p">(</span><span class="nx">bob</span><span class="p">)</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>在 v2 中，可以直接使用  <code>MarshalWrite</code> 和 <code>UnmarshalRead</code>，无需任何中介：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// Marshal Alice.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="nx">alice</span> <span class="o">:=</span> <span class="nx">Person</span><span class="p">{</span><span class="nx">Name</span><span class="p">:</span> <span class="s">&#34;Alice&#34;</span><span class="p">,</span> <span class="nx">Age</span><span class="p">:</span> <span class="mi">25</span><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="nx">out</span> <span class="o">:=</span> <span class="nb">new</span><span class="p">(</span><span class="nx">strings</span><span class="p">.</span><span class="nx">Builder</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="nx">json</span><span class="p">.</span><span class="nf">MarshalWrite</span><span class="p">(</span><span class="nx">out</span><span class="p">,</span> <span class="nx">alice</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="nx">fmt</span><span class="p">.</span><span class="nf">Println</span><span class="p">(</span><span class="nx">out</span><span class="p">.</span><span class="nf">String</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// Unmarshal Bob.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="nx">in</span> <span class="o">:=</span> <span class="nx">strings</span><span class="p">.</span><span class="nf">NewReader</span><span class="p">(</span><span class="s">`{&#34;Name&#34;:&#34;Bob&#34;,&#34;Age&#34;:30}`</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="kd">var</span> <span class="nx">bob</span> <span class="nx">Person</span>
+</span></span><span class="line"><span class="cl"><span class="nx">json</span><span class="p">.</span><span class="nf">UnmarshalRead</span><span class="p">(</span><span class="nx">in</span><span class="p">,</span> <span class="o">&amp;</span><span class="nx">bob</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="nx">fmt</span><span class="p">.</span><span class="nf">Println</span><span class="p">(</span><span class="nx">bob</span><span class="p">)</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>不过，它们不能互换：</p>
+<ul>
+<li>与旧的 <code>Encoder.Encode</code> 不同，<code>MarshalWrite</code> 不添加换行符。</li>
+<li><code>UnmarshalRead</code> 会读取读取器中的所有内容，直到它到达 <code>io。EOF</code>，而旧的 <code>Decoder.Decode</code> 仅读取下一个 JSON 值。</li>
+</ul>
+<h2 id="marshalencode-and-unmarshaldecode">MarshalEncode and UnmarshalDecode</h2>
+<p><code>Encoder</code> 和 <code>Decoder</code> 类型已移至新的 <a class="link" href="https://pkg.go.dev/encoding/json/jsontext"  target="_blank" rel="noopener"
+    ><code>jsontext</code></a> 包中，它们的接口已发生重大变化（以支持低级流式编码/解码作）。</p>
+<p>你可以将它们与 <code>json</code> 函数一起使用来读取和写入 JSON 流，类似于之前 <code>Encode</code> 和 <code>Decode</code> 的工作方式：</p>
+<ul>
+<li>v1 <code>Encoder.Encode</code> → v2 <code>json.MarshalEncode</code> + <code>jsontext.Encoder</code>.</li>
+<li>v1 <code>Decoder.Decode</code> → v2 <code>json.UnmarshalDecode</code> + <code>jsontext.Decoder</code>.</li>
+</ul>
+<p>流式处理编码器：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="nx">people</span> <span class="o">:=</span> <span class="p">[]</span><span class="nx">Person</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span><span class="nx">Name</span><span class="p">:</span> <span class="s">&#34;Alice&#34;</span><span class="p">,</span> <span class="nx">Age</span><span class="p">:</span> <span class="mi">25</span><span class="p">},</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span><span class="nx">Name</span><span class="p">:</span> <span class="s">&#34;Bob&#34;</span><span class="p">,</span> <span class="nx">Age</span><span class="p">:</span> <span class="mi">30</span><span class="p">},</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span><span class="nx">Name</span><span class="p">:</span> <span class="s">&#34;Cindy&#34;</span><span class="p">,</span> <span class="nx">Age</span><span class="p">:</span> <span class="mi">15</span><span class="p">},</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="nx">out</span> <span class="o">:=</span> <span class="nb">new</span><span class="p">(</span><span class="nx">strings</span><span class="p">.</span><span class="nx">Builder</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="nx">enc</span> <span class="o">:=</span> <span class="nx">jsontext</span><span class="p">.</span><span class="nf">NewEncoder</span><span class="p">(</span><span class="nx">out</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">p</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">people</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">json</span><span class="p">.</span><span class="nf">MarshalEncode</span><span class="p">(</span><span class="nx">enc</span><span class="p">,</span> <span class="nx">p</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="nx">fmt</span><span class="p">.</span><span class="nf">Print</span><span class="p">(</span><span class="nx">out</span><span class="p">.</span><span class="nf">String</span><span class="p">())</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>流式解码器：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="nx">in</span> <span class="o">:=</span> <span class="nx">strings</span><span class="p">.</span><span class="nf">NewReader</span><span class="p">(</span><span class="s">`
+</span></span></span><span class="line"><span class="cl"><span class="s">    {&#34;Name&#34;:&#34;Alice&#34;,&#34;Age&#34;:25}
+</span></span></span><span class="line"><span class="cl"><span class="s">    {&#34;Name&#34;:&#34;Bob&#34;,&#34;Age&#34;:30}
+</span></span></span><span class="line"><span class="cl"><span class="s">    {&#34;Name&#34;:&#34;Cindy&#34;,&#34;Age&#34;:15}
+</span></span></span><span class="line"><span class="cl"><span class="s">`</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="nx">dec</span> <span class="o">:=</span> <span class="nx">jsontext</span><span class="p">.</span><span class="nf">NewDecoder</span><span class="p">(</span><span class="nx">in</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">for</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kd">var</span> <span class="nx">p</span> <span class="nx">Person</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// Decodes one Person object per call.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="nx">err</span> <span class="o">:=</span> <span class="nx">json</span><span class="p">.</span><span class="nf">UnmarshalDecode</span><span class="p">(</span><span class="nx">dec</span><span class="p">,</span> <span class="o">&amp;</span><span class="nx">p</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="nx">err</span> <span class="o">==</span> <span class="nx">io</span><span class="p">.</span><span class="nx">EOF</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">break</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">fmt</span><span class="p">.</span><span class="nf">Println</span><span class="p">(</span><span class="nx">p</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>与 <code>UnmarshalRead</code> 不同，<code>UnmarshalDecode</code> 以完全流式处理的方式工作，每次调用一次解码一个值，而不是读取所有内容直到 <code>io.EOF</code>.</p>
+<h2 id="选项">选项</h2>
+<p>选项使用特定功能配置编组和解组功能：</p>
+<ul>
+<li><code>FormatNilMapAsNull</code> 和 <code>FormatNilSliceAsNull</code> 定义如何编码 nil 映射和切片。</li>
+<li><code>MatchCaseInsensitiveNames</code> 允许匹配 <code>Name</code> ↔ <code>name</code> 等。</li>
+<li><code>Multiline</code> 将 JSON 对象扩展为多行。</li>
+<li><code>OmitZeroStructFields</code> 从输出中省略具有零值的字段。</li>
+<li><code>SpaceAfterColon</code> 和 <code>SpaceAfterComma</code> 在每个 <code>:</code> 或 <code>,</code> 后添加一个空格</li>
+<li><code>StringifyNumbers</code> 将数字类型表示为字符串。</li>
+<li><code>WithIndent</code> 和 <code>WithIndentPrefix</code> 缩进嵌套属性（请注意， <code>MarshalIndent</code> 函数已被删除）。</li>
+</ul>
+<p>每个编组或解组函数可以采用任意数量的选项：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="nx">alice</span> <span class="o">:=</span> <span class="nx">Person</span><span class="p">{</span><span class="nx">Name</span><span class="p">:</span> <span class="s">&#34;Alice&#34;</span><span class="p">,</span> <span class="nx">Age</span><span class="p">:</span> <span class="mi">25</span><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="nx">b</span><span class="p">,</span> <span class="nx">_</span> <span class="o">:=</span> <span class="nx">json</span><span class="p">.</span><span class="nf">Marshal</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">alice</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">json</span><span class="p">.</span><span class="nf">OmitZeroStructFields</span><span class="p">(</span><span class="kc">true</span><span class="p">),</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">json</span><span class="p">.</span><span class="nf">StringifyNumbers</span><span class="p">(</span><span class="kc">true</span><span class="p">),</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">jsontext</span><span class="p">.</span><span class="nf">WithIndent</span><span class="p">(</span><span class="s">&#34;  &#34;</span><span class="p">),</span>
+</span></span><span class="line"><span class="cl"><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="nx">fmt</span><span class="p">.</span><span class="nf">Println</span><span class="p">(</span><span class="nb">string</span><span class="p">(</span><span class="nx">b</span><span class="p">))</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>还可以将选项与 <code>JoinOptions</code> 组合：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="nx">alice</span> <span class="o">:=</span> <span class="nx">Person</span><span class="p">{</span><span class="nx">Name</span><span class="p">:</span> <span class="s">&#34;Alice&#34;</span><span class="p">,</span> <span class="nx">Age</span><span class="p">:</span> <span class="mi">25</span><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="nx">opts</span> <span class="o">:=</span> <span class="nx">json</span><span class="p">.</span><span class="nf">JoinOptions</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">jsontext</span><span class="p">.</span><span class="nf">SpaceAfterColon</span><span class="p">(</span><span class="kc">true</span><span class="p">),</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">jsontext</span><span class="p">.</span><span class="nf">SpaceAfterComma</span><span class="p">(</span><span class="kc">true</span><span class="p">),</span>
+</span></span><span class="line"><span class="cl"><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="nx">b</span><span class="p">,</span> <span class="nx">_</span> <span class="o">:=</span> <span class="nx">json</span><span class="p">.</span><span class="nf">Marshal</span><span class="p">(</span><span class="nx">alice</span><span class="p">,</span> <span class="nx">opts</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="nx">fmt</span><span class="p">.</span><span class="nf">Println</span><span class="p">(</span><span class="nb">string</span><span class="p">(</span><span class="nx">b</span><span class="p">))</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>请参阅文档中的完整选项列表：一些位于 <a class="link" href="https://pkg.go.dev/encoding/json/v2#Options"  target="_blank" rel="noopener"
+    ><code>json</code></a> 包中，其他位于 <a class="link" href="https://pkg.go.dev/encoding/json/jsontext#Options"  target="_blank" rel="noopener"
+    ><code>jsontext</code></a> 包中。</p>
+<h2 id="tags">Tags</h2>
+<p>v2 支持 v1 中定义的字段标签：</p>
+<ul>
+<li><code>omitzero</code> 和 <code>omitempty</code> 省略空值，<code>omitempty</code> 是 <code>go1.24</code> 之前用于省略 nil 对象的，<code>omitzero</code> 是 <code>go1.24</code> 加入用于省略零值对象。</li>
+<li><code>string</code> 将数字类型表示为字符串。</li>
+<li><code>-</code> 忽略字段。</li>
+</ul>
+<p>并添加了一些：</p>
+<ul>
+<li><code>case:ignore</code> 或 <code>case:strict</code> 指定如何处理大小写差异。</li>
+<li><code>format:template</code> 根据模板格式化字段值。</li>
+<li><code>inline</code> 通过将嵌套对象的字段提升到父级来展平输出。</li>
+<li><code>unknown</code> 为未知字段提供了“全部捕获”。</li>
+</ul>
+<p>下面是一个演示 <code>inline</code> 和 <code>format</code> 示例：</p>
+<p>匿名属性一样有 <code>inline</code> 的效果。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">Person</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">Name</span> <span class="kt">string</span>         <span class="s">`json:&#34;name&#34;`</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// Format date as yyyy-mm-dd.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="nx">BirthDate</span> <span class="nx">time</span><span class="p">.</span><span class="nx">Time</span> <span class="s">`json:&#34;birth_date,format:DateOnly&#34;`</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// Inline address fields into the Person object.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="nx">Address</span>             <span class="s">`json:&#34;,inline&#34;`</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">Address</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">Street</span> <span class="kt">string</span> <span class="s">`json:&#34;street&#34;`</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">City</span>   <span class="kt">string</span> <span class="s">`json:&#34;city&#34;`</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">main</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">alice</span> <span class="o">:=</span> <span class="nx">Person</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">Name</span><span class="p">:</span> <span class="s">&#34;Alice&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">BirthDate</span><span class="p">:</span> <span class="nx">time</span><span class="p">.</span><span class="nf">Date</span><span class="p">(</span><span class="mi">2001</span><span class="p">,</span> <span class="mi">7</span><span class="p">,</span> <span class="mi">15</span><span class="p">,</span> <span class="mi">12</span><span class="p">,</span> <span class="mi">35</span><span class="p">,</span> <span class="mi">43</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="nx">time</span><span class="p">.</span><span class="nx">UTC</span><span class="p">),</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">Address</span><span class="p">:</span> <span class="nx">Address</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="nx">Street</span><span class="p">:</span> <span class="s">&#34;123 Main St&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">            <span class="nx">City</span><span class="p">:</span>   <span class="s">&#34;Wonderland&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="p">},</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">b</span><span class="p">,</span> <span class="nx">_</span> <span class="o">:=</span> <span class="nx">json</span><span class="p">.</span><span class="nf">Marshal</span><span class="p">(</span><span class="nx">alice</span><span class="p">,</span> <span class="nx">jsontext</span><span class="p">.</span><span class="nf">WithIndent</span><span class="p">(</span><span class="s">&#34;  &#34;</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">fmt</span><span class="p">.</span><span class="nf">Println</span><span class="p">(</span><span class="nb">string</span><span class="p">(</span><span class="nx">b</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">//{
+</span></span></span><span class="line"><span class="cl"><span class="c1">//  &#34;name&#34;: &#34;Alice&#34;,
+</span></span></span><span class="line"><span class="cl"><span class="c1">//  &#34;birth_date&#34;: &#34;2001-07-15&#34;,
+</span></span></span><span class="line"><span class="cl"><span class="c1">//  &#34;street&#34;: &#34;123 Main St&#34;,
+</span></span></span><span class="line"><span class="cl"><span class="c1">//  &#34;city&#34;: &#34;Wonderland&#34;
+</span></span></span><span class="line"><span class="cl"><span class="c1">//}
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><p><code>unknown</code>  用于将结构体中未定义的内容，在反序列化时收束到此，搭配 <code>map[string]any</code> 使用。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">Person</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">Name</span> <span class="kt">string</span>         <span class="s">`json:&#34;name&#34;`</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// Collect all unknown Person fields
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="c1">// into the Data field.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="nx">Data</span> <span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="nx">any</span> <span class="s">`json:&#34;,unknown&#34;`</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">main</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">src</span> <span class="o">:=</span> <span class="s">`{
+</span></span></span><span class="line"><span class="cl"><span class="s">        &#34;name&#34;: &#34;Alice&#34;,
+</span></span></span><span class="line"><span class="cl"><span class="s">        &#34;hobby&#34;: &#34;adventure&#34;,
+</span></span></span><span class="line"><span class="cl"><span class="s">        &#34;friends&#34;: [
+</span></span></span><span class="line"><span class="cl"><span class="s">            {&#34;name&#34;: &#34;Bob&#34;},
+</span></span></span><span class="line"><span class="cl"><span class="s">            {&#34;name&#34;: &#34;Cindy&#34;}
+</span></span></span><span class="line"><span class="cl"><span class="s">        ]
+</span></span></span><span class="line"><span class="cl"><span class="s">    }`</span>
+</span></span><span class="line"><span class="cl">    <span class="kd">var</span> <span class="nx">alice</span> <span class="nx">Person</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">json</span><span class="p">.</span><span class="nf">Unmarshal</span><span class="p">([]</span><span class="nb">byte</span><span class="p">(</span><span class="nx">src</span><span class="p">),</span> <span class="o">&amp;</span><span class="nx">alice</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">fmt</span><span class="p">.</span><span class="nf">Println</span><span class="p">(</span><span class="nx">alice</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="c1">// {Alice map[friends:[map[name:Bob] map[name:Cindy]] hobby:adventure]}
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><h2 id="自定义marshaling">自定义marshaling</h2>
+<p>使用 <code>Marshaler</code> 和 <code>Unmarshaler</code> 接口进行自定义封送处理的基本用例保持不变。以下代码在 v1 和 v2 版本中均有效：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// A custom boolean type represented
+</span></span></span><span class="line"><span class="cl"><span class="c1">// as &#34;✓&#34; for true and &#34;✗&#34; for false.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">type</span> <span class="nx">Success</span> <span class="kt">bool</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">s</span> <span class="nx">Success</span><span class="p">)</span> <span class="nf">MarshalJSON</span><span class="p">()</span> <span class="p">([]</span><span class="kt">byte</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="nx">s</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="p">[]</span><span class="nb">byte</span><span class="p">(</span><span class="s">`&#34;✓&#34;`</span><span class="p">),</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="p">[]</span><span class="nb">byte</span><span class="p">(</span><span class="s">`&#34;✗&#34;`</span><span class="p">),</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">s</span> <span class="o">*</span><span class="nx">Success</span><span class="p">)</span> <span class="nf">UnmarshalJSON</span><span class="p">(</span><span class="nx">data</span> <span class="p">[]</span><span class="kt">byte</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// Data validation omitted for brevity.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="o">*</span><span class="nx">s</span> <span class="p">=</span> <span class="nb">string</span><span class="p">(</span><span class="nx">data</span><span class="p">)</span> <span class="o">==</span> <span class="s">`&#34;✓&#34;`</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">main</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// Marshaling.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="nx">val</span> <span class="o">:=</span> <span class="nf">Success</span><span class="p">(</span><span class="kc">true</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">data</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">json</span><span class="p">.</span><span class="nf">Marshal</span><span class="p">(</span><span class="nx">val</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">fmt</span><span class="p">.</span><span class="nf">Println</span><span class="p">(</span><span class="nb">string</span><span class="p">(</span><span class="nx">data</span><span class="p">),</span> <span class="nx">err</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// Unmarshaling.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="nx">src</span> <span class="o">:=</span> <span class="p">[]</span><span class="nb">byte</span><span class="p">(</span><span class="s">`&#34;✓&#34;`</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">err</span> <span class="p">=</span> <span class="nx">json</span><span class="p">.</span><span class="nf">Unmarshal</span><span class="p">(</span><span class="nx">src</span><span class="p">,</span> <span class="o">&amp;</span><span class="nx">val</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">fmt</span><span class="p">.</span><span class="nf">Println</span><span class="p">(</span><span class="nx">val</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>但是，Go 标准库文档建议使用新的 <code>MarshalerTo</code> 和 <code>UnmarshalerFrom</code> 接口（它们以纯流方式工作，速度更快）：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// A custom boolean type represented
+</span></span></span><span class="line"><span class="cl"><span class="c1">// as &#34;✓&#34; for true and &#34;✗&#34; for false.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">type</span> <span class="nx">Success</span> <span class="kt">bool</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">s</span> <span class="nx">Success</span><span class="p">)</span> <span class="nf">MarshalJSONTo</span><span class="p">(</span><span class="nx">enc</span> <span class="o">*</span><span class="nx">jsontext</span><span class="p">.</span><span class="nx">Encoder</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="nx">s</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="nx">enc</span><span class="p">.</span><span class="nf">WriteToken</span><span class="p">(</span><span class="nx">jsontext</span><span class="p">.</span><span class="nf">String</span><span class="p">(</span><span class="s">&#34;✓&#34;</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="nx">enc</span><span class="p">.</span><span class="nf">WriteToken</span><span class="p">(</span><span class="nx">jsontext</span><span class="p">.</span><span class="nf">String</span><span class="p">(</span><span class="s">&#34;✗&#34;</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">s</span> <span class="o">*</span><span class="nx">Success</span><span class="p">)</span> <span class="nf">UnmarshalJSONFrom</span><span class="p">(</span><span class="nx">dec</span> <span class="o">*</span><span class="nx">jsontext</span><span class="p">.</span><span class="nx">Decoder</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// Data validation omitted for brevity.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="nx">tok</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">dec</span><span class="p">.</span><span class="nf">ReadToken</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="o">*</span><span class="nx">s</span> <span class="p">=</span> <span class="nx">tok</span><span class="p">.</span><span class="nf">String</span><span class="p">()</span> <span class="o">==</span> <span class="s">`&#34;✓&#34;`</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">main</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// Marshaling.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="nx">val</span> <span class="o">:=</span> <span class="nf">Success</span><span class="p">(</span><span class="kc">true</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">data</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">json</span><span class="p">.</span><span class="nf">Marshal</span><span class="p">(</span><span class="nx">val</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">fmt</span><span class="p">.</span><span class="nf">Println</span><span class="p">(</span><span class="nb">string</span><span class="p">(</span><span class="nx">data</span><span class="p">),</span> <span class="nx">err</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// Unmarshaling.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="nx">src</span> <span class="o">:=</span> <span class="p">[]</span><span class="nb">byte</span><span class="p">(</span><span class="s">`&#34;✓&#34;`</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">err</span> <span class="p">=</span> <span class="nx">json</span><span class="p">.</span><span class="nf">Unmarshal</span><span class="p">(</span><span class="nx">src</span><span class="p">,</span> <span class="o">&amp;</span><span class="nx">val</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">fmt</span><span class="p">.</span><span class="nf">Println</span><span class="p">(</span><span class="nx">val</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>更棒的是，不再局限于只使用一种特定类型的 marshaling 方式。现在，您可以随时通过通用的 <code>MarshalFunc</code> 和 <code>UnmarshalFunc</code> 函数使用自定义的 marshalers and unmarshalers。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nx">MarshalFunc</span><span class="p">[</span><span class="nx">T</span> <span class="nx">any</span><span class="p">](</span><span class="nx">fn</span> <span class="kd">func</span><span class="p">(</span><span class="nx">T</span><span class="p">)</span> <span class="p">([]</span><span class="kt">byte</span><span class="p">,</span> <span class="kt">error</span><span class="p">))</span> <span class="o">*</span><span class="nx">Marshalers</span>
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="nx">UnmarshalFunc</span><span class="p">[</span><span class="nx">T</span> <span class="nx">any</span><span class="p">](</span><span class="nx">fn</span> <span class="kd">func</span><span class="p">([]</span><span class="kt">byte</span><span class="p">,</span> <span class="nx">T</span><span class="p">)</span> <span class="kt">error</span><span class="p">)</span> <span class="o">*</span><span class="nx">Unmarshalers</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>例如，可以将 <code>bool</code> 值编组为 <code>✓</code> 或 <code>✗</code> 而无需创建自定义类型：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// Custom marshaler for bool values.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="nx">boolMarshaler</span> <span class="o">:=</span> <span class="nx">json</span><span class="p">.</span><span class="nf">MarshalFunc</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">    <span class="kd">func</span><span class="p">(</span><span class="nx">val</span> <span class="kt">bool</span><span class="p">)</span> <span class="p">([]</span><span class="kt">byte</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="nx">val</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="p">[]</span><span class="nb">byte</span><span class="p">(</span><span class="s">`&#34;✓&#34;`</span><span class="p">),</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="p">[]</span><span class="nb">byte</span><span class="p">(</span><span class="s">`&#34;✗&#34;`</span><span class="p">),</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl">    <span class="p">},</span>
+</span></span><span class="line"><span class="cl"><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// Pass the custom marshaler to Marshal
+</span></span></span><span class="line"><span class="cl"><span class="c1">// using the WithMarshalers option.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="nx">val</span> <span class="o">:=</span> <span class="kc">true</span>
+</span></span><span class="line"><span class="cl"><span class="nx">data</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">json</span><span class="p">.</span><span class="nf">Marshal</span><span class="p">(</span><span class="nx">val</span><span class="p">,</span> <span class="nx">json</span><span class="p">.</span><span class="nf">WithMarshalers</span><span class="p">(</span><span class="nx">boolMarshaler</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl"><span class="nx">fmt</span><span class="p">.</span><span class="nf">Println</span><span class="p">(</span><span class="nb">string</span><span class="p">(</span><span class="nx">data</span><span class="p">),</span> <span class="nx">err</span><span class="p">)</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>并将 <code>✓</code> 或 <code>✗</code> 解组为 <code>bool</code> ：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// Custom unmarshaler for bool values.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="nx">boolUnmarshaler</span> <span class="o">:=</span> <span class="nx">json</span><span class="p">.</span><span class="nf">UnmarshalFunc</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">    <span class="kd">func</span><span class="p">(</span><span class="nx">data</span> <span class="p">[]</span><span class="kt">byte</span><span class="p">,</span> <span class="nx">val</span> <span class="o">*</span><span class="kt">bool</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="o">*</span><span class="nx">val</span> <span class="p">=</span> <span class="nb">string</span><span class="p">(</span><span class="nx">data</span><span class="p">)</span> <span class="o">==</span> <span class="s">`&#34;✓&#34;`</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl">    <span class="p">},</span>
+</span></span><span class="line"><span class="cl"><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// Pass the custom unmarshaler to Unmarshal
+</span></span></span><span class="line"><span class="cl"><span class="c1">// using the WithUnmarshalers option.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="nx">src</span> <span class="o">:=</span> <span class="p">[]</span><span class="nb">byte</span><span class="p">(</span><span class="s">`&#34;✓&#34;`</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="kd">var</span> <span class="nx">val</span> <span class="kt">bool</span>
+</span></span><span class="line"><span class="cl"><span class="nx">err</span> <span class="o">:=</span> <span class="nx">json</span><span class="p">.</span><span class="nf">Unmarshal</span><span class="p">(</span><span class="nx">src</span><span class="p">,</span> <span class="o">&amp;</span><span class="nx">val</span><span class="p">,</span> <span class="nx">json</span><span class="p">.</span><span class="nf">WithUnmarshalers</span><span class="p">(</span><span class="nx">boolUnmarshaler</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl"><span class="nx">fmt</span><span class="p">.</span><span class="nf">Println</span><span class="p">(</span><span class="nx">val</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>还有 <code>MarshalToFunc</code> 和 <code>UnmarshalFromFunc</code> 函数用于创建自定义编组器。它们与 <code>MarshalFunc</code> 和 <code>UnmarshalFunc</code> 类似，但它们与 <code>jsontext.Encoder</code> 和 <code>jsontext.Decoder</code> 一起使用，而不是字节切片。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nx">MarshalToFunc</span><span class="p">[</span><span class="nx">T</span> <span class="nx">any</span><span class="p">](</span><span class="nx">fn</span> <span class="kd">func</span><span class="p">(</span><span class="o">*</span><span class="nx">jsontext</span><span class="p">.</span><span class="nx">Encoder</span><span class="p">,</span> <span class="nx">T</span><span class="p">)</span> <span class="kt">error</span><span class="p">)</span> <span class="o">*</span><span class="nx">Marshalers</span>
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="nx">UnmarshalFromFunc</span><span class="p">[</span><span class="nx">T</span> <span class="nx">any</span><span class="p">](</span><span class="nx">fn</span> <span class="kd">func</span><span class="p">(</span><span class="o">*</span><span class="nx">jsontext</span><span class="p">.</span><span class="nx">Decoder</span><span class="p">,</span> <span class="nx">T</span><span class="p">)</span> <span class="kt">error</span><span class="p">)</span> <span class="o">*</span><span class="nx">Unmarshalers</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>可以使用 <code>JoinMarshalers</code> 组合 marshalers（并使用 <code>JoinUnmarshalers</code> 组合unmarshalers）。例如，以下示例展示了如何将布尔值（ <code>true</code> / <code>false</code> ）和“类布尔”字符串（ <code>on</code> / <code>off</code> ）封送为 <code>✓</code> 或 <code>✗</code> ，同时保留所有其他值的默认封送方式。</p>
+<p>首先，我们为布尔值定义一个自定义 marshaler：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span><span class="lnt">9
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// Marshals boolean values to ✓ or ✗..
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="nx">boolMarshaler</span> <span class="o">:=</span> <span class="nx">json</span><span class="p">.</span><span class="nf">MarshalToFunc</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">    <span class="kd">func</span><span class="p">(</span><span class="nx">enc</span> <span class="o">*</span><span class="nx">jsontext</span><span class="p">.</span><span class="nx">Encoder</span><span class="p">,</span> <span class="nx">val</span> <span class="kt">bool</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="nx">val</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="nx">enc</span><span class="p">.</span><span class="nf">WriteToken</span><span class="p">(</span><span class="nx">jsontext</span><span class="p">.</span><span class="nf">String</span><span class="p">(</span><span class="s">&#34;✓&#34;</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="nx">enc</span><span class="p">.</span><span class="nf">WriteToken</span><span class="p">(</span><span class="nx">jsontext</span><span class="p">.</span><span class="nf">String</span><span class="p">(</span><span class="s">&#34;✗&#34;</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="p">},</span>
+</span></span><span class="line"><span class="cl"><span class="p">)</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>然后我们为布尔字符串定义一个自定义 marshaler：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// Marshals boolean-like strings to ✓ or ✗.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="nx">strMarshaler</span> <span class="o">:=</span> <span class="nx">json</span><span class="p">.</span><span class="nf">MarshalToFunc</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">    <span class="kd">func</span><span class="p">(</span><span class="nx">enc</span> <span class="o">*</span><span class="nx">jsontext</span><span class="p">.</span><span class="nx">Encoder</span><span class="p">,</span> <span class="nx">val</span> <span class="kt">string</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="nx">val</span> <span class="o">==</span> <span class="s">&#34;on&#34;</span> <span class="o">||</span> <span class="nx">val</span> <span class="o">==</span> <span class="s">&#34;true&#34;</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="nx">enc</span><span class="p">.</span><span class="nf">WriteToken</span><span class="p">(</span><span class="nx">jsontext</span><span class="p">.</span><span class="nf">String</span><span class="p">(</span><span class="s">&#34;✓&#34;</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="nx">val</span> <span class="o">==</span> <span class="s">&#34;off&#34;</span> <span class="o">||</span> <span class="nx">val</span> <span class="o">==</span> <span class="s">&#34;false&#34;</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="nx">enc</span><span class="p">.</span><span class="nf">WriteToken</span><span class="p">(</span><span class="nx">jsontext</span><span class="p">.</span><span class="nf">String</span><span class="p">(</span><span class="s">&#34;✗&#34;</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// SkipFunc is a special type of error that tells Go to skip
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>        <span class="c1">// the current marshaler and move on to the next one. In our case,
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>        <span class="c1">// the next one will be the default marshaler for strings.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>        <span class="k">return</span> <span class="nx">json</span><span class="p">.</span><span class="nx">SkipFunc</span>
+</span></span><span class="line"><span class="cl">    <span class="p">},</span>
+</span></span><span class="line"><span class="cl"><span class="p">)</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>最后，我们将编组器与 <code>JoinMarshalers</code> 结合起来，并使用 <code>WithMarshalers</code> 选项将它们传递给编组函数：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// Combine custom marshalers with JoinMarshalers.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="nx">marshalers</span> <span class="o">:=</span> <span class="nx">json</span><span class="p">.</span><span class="nf">JoinMarshalers</span><span class="p">(</span><span class="nx">boolMarshaler</span><span class="p">,</span> <span class="nx">strMarshaler</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// Marshal some values.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="nx">vals</span> <span class="o">:=</span> <span class="p">[]</span><span class="nx">any</span><span class="p">{</span><span class="kc">true</span><span class="p">,</span> <span class="s">&#34;off&#34;</span><span class="p">,</span> <span class="s">&#34;hello&#34;</span><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="nx">data</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">json</span><span class="p">.</span><span class="nf">Marshal</span><span class="p">(</span><span class="nx">vals</span><span class="p">,</span> <span class="nx">json</span><span class="p">.</span><span class="nf">WithMarshalers</span><span class="p">(</span><span class="nx">marshalers</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl"><span class="nx">fmt</span><span class="p">.</span><span class="nf">Println</span><span class="p">(</span><span class="nb">string</span><span class="p">(</span><span class="nx">data</span><span class="p">),</span> <span class="nx">err</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="c1">// [&#34;✓&#34;,&#34;✗&#34;,&#34;hello&#34;] &lt;nil&gt;
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><p>这不是很酷吗？</p>
+<h2 id="默认行为">默认行为</h2>
+<p>v2 不仅改变了包接口，还改变了默认的编组/解组行为。</p>
+<p>一些值得注意的<strong>编组差异</strong>包括：</p>
+<ul>
+<li>v1 将 nil 切片封送为 <code>null</code> ，v2 则封送为 <code>[]</code> 。您可以使用<code>FormatNilSliceAsNull</code> 选项进行更改。</li>
+<li>v1 将 nil map 封送为 <code>null</code> ，v2 则将其封送为 <code>{}</code> 。您可以使用 <code>FormatNilMapAsNull</code> 选项进行更改。</li>
+<li>v1 将字节数组编组为数字数组，v2 则将其编组为 base64 编码的字符串。您可以使用 <code>format:array</code> 和 <code>format:base64</code> 标签进行更改。</li>
+<li>v1 允许字符串中包含无效的 UTF-8 字符，而 v2 则不允许。您可以使用 <code>AllowInvalidUTF8</code> 选项进行更改。</li>
+</ul>
+<p>以下是默认 v2 行为的示例：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">Person</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">Name</span>    <span class="kt">string</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">Hobbies</span> <span class="p">[]</span><span class="kt">string</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">Skills</span>  <span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="kt">int</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">Secret</span>  <span class="p">[</span><span class="mi">5</span><span class="p">]</span><span class="kt">byte</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">main</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">alice</span> <span class="o">:=</span> <span class="nx">Person</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">Name</span><span class="p">:</span>    <span class="s">&#34;Alice&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">Secret</span><span class="p">:</span> <span class="p">[</span><span class="mi">5</span><span class="p">]</span><span class="kt">byte</span><span class="p">{</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">5</span><span class="p">},</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">b</span><span class="p">,</span> <span class="nx">_</span> <span class="o">:=</span> <span class="nx">json</span><span class="p">.</span><span class="nf">Marshal</span><span class="p">(</span><span class="nx">alice</span><span class="p">,</span> <span class="nx">jsontext</span><span class="p">.</span><span class="nf">Multiline</span><span class="p">(</span><span class="kc">true</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">fmt</span><span class="p">.</span><span class="nf">Println</span><span class="p">(</span><span class="nb">string</span><span class="p">(</span><span class="nx">b</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="c1">//{
+</span></span></span><span class="line"><span class="cl"><span class="c1">//    &#34;Name&#34;: &#34;Alice&#34;,
+</span></span></span><span class="line"><span class="cl"><span class="c1">//    &#34;Hobbies&#34;: [],
+</span></span></span><span class="line"><span class="cl"><span class="c1">//    &#34;Skills&#34;: {},
+</span></span></span><span class="line"><span class="cl"><span class="c1">//    &#34;Secret&#34;: &#34;AQIDBAU=&#34;
+</span></span></span><span class="line"><span class="cl"><span class="c1">//}
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><p>以下是强制执行 v1 行为的方法：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">Person</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">Name</span>    <span class="kt">string</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">Hobbies</span> <span class="p">[]</span><span class="kt">string</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">Skills</span>  <span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="kt">int</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">Secret</span>  <span class="p">[</span><span class="mi">5</span><span class="p">]</span><span class="kt">byte</span> <span class="s">`json:&#34;,format:array&#34;`</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">main</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">alice</span> <span class="o">:=</span> <span class="nx">Person</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">Name</span><span class="p">:</span>    <span class="s">&#34;Alice&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">Secret</span><span class="p">:</span> <span class="p">[</span><span class="mi">5</span><span class="p">]</span><span class="kt">byte</span><span class="p">{</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">5</span><span class="p">},</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">b</span><span class="p">,</span> <span class="nx">_</span> <span class="o">:=</span> <span class="nx">json</span><span class="p">.</span><span class="nf">Marshal</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">alice</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">json</span><span class="p">.</span><span class="nf">FormatNilMapAsNull</span><span class="p">(</span><span class="kc">true</span><span class="p">),</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">json</span><span class="p">.</span><span class="nf">FormatNilSliceAsNull</span><span class="p">(</span><span class="kc">true</span><span class="p">),</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">jsontext</span><span class="p">.</span><span class="nf">Multiline</span><span class="p">(</span><span class="kc">true</span><span class="p">),</span>
+</span></span><span class="line"><span class="cl">    <span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">fmt</span><span class="p">.</span><span class="nf">Println</span><span class="p">(</span><span class="nb">string</span><span class="p">(</span><span class="nx">b</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="c1">// {
+</span></span></span><span class="line"><span class="cl"><span class="c1">//     &#34;Name&#34;: &#34;Alice&#34;,
+</span></span></span><span class="line"><span class="cl"><span class="c1">//     &#34;Hobbies&#34;: null,
+</span></span></span><span class="line"><span class="cl"><span class="c1">//     &#34;Skills&#34;: null,
+</span></span></span><span class="line"><span class="cl"><span class="c1">//     &#34;Secret&#34;: [
+</span></span></span><span class="line"><span class="cl"><span class="c1">//         1,
+</span></span></span><span class="line"><span class="cl"><span class="c1">//         2,
+</span></span></span><span class="line"><span class="cl"><span class="c1">//         3,
+</span></span></span><span class="line"><span class="cl"><span class="c1">//         4,
+</span></span></span><span class="line"><span class="cl"><span class="c1">//         5
+</span></span></span><span class="line"><span class="cl"><span class="c1">//     ]
+</span></span></span><span class="line"><span class="cl"><span class="c1">// }
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><p>一些值得注意的<strong>解组差异</strong>包括：</p>
+<ul>
+<li>v1 版本使用不区分大小写的字段名称匹配，v2 版本则使用精确匹配，区分大小写。您可以使用 <code>MatchCaseInsensitiveNames</code> 选项或 <code>case</code> 标签进行更改。</li>
+<li>v1 版本允许对象中存在重复字段，而 v2 版本则不允许。您可以使用 <code>AllowDuplicateNames</code> 选项进行更改。</li>
+</ul>
+<p>以下是默认 v2 行为（区分大小写）的示例：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">Person</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">FirstName</span> <span class="kt">string</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">LastName</span>  <span class="kt">string</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">main</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">src</span> <span class="o">:=</span> <span class="p">[]</span><span class="nb">byte</span><span class="p">(</span><span class="s">`{&#34;firstname&#34;:&#34;Alice&#34;,&#34;lastname&#34;:&#34;Zakas&#34;}`</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="kd">var</span> <span class="nx">alice</span> <span class="nx">Person</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">json</span><span class="p">.</span><span class="nf">Unmarshal</span><span class="p">(</span><span class="nx">src</span><span class="p">,</span> <span class="o">&amp;</span><span class="nx">alice</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">fmt</span><span class="p">.</span><span class="nf">Printf</span><span class="p">(</span><span class="s">&#34;%+v\n&#34;</span><span class="p">,</span> <span class="nx">alice</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="c1">// {FirstName: LastName:}
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><p>以下是强制执行 v1 行为的方法（不区分大小写）：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">Person</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">FirstName</span> <span class="kt">string</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">LastName</span>  <span class="kt">string</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">main</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">src</span> <span class="o">:=</span> <span class="p">[]</span><span class="nb">byte</span><span class="p">(</span><span class="s">`{&#34;firstname&#34;:&#34;Alice&#34;,&#34;lastname&#34;:&#34;Zakas&#34;}`</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="kd">var</span> <span class="nx">alice</span> <span class="nx">Person</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">json</span><span class="p">.</span><span class="nf">Unmarshal</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">src</span><span class="p">,</span> <span class="o">&amp;</span><span class="nx">alice</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">json</span><span class="p">.</span><span class="nf">MatchCaseInsensitiveNames</span><span class="p">(</span><span class="kc">true</span><span class="p">),</span>
+</span></span><span class="line"><span class="cl">    <span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">fmt</span><span class="p">.</span><span class="nf">Printf</span><span class="p">(</span><span class="s">&#34;%+v\n&#34;</span><span class="p">,</span> <span class="nx">alice</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="c1">// {FirstName:Alice LastName:Zakas}
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><p>请参阅<a class="link" href="https://pkg.go.dev/encoding/json@master#hdr-Migrating_to_v2"  target="_blank" rel="noopener"
+    >文档</a>中的行为变化的完整列表。</p>
+<h2 id="表现">表现</h2>
+<p>编组 (Marshaling) 时，v2 的性能与 v1 大致相同。对于某些数据集，它的速度更快，但对于其他数据集，它的速度较慢。然而，解组 (Unmarshaling) 的性能要<em>好得多</em> ：v2 比 v1 快 2.7 倍到 10.2 倍。</p>
+<p>此外，从常规的 <code>MarshalJSON</code> 和 <code>UnmarshalJSON</code> 切换到其流式替代方案—— <code>MarshalJSONTo</code> 和 <code>UnmarshalJSONFrom</code> ，可以获得显著的性能提升。据 Go 团队称，它允许将某些 O(n²) 的运行时场景转换为 O(n)。例如，在 Kubernetes OpenAPI 规范中，从 <code>UnmarshalJSON</code> 切换到 <code>UnmarshalJSONFrom</code> 使其<a class="link" href="https://github.com/kubernetes/kube-openapi/issues/315#issuecomment-1240030015"  target="_blank" rel="noopener"
+    >速度提高了约 40 倍 </a>。</p>
+<p>有关基准测试的详细信息，请参阅 <a class="link" href="https://github.com/go-json-experiment/jsonbench#readme"  target="_blank" rel="noopener"
+    >jsonbench</a> repo。</p>
+<h2 id="最后的想法">最后的想法</h2>
+<p>呼！这可真是让人费解。v2 包比 v1 功能更多、更灵活，但也复杂得多，尤其是拆分成了 <code>json/v2</code> 和 <code>jsontext</code> 两个子包之后。</p>
+<p>需要记住以下几点：</p>
+<ul>
+<li>从 Go 1.25 开始， <code>json/v2</code> 包处于实验阶段，可以通过在构建时设置 <code>GOEXPERIMENT=jsonv2</code> 来启用。该包的 API 可能会在未来的版本中发生变化。</li>
+<li>开启 <code>GOEXPERIMENT=jsonv2</code> 会使 v1 <code>json</code> 包使用新的 JSON 实现，速度更快，并支持一些选项，以便更好地兼容旧的编组和解组行为。</li>
+</ul>
+<p>最后，这里有一些链接可以了解有关 v2 设计和实现的更多信息：</p>
+<p><a class="link" href="https://go.dev/issue/63397"  target="_blank" rel="noopener"
+    >proposal p.1</a> • <a class="link" href="https://go.dev/issue/71497"  target="_blank" rel="noopener"
+    >proposal p.2</a> • <a class="link" href="https://github.com/golang/go/tree/master/src/encoding/json/v2"  target="_blank" rel="noopener"
+    >json/v2</a> • <a class="link" href="https://github.com/golang/go/tree/master/src/encoding/json/jsontext"  target="_blank" rel="noopener"
+    >jsontext</a></p>
+<h2 id="参考">参考</h2>
+<p>本文翻译于 <a class="link" href="https://antonz.org/go-json-v2/#marshalencode-and-unmarshaldecode"  target="_blank" rel="noopener"
+    >JSON evolution in Go: from v1 to v2</a></p>
+
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/">读书笔记</a>
+        
+            <a href="/tags/%E7%BF%BB%E8%AF%91/">翻译</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">Related content</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/%E6%AF%94%E8%BE%83%E4%B8%A4%E4%B8%AA-go-pprof-%E6%96%87%E4%BB%B6%E6%9D%A5%E6%9F%A5%E6%89%BE%E6%80%A7%E8%83%BD%E9%97%AE%E9%A2%98/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">比较两个 go pprof 文件来查找性能问题</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/go-%E4%B8%AD%E7%9A%84%E5%BC%B1%E6%8C%87%E9%92%88%E4%B8%BA%E4%BB%80%E4%B9%88%E4%BB%96%E4%BB%AC%E7%8E%B0%E5%9C%A8%E5%BE%88%E9%87%8D%E8%A6%81/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Go 中的弱指针:为什么他们现在很重要?</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/golang-io-cookbook/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Golang IO Cookbook</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/base64-%E7%BC%96%E8%A7%A3%E7%A0%81/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Base64 编解码</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/%E5%AE%9E%E6%97%B6%E8%AF%8A%E6%96%AD%E6%97%A5%E5%BF%97%E8%AE%B0%E5%BD%95%E5%A6%82%E4%BD%95%E7%9B%91%E8%A7%86-go-web-%E5%BA%94%E7%94%A8/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">实时诊断日志记录，如何监视 Go Web 应用</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script src="https://utteranc.es/client.js" 
+        repo="ixugo/ixugo.github.io"
+        issue-term="pathname"
+        
+        crossorigin="anonymous"
+        async
+        >
+</script>
+
+<style>
+    .utterances {
+        max-width: unset;
+    }
+</style>
+
+<script>
+    function setUtterancesTheme(theme) {
+        let utterances = document.querySelector('.utterances iframe');
+        if (utterances) {
+            utterances.contentWindow.postMessage(
+                {
+                    type: 'set-theme',
+                    theme: `github-${theme}`
+                },
+                'https://utteranc.es'
+            );
+        }
+    }
+
+    addEventListener('message', event => {
+        if (event.origin !== 'https://utteranc.es') return;
+        setUtterancesTheme(document.documentElement.dataset.scheme)
+    });
+
+    window.addEventListener('onColorSchemeChange', (e) => {
+        setUtterancesTheme(e.detail)
+    })
+</script>
+
+
+    
+
+    <footer class="site-footer">
+  <section class="copyright">
+    &copy;
+    
+    2018 -
+    
+    2025 ixugo
+  </section>
+  <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+  <section class="powerby">
+
+    
+    <span id="busuanzi_container_page_pv">本文阅读量
+      <span style="font-size: 14px" id="busuanzi_value_page_pv"></span>
+      次，</span>
+    <span id="busuanzi_container_site_pv">总访问量
+      <span style="font-size: 14px" id="busuanzi_value_site_pv"></span>
+      次 </span>，总访客数
+    <span style="font-size: 14px" id="busuanzi_value_site_uv"></span> 人
+    <br />
+
+
+    Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> .&nbsp;&nbsp;
+    Theme <a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener"
+      data-version="3.16.0">Stack</a> designed by <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a>
+  </section>
+
+
+
+
+  <script>
+    function count() {
+      let href = window.location.href;
+      let regexp = /^https?:\/\/blog.golang.space\/?(page\/[\d]+\/?)?$/;
+      if (regexp.test(href)) {
+        let e = document.getElementById("busuanzi_container_page_pv");
+        e.innerText = "";
+      }
+    }
+    window.onload = count;
+  </script>
+</footer>
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>
