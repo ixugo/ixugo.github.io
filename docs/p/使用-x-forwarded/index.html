@@ -1,0 +1,865 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='背景描述 想象有一个服务端，且称其为 a 服务，当请求 /login 的时候，会触发重定向到 /home。
+即访问 a.com/login 时，页面重定向到 a.com/home。
+现在给 a 服务增加一个 nginx 反向代理，nginx 下也有其它服务，当然可以通过域名的方式区分访问的是哪个服务器，但在这个场景下，咱们限定只能通过前缀区分服务。即访问 nginx.proxy.com/a/login ，会被代理到 a.com/login，现在发出请求，会发现浏览器重定向到了 a.com/home，这不是我想要的结果，前端不应该直接访问到 a 服务，理想的结果是 nginx.proxy.com/a/home。
+一种简单的方案如下
+1 2 3 4 5 location /a/ { proxy_pass http://a.com/; # 把后端返回的 &amp;#34;Location: /xxx&amp;#34; 改成 &amp;#34;Location: /a/xxx&amp;#34; proxy_redirect / /a/; } 这是重定向，如果返回的链接也需要加前缀呢?
+解决方案 为了解决上面的问题，我们可以在 nginx 配置中定义一个 X-Forwarded-Prefix，例如
+1 2 3 4 location /a/ { proxy_pass http://a.com/; proxy_set_header X-Forwarded-Prefix /a; } 考虑到外层可能还有多个反向代理的情况
+采用逗号分隔，记住每一层代理的前缀，我觉得意义不大，应该只有最外层的有效，层层传递即可，没有对应的 header 则当前层就是最外层。
+配置可以这样改'>
+<title>使用 X-Forwarded</title>
+
+<link rel='canonical' href='https://blog.golang.space/p/%E4%BD%BF%E7%94%A8-x-forwarded/'>
+
+<link rel="stylesheet" href="/scss/style.min.8191399262444ab68b72a18c97392f5349be20a1615d77445be51e974c144cff.css"><meta property='og:title' content='使用 X-Forwarded'>
+<meta property='og:description' content='背景描述 想象有一个服务端，且称其为 a 服务，当请求 /login 的时候，会触发重定向到 /home。
+即访问 a.com/login 时，页面重定向到 a.com/home。
+现在给 a 服务增加一个 nginx 反向代理，nginx 下也有其它服务，当然可以通过域名的方式区分访问的是哪个服务器，但在这个场景下，咱们限定只能通过前缀区分服务。即访问 nginx.proxy.com/a/login ，会被代理到 a.com/login，现在发出请求，会发现浏览器重定向到了 a.com/home，这不是我想要的结果，前端不应该直接访问到 a 服务，理想的结果是 nginx.proxy.com/a/home。
+一种简单的方案如下
+1 2 3 4 5 location /a/ { proxy_pass http://a.com/; # 把后端返回的 &amp;#34;Location: /xxx&amp;#34; 改成 &amp;#34;Location: /a/xxx&amp;#34; proxy_redirect / /a/; } 这是重定向，如果返回的链接也需要加前缀呢?
+解决方案 为了解决上面的问题，我们可以在 nginx 配置中定义一个 X-Forwarded-Prefix，例如
+1 2 3 4 location /a/ { proxy_pass http://a.com/; proxy_set_header X-Forwarded-Prefix /a; } 考虑到外层可能还有多个反向代理的情况
+采用逗号分隔，记住每一层代理的前缀，我觉得意义不大，应该只有最外层的有效，层层传递即可，没有对应的 header 则当前层就是最外层。
+配置可以这样改'>
+<meta property='og:url' content='https://blog.golang.space/p/%E4%BD%BF%E7%94%A8-x-forwarded/'>
+<meta property='og:site_name' content='ixugo'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:published_time' content='2025-09-26T00:00:00&#43;00:00'/><meta property='article:modified_time' content='2025-09-26T00:00:00&#43;00:00'/>
+<meta name="twitter:title" content="使用 X-Forwarded">
+<meta name="twitter:description" content="背景描述 想象有一个服务端，且称其为 a 服务，当请求 /login 的时候，会触发重定向到 /home。
+即访问 a.com/login 时，页面重定向到 a.com/home。
+现在给 a 服务增加一个 nginx 反向代理，nginx 下也有其它服务，当然可以通过域名的方式区分访问的是哪个服务器，但在这个场景下，咱们限定只能通过前缀区分服务。即访问 nginx.proxy.com/a/login ，会被代理到 a.com/login，现在发出请求，会发现浏览器重定向到了 a.com/home，这不是我想要的结果，前端不应该直接访问到 a 服务，理想的结果是 nginx.proxy.com/a/home。
+一种简单的方案如下
+1 2 3 4 5 location /a/ { proxy_pass http://a.com/; # 把后端返回的 &amp;#34;Location: /xxx&amp;#34; 改成 &amp;#34;Location: /a/xxx&amp;#34; proxy_redirect / /a/; } 这是重定向，如果返回的链接也需要加前缀呢?
+解决方案 为了解决上面的问题，我们可以在 nginx 配置中定义一个 X-Forwarded-Prefix，例如
+1 2 3 4 location /a/ { proxy_pass http://a.com/; proxy_set_header X-Forwarded-Prefix /a; } 考虑到外层可能还有多个反向代理的情况
+采用逗号分隔，记住每一层代理的前缀，我觉得意义不大，应该只有最外层的有效，层层传递即可，没有对应的 header 则当前层就是最外层。
+配置可以这样改">
+    <link rel="shortcut icon" href="img/favicon.ico" />
+
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+	(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+	m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+	})(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+	ga('create', 'UA-192125643-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="Toggle Menu">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu0b04ba6d7249c9f90c92db974439eb8c_208246_300x0_resize_box_3.png" width="300"
+                            height="321" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🧐</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">ixugo</a></h1>
+            <h2 class="site-description">走出舒适区</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/ixugo'
+                        target="_blank"
+                        title="GitHub"
+                        rel="me"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>Home</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/about/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>About</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>Archives</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>Search</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>Dark Mode</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">Table of contents</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#背景描述">背景描述</a></li>
+    <li><a href="#解决方案">解决方案</a></li>
+    <li><a href="#关于-x-forwarded-prefix">关于 X-Forwarded-Prefix</a></li>
+    <li><a href="#参考">参考</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+            <main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+    <header class="article-category">
+        
+            <a href="/categories/http/" >
+                HTTP
+            </a>
+        
+    </header>
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/%E4%BD%BF%E7%94%A8-x-forwarded/">使用 X-Forwarded</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    
+    
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Sep 26, 2025</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    3 minute read
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+
+</header>
+
+    <section class="article-content">
+    
+    
+    <h2 id="背景描述">背景描述</h2>
+<p>想象有一个服务端，且称其为 a 服务，当请求 <code>/login</code> 的时候，会触发重定向到 <code>/home</code>。</p>
+<p>即访问  <code>a.com/login</code> 时，页面重定向到 <code>a.com/home</code>。</p>
+<p>现在给 a 服务增加一个 nginx 反向代理，nginx 下也有其它服务，当然可以通过域名的方式区分访问的是哪个服务器，但在这个场景下，咱们限定只能通过前缀区分服务。即访问 <code>nginx.proxy.com/a/login</code> ，会被代理到 <code>a.com/login</code>，现在发出请求，会发现浏览器重定向到了 <code>a.com/home</code>，这不是我想要的结果，前端不应该直接访问到 a 服务，理想的结果是 <code>nginx.proxy.com/a/home</code>。</p>
+<p>一种简单的方案如下</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-nginx" data-lang="nginx"><span class="line"><span class="cl"><span class="k">location</span> <span class="s">/a/</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kn">proxy_pass</span> <span class="s">http://a.com/</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="c1"># 把后端返回的 &#34;Location: /xxx&#34; 改成 &#34;Location: /a/xxx&#34;
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="kn">proxy_redirect</span> <span class="s">/</span> <span class="s">/a/</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>这是重定向，如果返回的链接也需要加前缀呢?</p>
+<h2 id="解决方案">解决方案</h2>
+<p>为了解决上面的问题，我们可以在 nginx 配置中定义一个 <code>X-Forwarded-Prefix</code>，例如</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-nginx" data-lang="nginx"><span class="line"><span class="cl"><span class="k">location</span> <span class="s">/a/</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kn">proxy_pass</span> <span class="s">http://a.com/</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="kn">proxy_set_header</span> <span class="s">X-Forwarded-Prefix</span> <span class="s">/a</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>考虑到外层可能还有多个反向代理的情况</p>
+<p>采用逗号分隔，记住每一层代理的前缀，我觉得意义不大，应该只有最外层的有效，层层传递即可，没有对应的 header 则当前层就是最外层。</p>
+<p>配置可以这样改</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-nginx" data-lang="nginx"><span class="line"><span class="cl"><span class="k">location</span> <span class="s">/a/</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="kn">proxy_pass</span> <span class="s">http://a.com/</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1"># 如果没有 X-Forwarded-Prefix，则设置
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>        <span class="kn">if</span> <span class="s">(</span><span class="nv">$http_x_forwarded_prefix</span> <span class="p">=</span> <span class="s">&#34;&#34;)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="kn">proxy_set_header</span> <span class="s">X-Forwarded-Prefix</span> <span class="s">/a</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>在业务层，可以通过以下方式获取</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">home</span><span class="p">(</span><span class="nx">w</span> <span class="nx">http</span><span class="p">.</span><span class="nx">Response</span><span class="p">,</span>  <span class="nx">req</span> <span class="o">*</span><span class="nx">http</span><span class="p">.</span><span class="nx">Request</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">prefix</span> <span class="o">:=</span> <span class="nx">req</span><span class="p">.</span><span class="nx">Header</span><span class="p">.</span><span class="nf">Get</span><span class="p">(</span><span class="s">&#34;X-Forwarded-Prefix&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">path</span> <span class="o">:=</span> <span class="nx">prefix</span> <span class="o">+</span> <span class="s">&#34;/home&#34;</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// 响应结果
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>相对路径时可以这样拼接，当使用绝对路径时，要使用上 <code>X-Forwarded-Proto</code> 和 <code>X-Forwarded-Host</code>，前者用于标识请求协议 http/https，后者用于标识请求地址。</p>
+<p>最终的 nginx 设置如下:</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-nginx" data-lang="nginx"><span class="line"><span class="cl">   <span class="c1"># 仅在不存在时才设置前缀
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="k">map</span> <span class="nv">$http_x_forwarded_prefix</span> <span class="nv">$prefix_for_test</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kn">&#34;&#34;</span>      <span class="s">/test</span><span class="p">;</span>  <span class="c1"># 这里根据实际 prefix 动态修改
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="kn">default</span> <span class="nv">$http_x_forwarded_prefix</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="c1"># 仅在不存在时才设置 X-Forwarded-Proto
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="k">map</span> <span class="nv">$http_x_forwarded_proto</span> <span class="nv">$proto_for_test</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kn">&#34;&#34;</span>      <span class="nv">$scheme</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="kn">default</span> <span class="nv">$http_x_forwarded_proto</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="c1"># 仅在不存在时才设置 X-Forwarded-Host
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="k">map</span> <span class="nv">$http_x_forwarded_host</span> <span class="nv">$host_for_test</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kn">&#34;&#34;</span>      <span class="nv">$http_host</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="kn">default</span> <span class="nv">$http_x_forwarded_host</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">server{</span>
+</span></span><span class="line"><span class="cl">  <span class="c1"># 略
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="s">location</span> <span class="s">/a/</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kn">proxy_pass</span> <span class="s">http://a.com/</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="c1"># 使用 map 变量设置头
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="kn">proxy_set_header</span> <span class="s">X-Forwarded-Prefix</span> <span class="nv">$prefix_for_test</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="kn">proxy_set_header</span> <span class="s">X-Forwarded-Proto</span> <span class="nv">$proto_for_test</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="kn">proxy_set_header</span> <span class="s">X-Forwarded-Host</span> <span class="nv">$host_for_test</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="c1"># 原始 Host
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="kn">proxy_set_header</span> <span class="s">Host</span> <span class="nv">$host</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="c1"># 调用者 IP
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="kn">proxy_set_header</span> <span class="s">X-Real-IP</span> <span class="nv">$remote_addr</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="c1"># 多层代理下，最终会变成 逗号分隔的链条，记录所有经过的代理 IP，通过解析第一个能获取到原始客户端 IP
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="c1"># Client 1.1.1.1 → ProxyA → ProxyB → ProxyC → Nginx → 后端
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="c1"># 1.1.1.1, ProxyA_IP, ProxyB_IP, ProxyC_IP, Nginx_IP
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="kn">proxy_set_header</span> <span class="s">X-Forwarded-For</span> <span class="nv">$proxy_add_x_forwarded_for</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="k">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>上面的配置，假设 nginx 代理前缀是 <code>/test</code>，当访问 <code>http://localhost:8002/test/login</code> 时，业务层就可以通过 header 取到 <code>http</code>，<code>localhsot:8002</code>，<code>/test</code> 三个参数。</p>
+<p>不需要多层代理，更简单的 nginx 写法:</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="nx">location</span> <span class="o">/</span><span class="nx">a</span><span class="o">/</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">proxy_pass</span> <span class="nx">http</span><span class="p">:</span><span class="c1">//a.com/;
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>
+</span></span><span class="line"><span class="cl">  <span class="nx">proxy_set_header</span> <span class="nx">X</span><span class="o">-</span><span class="nx">Forwarded</span><span class="o">-</span><span class="nx">Prefix</span> <span class="o">/</span><span class="nx">a</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">proxy_set_header</span> <span class="nx">X</span><span class="o">-</span><span class="nx">Forwarded</span><span class="o">-</span><span class="nx">Proto</span> <span class="err">$</span><span class="nx">scheme</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">proxy_set_header</span> <span class="nx">X</span><span class="o">-</span><span class="nx">Forwarded</span><span class="o">-</span><span class="nx">Host</span> <span class="err">$</span><span class="nx">http_host</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">proxy_set_header</span> <span class="nx">Host</span> <span class="err">$</span><span class="nx">host</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">proxy_set_header</span> <span class="nx">X</span><span class="o">-</span><span class="nx">Real</span><span class="o">-</span><span class="nx">IP</span> <span class="err">$</span><span class="nx">remote_addr</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">proxy_set_header</span> <span class="nx">X</span><span class="o">-</span><span class="nx">Forwarded</span><span class="o">-</span><span class="nx">For</span> <span class="err">$</span><span class="nx">proxy_add_x_forwarded_for</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h2 id="关于-x-forwarded-prefix">关于 X-Forwarded-Prefix</h2>
+<p>我在网上查询到微软，spring 都在使用这种方式，我倾向于沿用这种方案。</p>
+<p>与所有以 <code>X-</code> 开头的 header 一样， <code>X-Forwarded-Prefix</code> 并非“标准”，且不如 <code>X-Forwarded-Proto</code> 之类的 header 那么知名，但它被一些较大的产品/供应商使用。<a class="link" href="https://microsoft.github.io/reverse-proxy/articles/transforms.html#defaults"  target="_blank" rel="noopener"
+    > 微软的 YARP 文档</a>中有一个具体示例，其中指出：</p>
+<blockquote>
+<p>X-Forwarded-Prefix - Sets the request&rsquo;s original PathBase, if any, to the X-Forwarded-Prefix header.</p>
+</blockquote>
+<p>Golang  的 gin 框架默认的重定向操作也使用这种方式。在 gin 默认的行为里，请求 <code>/foo/</code>，但仅存在 <code>/foo</code> 的路由，则客户端被重定向到 <code>/foo</code>，GET 请求返回 HTTP状态码 301，其它请求方法返回 307 。</p>
+<p>以下代码取自<code>gin@v1.10.1 gin.go</code></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">redirectTrailingSlash</span><span class="p">(</span><span class="nx">c</span> <span class="o">*</span><span class="nx">Context</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">req</span> <span class="o">:=</span> <span class="nx">c</span><span class="p">.</span><span class="nx">Request</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">p</span> <span class="o">:=</span> <span class="nx">req</span><span class="p">.</span><span class="nx">URL</span><span class="p">.</span><span class="nx">Path</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="nx">prefix</span> <span class="o">:=</span> <span class="nx">path</span><span class="p">.</span><span class="nf">Clean</span><span class="p">(</span><span class="nx">c</span><span class="p">.</span><span class="nx">Request</span><span class="p">.</span><span class="nx">Header</span><span class="p">.</span><span class="nf">Get</span><span class="p">(</span><span class="s">&#34;X-Forwarded-Prefix&#34;</span><span class="p">));</span> <span class="nx">prefix</span> <span class="o">!=</span> <span class="s">&#34;.&#34;</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">prefix</span> <span class="p">=</span> <span class="nx">regSafePrefix</span><span class="p">.</span><span class="nf">ReplaceAllString</span><span class="p">(</span><span class="nx">prefix</span><span class="p">,</span> <span class="s">&#34;&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">prefix</span> <span class="p">=</span> <span class="nx">regRemoveRepeatedChar</span><span class="p">.</span><span class="nf">ReplaceAllString</span><span class="p">(</span><span class="nx">prefix</span><span class="p">,</span> <span class="s">&#34;/&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="nx">p</span> <span class="p">=</span> <span class="nx">prefix</span> <span class="o">+</span> <span class="s">&#34;/&#34;</span> <span class="o">+</span> <span class="nx">req</span><span class="p">.</span><span class="nx">URL</span><span class="p">.</span><span class="nx">Path</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">req</span><span class="p">.</span><span class="nx">URL</span><span class="p">.</span><span class="nx">Path</span> <span class="p">=</span> <span class="nx">p</span> <span class="o">+</span> <span class="s">&#34;/&#34;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="nx">length</span> <span class="o">:=</span> <span class="nb">len</span><span class="p">(</span><span class="nx">p</span><span class="p">);</span> <span class="nx">length</span> <span class="p">&gt;</span> <span class="mi">1</span> <span class="o">&amp;&amp;</span> <span class="nx">p</span><span class="p">[</span><span class="nx">length</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="sc">&#39;/&#39;</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">req</span><span class="p">.</span><span class="nx">URL</span><span class="p">.</span><span class="nx">Path</span> <span class="p">=</span> <span class="nx">p</span><span class="p">[:</span><span class="nx">length</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="nf">redirectRequest</span><span class="p">(</span><span class="nx">c</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h2 id="参考">参考</h2>
+<p><a class="link" href="https://github.com/spring-projects/spring-framework/issues/31241"  target="_blank" rel="noopener"
+    >spring issues</a></p>
+<p><a class="link" href="https://stackoverflow.com/questions/79619512/what-is-the-correct-value-for-x-forward-prefix-header"  target="_blank" rel="noopener"
+    >what-is-the-correct-value-for-x-forward-prefix-header</a></p>
+<p><a class="link" href="https://josef.codes/using-the-x-forwarded-prefix-header-to-prefix-your-hateoas-links/"  target="_blank" rel="noopener"
+    >using-the-x-forwarded-prefix-header-to-prefix-your-hateoas-links</a></p>
+<p><a class="link" href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/X-Forwarded-Proto"  target="_blank" rel="noopener"
+    >X-Forwarded-Proto</a></p>
+
+</section>
+
+
+    <footer class="article-footer">
+    
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">Related content</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/go-h2c/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Go H2C</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/%E7%9F%A5%E9%81%93%E4%BD%95%E6%97%B6-go-%E7%9A%84-http.defaultclient-%E6%96%AD%E5%BC%80/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">知道何时 Go 的 http.DefaultClient 断开</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/http-%E6%B5%81%E5%BC%8F%E4%BC%A0%E8%BE%93/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">HTTP 流式传输</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/restful-api-%E8%AE%BE%E8%AE%A1%E6%8C%87%E5%8D%97/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">RESTful API 设计指南</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script src="https://utteranc.es/client.js" 
+        repo="ixugo/ixugo.github.io"
+        issue-term="pathname"
+        
+        crossorigin="anonymous"
+        async
+        >
+</script>
+
+<style>
+    .utterances {
+        max-width: unset;
+    }
+</style>
+
+<script>
+    function setUtterancesTheme(theme) {
+        let utterances = document.querySelector('.utterances iframe');
+        if (utterances) {
+            utterances.contentWindow.postMessage(
+                {
+                    type: 'set-theme',
+                    theme: `github-${theme}`
+                },
+                'https://utteranc.es'
+            );
+        }
+    }
+
+    addEventListener('message', event => {
+        if (event.origin !== 'https://utteranc.es') return;
+        setUtterancesTheme(document.documentElement.dataset.scheme)
+    });
+
+    window.addEventListener('onColorSchemeChange', (e) => {
+        setUtterancesTheme(e.detail)
+    })
+</script>
+
+
+    
+
+    <footer class="site-footer">
+  <section class="copyright">
+    &copy;
+    
+    2018 -
+    
+    2025 ixugo
+  </section>
+  <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+  <section class="powerby">
+
+    
+    <span id="busuanzi_container_page_pv">本文阅读量
+      <span style="font-size: 14px" id="busuanzi_value_page_pv"></span>
+      次，</span>
+    <span id="busuanzi_container_site_pv">总访问量
+      <span style="font-size: 14px" id="busuanzi_value_site_pv"></span>
+      次 </span>，总访客数
+    <span style="font-size: 14px" id="busuanzi_value_site_uv"></span> 人
+    <br />
+
+
+    Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> .&nbsp;&nbsp;
+    Theme <a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener"
+      data-version="3.16.0">Stack</a> designed by <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a>
+  </section>
+
+
+
+
+  <script>
+    function count() {
+      let href = window.location.href;
+      let regexp = /^https?:\/\/blog.golang.space\/?(page\/[\d]+\/?)?$/;
+      if (regexp.test(href)) {
+        let e = document.getElementById("busuanzi_container_page_pv");
+        e.innerText = "";
+      }
+    }
+    window.onload = count;
+  </script>
+</footer>
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

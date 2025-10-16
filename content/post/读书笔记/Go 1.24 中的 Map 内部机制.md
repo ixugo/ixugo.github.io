@@ -7,6 +7,7 @@ image:
 draft: true
 categories:
     - Go
+    - 翻译
 tags:
     - 读书笔记
 ---
