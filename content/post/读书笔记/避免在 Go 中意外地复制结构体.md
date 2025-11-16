@@ -6,9 +6,9 @@ slug:
 image: 
 draft: false
 categories:
-    - 翻译
-tags:
     - 读书笔记
+tags:
+    - 翻译
     - GO
 ---
 

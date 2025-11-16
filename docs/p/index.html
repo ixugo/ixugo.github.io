@@ -253,39 +253,7 @@ if (!doNotTrack) {
     </ol>
 </aside>
 
-    <aside class="sidebar right-sidebar sticky">
-        
-            
-                
-    <section class="widget archives">
-        <div class="widget-icon">
-            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-  <path stroke="none" d="M0 0h24v24H0z"/>
-  <line x1="5" y1="9" x2="19" y2="9" />
-  <line x1="5" y1="15" x2="19" y2="15" />
-  <line x1="11" y1="4" x2="7" y2="20" />
-  <line x1="17" y1="4" x2="13" y2="20" />
-</svg>
-
-
-
-        </div>
-        <h2 class="widget-title section-title">Table of contents</h2>
-        
-        <div class="widget--toc">
-            <nav id="TableOfContents">
-  <ol>
-    <li><a href="#查询-memstats-信息">查询 memstats 信息</a></li>
-    <li><a href="#看看-cpu-运行消耗">看看 cpu 运行消耗</a></li>
-  </ol>
-</nav>
-        </div>
-    </section>
-
-            
-        
-    </aside>
-
+    
 
             <main class="main full-width">
     <article class="main-article">
@@ -335,96 +303,7 @@ if (!doNotTrack) {
     <section class="article-content">
     
     
-    <p>流媒体服务器 16 核 64GB 存储，尝试 RTMP 推流 1000 路，服务器没有跑满，但是画面产生了延迟或停顿，以及断开连接。</p>
-<p>以下是记录我的解决方案:</p>
-<h2 id="查询-memstats-信息">查询 memstats 信息</h2>
-<p>我尝试通过 <code>/debug/vars</code> 查询程序内信息，此时 GC 次数是 168 次，占用 CPU 比例是 2%，GC 总共停止时间是 263毫秒。</p>
-<p>当前数值的消耗，不应该对程序影响那么大。</p>
-<p><img src="http://img.golang.space/img-1747884098669.png"
-	
-	
-	
-	loading="lazy"
-	
-		alt="image-20250522112138586"
-	
-	
-></p>
-<h2 id="看看-cpu-运行消耗">看看 cpu 运行消耗</h2>
-<p>取一下 CPU 信息，<code>/debug/pprof/profile?seconds=30s</code></p>
-<p><img src="http://img.golang.space/img-1747884491961.png"
-	
-	
-	
-	loading="lazy"
-	
-		alt="image-20250522112811795"
-	
-	
-></p>
-<p>局部放大</p>
-<p><img src="http://img.golang.space/img-1747886967914.png"
-	
-	
-	
-	loading="lazy"
-	
-		alt="image-20250522120927723"
-	
-	
-></p>
-<ul>
-<li>小对象(mallocgcSmallNoscan)分配占用 34.18%</li>
-<li>堆扩容(growslice)占用 7.31%</li>
-</ul>
-<p>将涉及到频繁分配对象的代码注释掉，再压测一下看看视频流确实流畅多了，但依然存在卡顿。</p>
-<p>再抓一次 cpu 信息，可以看到主要消耗是系统调用</p>
-<p><img src="http://img.golang.space/img-1747897026853.png"
-	
-	
-	
-	loading="lazy"
-	
-		alt="image-20250522145706685"
-	
-	
-></p>
-<p>多推一会流，在抓 cpu，grow 是一个内存分配的函数，程序在频繁内存扩容</p>
-<p><img src="http://img.golang.space/img-1747977871180.png"
-	
-	
-	
-	loading="lazy"
-	
-		alt="image-20250523132430984"
-	
-	
-></p>
-<p>提前创建一定大小的内存，避免扩容后，节省一半性能</p>
-<p><img src="http://img.golang.space/img-1747977951431.png"
-	
-	
-	
-	loading="lazy"
-	
-		alt="image-20250523132551286"
-	
-	
-></p>
-<p>网络情况</p>
-<p>tx 是出站</p>
-<p>tx 是入站</p>
-<p><img src="http://img.golang.space/img-1747980993370.png"
-	
-	
-	
-	loading="lazy"
-	
-		alt="image-20250523141633187"
-	
-	
-></p>
-
+    
 </section>
 
 

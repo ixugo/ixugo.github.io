@@ -1,0 +1,1129 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='什么是异步函数？ 同步函数非常简单。调用它，它执行一些操作后返回。
+异步函数则不同。调用它即返回，然后它继续执行一些操作。
+举一个具体的例子，虽然有些不自然，但下面的 Cleanup 函数是同步的。你调用它，它会删除一个缓存目录，然后返回。
+1 2 3 func (c *Cache) Cleanup() { os.RemoveAll(c.cacheDir) } CleanupInBackground 是一个异步函数。你调用它即返回，然后缓存目录就会被删除……这迟早会发生。
+1 2 3 func (c *Cache) CleanupInBackground() { go os.RemoveAll(c.cacheDir) } 有时异步函数会在将来执行某些操作。例如， context 包的 WithDeadline 函数返回一个将来会被取消的 context。
+1 2 3 4 5 package context // WithDeadline returns a derived context // with a deadline no later than d. func WithDeadline(parent Context, d time.Time) (Context, CancelFunc) 当我谈到测试并发代码时，我的意思是测试这些类型的异步操作，包括使用实时的操作和不使用实时的操作。
+测试 测试验证系统的行为是否符合我们的预期。描述测试类型的术语有很多，例如单元测试、集成测试等等，但就我们的目的而言，每种测试都简化为三个步骤：
+设置初始条件 告诉被测系统做某事 验证结果 测试同步函数很简单'>
+<title>测试时间和其它异步</title>
+
+<link rel='canonical' href='https://blog.golang.space/p/%E6%B5%8B%E8%AF%95%E6%97%B6%E9%97%B4%E5%92%8C%E5%85%B6%E5%AE%83%E5%BC%82%E6%AD%A5/'>
+
+<link rel="stylesheet" href="/scss/style.min.8191399262444ab68b72a18c97392f5349be20a1615d77445be51e974c144cff.css"><meta property='og:title' content='测试时间和其它异步'>
+<meta property='og:description' content='什么是异步函数？ 同步函数非常简单。调用它，它执行一些操作后返回。
+异步函数则不同。调用它即返回，然后它继续执行一些操作。
+举一个具体的例子，虽然有些不自然，但下面的 Cleanup 函数是同步的。你调用它，它会删除一个缓存目录，然后返回。
+1 2 3 func (c *Cache) Cleanup() { os.RemoveAll(c.cacheDir) } CleanupInBackground 是一个异步函数。你调用它即返回，然后缓存目录就会被删除……这迟早会发生。
+1 2 3 func (c *Cache) CleanupInBackground() { go os.RemoveAll(c.cacheDir) } 有时异步函数会在将来执行某些操作。例如， context 包的 WithDeadline 函数返回一个将来会被取消的 context。
+1 2 3 4 5 package context // WithDeadline returns a derived context // with a deadline no later than d. func WithDeadline(parent Context, d time.Time) (Context, CancelFunc) 当我谈到测试并发代码时，我的意思是测试这些类型的异步操作，包括使用实时的操作和不使用实时的操作。
+测试 测试验证系统的行为是否符合我们的预期。描述测试类型的术语有很多，例如单元测试、集成测试等等，但就我们的目的而言，每种测试都简化为三个步骤：
+设置初始条件 告诉被测系统做某事 验证结果 测试同步函数很简单'>
+<meta property='og:url' content='https://blog.golang.space/p/%E6%B5%8B%E8%AF%95%E6%97%B6%E9%97%B4%E5%92%8C%E5%85%B6%E5%AE%83%E5%BC%82%E6%AD%A5/'>
+<meta property='og:site_name' content='ixugo'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='Go' /><meta property='article:tag' content='并发' /><meta property='article:published_time' content='2025-10-23T00:00:00&#43;00:00'/><meta property='article:modified_time' content='2025-10-23T00:00:00&#43;00:00'/>
+<meta name="twitter:title" content="测试时间和其它异步">
+<meta name="twitter:description" content="什么是异步函数？ 同步函数非常简单。调用它，它执行一些操作后返回。
+异步函数则不同。调用它即返回，然后它继续执行一些操作。
+举一个具体的例子，虽然有些不自然，但下面的 Cleanup 函数是同步的。你调用它，它会删除一个缓存目录，然后返回。
+1 2 3 func (c *Cache) Cleanup() { os.RemoveAll(c.cacheDir) } CleanupInBackground 是一个异步函数。你调用它即返回，然后缓存目录就会被删除……这迟早会发生。
+1 2 3 func (c *Cache) CleanupInBackground() { go os.RemoveAll(c.cacheDir) } 有时异步函数会在将来执行某些操作。例如， context 包的 WithDeadline 函数返回一个将来会被取消的 context。
+1 2 3 4 5 package context // WithDeadline returns a derived context // with a deadline no later than d. func WithDeadline(parent Context, d time.Time) (Context, CancelFunc) 当我谈到测试并发代码时，我的意思是测试这些类型的异步操作，包括使用实时的操作和不使用实时的操作。
+测试 测试验证系统的行为是否符合我们的预期。描述测试类型的术语有很多，例如单元测试、集成测试等等，但就我们的目的而言，每种测试都简化为三个步骤：
+设置初始条件 告诉被测系统做某事 验证结果 测试同步函数很简单">
+    <link rel="shortcut icon" href="img/favicon.ico" />
+
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+	(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+	m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+	})(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+	ga('create', 'UA-192125643-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="Toggle Menu">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu0b04ba6d7249c9f90c92db974439eb8c_208246_300x0_resize_box_3.png" width="300"
+                            height="321" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🧐</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">ixugo</a></h1>
+            <h2 class="site-description">走出舒适区</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/ixugo'
+                        target="_blank"
+                        title="GitHub"
+                        rel="me"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>Home</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/about/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>About</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>Archives</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>Search</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>Dark Mode</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">Table of contents</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#什么是异步函数">什么是异步函数？</a></li>
+    <li><a href="#测试">测试</a></li>
+    <li><a href="#举一个栗子">举一个栗子</a></li>
+    <li><a href="#缓慢或不稳定-请选择两项">缓慢或不稳定: 请选择两项</a></li>
+    <li><a href="#编写同步函数">编写同步函数</a></li>
+    <li><a href="#检查代码的可测试性">检查代码的可测试性</a></li>
+    <li><a href="#糟糕的运行时-hack">糟糕的运行时 hack</a></li>
+    <li><a href="#使用-synctest-进行测试">使用 synctest 进行测试</a>
+      <ol>
+        <li><a href="#时间">时间</a></li>
+        <li><a href="#wait">wait</a></li>
+        <li><a href="#example-iocopyhttpsgodevblogtesting-timeexample-iocopy">Example: <code>io.Copy</code><a href="https://go.dev/blog/testing-time#example-iocopy">¶</a></a></li>
+      </ol>
+    </li>
+    <li><a href="#参考">参考</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+            <main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+    <header class="article-category">
+        
+            <a href="/categories/%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/" >
+                读书笔记
+            </a>
+        
+    </header>
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/%E6%B5%8B%E8%AF%95%E6%97%B6%E9%97%B4%E5%92%8C%E5%85%B6%E5%AE%83%E5%BC%82%E6%AD%A5/">测试时间和其它异步</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    
+    
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Oct 23, 2025</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    4 minute read
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+
+</header>
+
+    <section class="article-content">
+    
+    
+    <h2 id="什么是异步函数">什么是异步函数？</h2>
+<p>同步函数非常简单。调用它，它执行一些操作后返回。</p>
+<p>异步函数则不同。调用它即返回，然后它继续执行一些操作。</p>
+<p>举一个具体的例子，虽然有些不自然，但下面的 <code>Cleanup</code> 函数是同步的。你调用它，它会删除一个缓存目录，然后返回。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">c</span> <span class="o">*</span><span class="nx">Cache</span><span class="p">)</span> <span class="nf">Cleanup</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">os</span><span class="p">.</span><span class="nf">RemoveAll</span><span class="p">(</span><span class="nx">c</span><span class="p">.</span><span class="nx">cacheDir</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><code>CleanupInBackground</code> 是一个异步函数。你调用它即返回，然后缓存目录就会被删除……这迟早会发生。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">c</span> <span class="o">*</span><span class="nx">Cache</span><span class="p">)</span> <span class="nf">CleanupInBackground</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">go</span> <span class="nx">os</span><span class="p">.</span><span class="nf">RemoveAll</span><span class="p">(</span><span class="nx">c</span><span class="p">.</span><span class="nx">cacheDir</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>有时异步函数会在将来执行某些操作。例如， <code>context</code> 包的 <code>WithDeadline</code> 函数返回一个将来会被取消的 context。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kn">package</span> <span class="nx">context</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// WithDeadline returns a derived context
+</span></span></span><span class="line"><span class="cl"><span class="c1">// with a deadline no later than d.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="nf">WithDeadline</span><span class="p">(</span><span class="nx">parent</span> <span class="nx">Context</span><span class="p">,</span> <span class="nx">d</span> <span class="nx">time</span><span class="p">.</span><span class="nx">Time</span><span class="p">)</span> <span class="p">(</span><span class="nx">Context</span><span class="p">,</span> <span class="nx">CancelFunc</span><span class="p">)</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>当我谈到测试并发代码时，我的意思是测试这些类型的异步操作，包括使用实时的操作和不使用实时的操作。</p>
+<h2 id="测试">测试</h2>
+<p>测试验证系统的行为是否符合我们的预期。描述测试类型的术语有很多，例如单元测试、集成测试等等，但就我们的目的而言，每种测试都简化为三个步骤：</p>
+<ol>
+<li>设置初始条件</li>
+<li>告诉被测系统做某事</li>
+<li>验证结果</li>
+</ol>
+<p>测试同步函数很简单</p>
+<ul>
+<li>调用该函数</li>
+<li>函数执行并返回</li>
+<li>验证结果</li>
+</ul>
+<p>然后，测试异步函数很棘手:</p>
+<ul>
+<li>调用该函数</li>
+<li>它返回</li>
+<li>等待它完成要做的事情</li>
+<li>验证结果</li>
+</ul>
+<p>如果没有等待正确的时间，可能会发现自己正在验证尚未发生或仅部分发生的操作的结果。这绝对不会有好结果。</p>
+<p>当你想断言某件事<em>尚未</em>发生时，测试异步函数尤其棘手。你可以验证这件事尚未发生，但如何确定它稍后不会发生呢？</p>
+<h2 id="举一个栗子">举一个栗子</h2>
+<p>为了使事情更具体一些，让我们来看一个真实的例子。再次考虑 <code>context</code> 包的 <code>WithDeadline</code> 函数。</p>
+<p>有两个明显的测试需要为 <code>WithDeadline</code> 编写。</p>
+<ol>
+<li>期限前未取消上下文</li>
+<li>截止日期过后，该上下文将被取消</li>
+</ol>
+<p>让我们写一个测试。</p>
+<p>为了使代码量稍微不那么繁琐，我们只测试第二种情况：截止日期过后，上下文被取消。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">TestWithDeadlineAfterDeadline</span><span class="p">(</span><span class="nx">t</span> <span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">deadline</span> <span class="o">:=</span> <span class="nx">time</span><span class="p">.</span><span class="nf">Now</span><span class="p">().</span><span class="nf">Add</span><span class="p">(</span><span class="mi">1</span> <span class="o">*</span> <span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">ctx</span><span class="p">,</span> <span class="nx">_</span> <span class="o">:=</span> <span class="nx">context</span><span class="p">.</span><span class="nf">WithDeadline</span><span class="p">(</span><span class="nx">t</span><span class="p">.</span><span class="nf">Context</span><span class="p">(),</span> <span class="nx">deadline</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="nx">time</span><span class="p">.</span><span class="nf">Sleep</span><span class="p">(</span><span class="nx">time</span><span class="p">.</span><span class="nf">Until</span><span class="p">(</span><span class="nx">deadline</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">ctx</span><span class="p">.</span><span class="nf">Err</span><span class="p">();</span> <span class="nx">err</span> <span class="o">!=</span> <span class="nx">context</span><span class="p">.</span><span class="nx">DeadlineExceeded</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">t</span><span class="p">.</span><span class="nf">Fatalf</span><span class="p">(</span><span class="s">&#34;context not canceled after deadline&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>这个测试很简单：</p>
+<ol>
+<li>使用 <code>context.WithDeadline</code> 创建一个具有未来一秒截止期限的上下文。</li>
+<li>等到最后期限</li>
+<li>验证上下文是否已取消</li>
+</ol>
+<p>不幸的是，这个测试显然有问题。它会一直休眠到截止时间到期的那一瞬间。很有可能，当我们检查它的时候，上下文还没有被取消。这个测试充其量也只能算是个很不稳定的测试。</p>
+<p>让我们修复它。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="nx">time</span><span class="p">.</span><span class="nf">Sleep</span><span class="p">(</span><span class="nx">time</span><span class="p">.</span><span class="nf">Until</span><span class="p">(</span><span class="nx">deadline</span><span class="p">)</span> <span class="o">+</span> <span class="mi">100</span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Millisecond</span><span class="p">)</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>我们可以等到截止时间过后100毫秒再休眠。对计算机而言，这100毫秒已经绰绰有余，完全足够任务完成。</p>
+<p>不幸的是，我们仍然面临两个问题。</p>
+<p>首先，这个测试执行耗时 1.1 秒。这太慢了。这是一个简单的测试，最多应该在几毫秒内完成。</p>
+<p>其次，这个测试不够稳定。一百毫秒在计算机范畴内堪称漫长，但在负载过重的持续集成（CI）系统中，出现远超这个时长的延迟并不罕见。该测试在开发者的工作站上或许能持续通过，但在CI系统中很可能出现间歇性失败。</p>
+<h2 id="缓慢或不稳定-请选择两项">缓慢或不稳定: 请选择两项</h2>
+<p>使用实时的测试总是很慢或不稳定。通常两者兼而有之。如果测试等待的时间超过必要时间，它就会很慢。如果等待的时间不够长，它就会不稳定。你可以让测试更慢、更稳定，或者让测试更慢、更不稳定，但你无法让它快速可靠。</p>
+<p><code>net/http</code> 包里有很多测试都用到了这种方法。它们都很慢，而且/或者不稳定，这就是我今天开始研究这个问题的原因。</p>
+<h2 id="编写同步函数">编写同步函数</h2>
+<p>测试异步函数最简单的方法就是不去测试它。同步函数很容易测试。如果你能把异步函数转换成同步函数，测试起来会更容易。</p>
+<p>例如，如果我们考虑之前的缓存清理函数，同步 <code>Cleanup</code> 显然比异步 <code>CleanupInBackground</code> 更好。同步函数更容易测试，并且调用者可以根据需要轻松启动一个新的 Goroutine 在后台运行它。通常而言，将并发处理推向调用栈的越高层越好。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// CleanupInBackground is hard to test.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="nx">cache</span><span class="p">.</span><span class="nf">CleanupInBackground</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// Cleanup is easy to test,
+</span></span></span><span class="line"><span class="cl"><span class="c1">// and easy to run in the background when needed.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="k">go</span> <span class="nx">cache</span><span class="p">.</span><span class="nf">Cleanup</span><span class="p">()</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>不幸的是，这种转换并不总是可行的。例如， <code>context.WithDeadline</code> 本质上是一个异步 API。</p>
+<h2 id="检查代码的可测试性">检查代码的可测试性</h2>
+<p>更好的方法是让我们的代码更易于测试。</p>
+<p>以下是我们的 <code>WithDeadline</code> 测试的一个示例：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">TestWithDeadlineAfterDeadline</span><span class="p">(</span><span class="nx">t</span> <span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">clock</span> <span class="o">:=</span> <span class="nf">fakeClock</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">timeout</span> <span class="o">:=</span> <span class="mi">1</span> <span class="o">*</span> <span class="nx">time</span><span class="p">.</span><span class="nx">Second</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">deadline</span> <span class="o">:=</span> <span class="nx">clock</span><span class="p">.</span><span class="nf">Now</span><span class="p">().</span><span class="nf">Add</span><span class="p">(</span><span class="nx">timeout</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="nx">ctx</span><span class="p">,</span> <span class="nx">_</span> <span class="o">:=</span> <span class="nx">context</span><span class="p">.</span><span class="nf">WithDeadlineClock</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">t</span><span class="p">.</span><span class="nf">Context</span><span class="p">(),</span> <span class="nx">deadline</span><span class="p">,</span> <span class="nx">clock</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="nx">clock</span><span class="p">.</span><span class="nf">Advance</span><span class="p">(</span><span class="nx">timeout</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">context</span><span class="p">.</span><span class="nf">WaitUntilIdle</span><span class="p">(</span><span class="nx">ctx</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">ctx</span><span class="p">.</span><span class="nf">Err</span><span class="p">();</span> <span class="nx">err</span> <span class="o">!=</span> <span class="nx">context</span><span class="p">.</span><span class="nx">DeadlineExceeded</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">t</span><span class="p">.</span><span class="nf">Fatalf</span><span class="p">(</span><span class="s">&#34;context not canceled after deadline&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>我们不使用真实时间，而是使用伪时间实现。使用伪时间可以避免不必要的测试速度变慢，因为我们永远不会无所事事地等待。它还有助于避免测试不稳定，因为当前时间仅在测试调整时才会更改。</p>
+<p>有各种虚假的时间包，或者你可以编写自己的时间包。</p>
+<p>要使用虚假时间，我们需要修改 API 以接受虚假时钟。我在这里添加了一个 <code>context.WithDeadlineClock</code> 函数，它接受一个额外的时钟参数：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="nx">ctx</span><span class="p">,</span> <span class="nx">_</span> <span class="o">:=</span> <span class="nx">context</span><span class="p">.</span><span class="nf">WithDeadlineClock</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">t</span><span class="p">.</span><span class="nf">Context</span><span class="p">(),</span> <span class="nx">deadline</span><span class="p">,</span> <span class="nx">clock</span><span class="p">)</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>当我们向前拨动模拟时钟时，会遇到一个问题：时间推进是异步操作。休眠中的协程可能被唤醒、定时器可能向通道发送信号、计时器函数可能被触发——我们需要等待这些操作全部完成，才能开始测试系统的预期行为。</p>
+<p>我在这里添加了一个 <code>context.WaitUntilIdle</code> 函数，它等待与上下文相关的任何后台工作完成：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="nx">clock</span><span class="p">.</span><span class="nf">Advance</span><span class="p">(</span><span class="nx">timeout</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="nx">context</span><span class="p">.</span><span class="nf">WaitUntilIdle</span><span class="p">(</span><span class="nx">ctx</span><span class="p">)</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>这是一个简单的例子，但它演示了编写可测试并发代码的两个基本原则：</p>
+<ol>
+<li>使用假时间（如果您使用时间）。</li>
+<li>有某种方式来等待静止，这是一种说法“所有后台活动都已停止并且系统稳定”。</li>
+</ol>
+<p>当然，有趣的问题是我们如何做到这一点。在这个例子中，我略过了细节，因为这种方法存在一些很大的缺点。</p>
+<p>这很难。使用假时钟并不难，但确定后台并发工作何时完成，以及何时可以安全地检查系统状态却很难。</p>
+<p>你的代码变得不那么符合惯用语法了。你不能使用标准的 time 包函数。你需要非常小心地跟踪后台发生的所有事情。</p>
+<p>你不仅需要检测你的代码，还需要检测你使用的其他任何包。如果你调用了任何第三方并发代码，那么你可能就没那么幸运了。</p>
+<p>最糟糕的是，将这种方法改进到现有的代码库中几乎是不可能的。</p>
+<p>我尝试将这种方法应用于 Go 的 HTTP 实现，虽然在某些地方取得了一些成功，但 HTTP/2 服务器却让我束手无策。尤其是，如果不进行大量重写，添加检测静止状态的工具就被证明是不可行的，或者至少超出了我的能力范围。</p>
+<h2 id="糟糕的运行时-hack">糟糕的运行时 hack</h2>
+<p>如果我们不能使我们的代码可测试，我们该怎么办？</p>
+<p>如果我们不对我们的代码进行检测，而是有办法观察未检测系统的行为，那会怎样？</p>
+<p>一个 Go 程序由一组 Goroutine 组成。这些 Goroutine 有状态。我们只需要等待所有 Goroutine 停止运行即可。</p>
+<p>不幸的是，Go 运行时没有提供任何方法来判断这些 goroutine 正在做什么。或者有？</p>
+<p><code>runtime</code> 包中包含一个函数，它可以提供每个正在运行的 goroutine 的堆栈跟踪及其状态。这是供人类阅读的文本，但我们可以解析该输出。我们可以用它来检测静止状态吗？</p>
+<p>当然，这绝对是个糟糕的主意。这些堆栈跟踪的格式无法保证长期稳定。你不应该这么做。</p>
+<p>我做到了。而且成功了。事实上，效果出奇地好。</p>
+<p>通过简单实现一个假时钟、少量仪器来跟踪哪些 goroutine 是测试的一部分，以及对 <code>runtime.Stack</code> 的一些可怕的滥用。Stack，我终于找到了一种为 <code>http</code> 包编写快速、可靠的测试的方法。</p>
+<p>这些测试的底层实现很糟糕，但它表明这里有一个有用的概念。</p>
+<h2 id="使用-synctest-进行测试">使用 synctest 进行测试</h2>
+<p>上面介绍了背景，简单来说识别到协程阻塞就推进时钟，接下来看看怎么使用。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">TestWithDeadlineAfterDeadline</span><span class="p">(</span><span class="nx">t</span> <span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">synctest</span><span class="p">.</span><span class="nf">Test</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span> <span class="kd">func</span><span class="p">(</span><span class="nx">t</span> <span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">deadline</span> <span class="o">:=</span> <span class="nx">time</span><span class="p">.</span><span class="nf">Now</span><span class="p">().</span><span class="nf">Add</span><span class="p">(</span><span class="mi">1</span> <span class="o">*</span> <span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">ctx</span><span class="p">,</span> <span class="nx">_</span> <span class="o">:=</span> <span class="nx">context</span><span class="p">.</span><span class="nf">WithDeadline</span><span class="p">(</span><span class="nx">t</span><span class="p">.</span><span class="nf">Context</span><span class="p">(),</span> <span class="nx">deadline</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="nx">time</span><span class="p">.</span><span class="nf">Sleep</span><span class="p">(</span><span class="nx">time</span><span class="p">.</span><span class="nf">Until</span><span class="p">(</span><span class="nx">deadline</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">synctest</span><span class="p">.</span><span class="nf">Wait</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">ctx</span><span class="p">.</span><span class="nf">Err</span><span class="p">();</span> <span class="nx">err</span> <span class="o">!=</span> <span class="nx">context</span><span class="p">.</span><span class="nx">DeadlineExceeded</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="nx">t</span><span class="p">.</span><span class="nf">Fatalf</span><span class="p">(</span><span class="s">&#34;context not canceled after deadline&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">})</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>我们将测试包装在 <code>synctest.Test</code> 调用中，让它在一个隔离环境里执行，并且额外添加了一个 <code>synctest.Wait</code> 调用。</p>
+<p>该测试快速可靠，几乎可以立即运行，能够精确测试被测系统的预期行为，并且无需修改 <code>context</code> 包。</p>
+<h3 id="时间">时间</h3>
+<p>气泡中的时间行为与 Go Playground 中的伪时间非常相似。时间从 UTC 时间 2000 年 1 月 1 日午夜开始。如果您出于某种原因需要在某个特定时间点运行测试，您可以休眠到那时。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">TestAtSpecificTime</span><span class="p">(</span><span class="nx">t</span> <span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">   <span class="nx">synctest</span><span class="p">.</span><span class="nf">Test</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span> <span class="kd">func</span><span class="p">(</span><span class="nx">t</span> <span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">       <span class="c1">// 2000-01-01 00:00:00 +0000 UTC
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>       <span class="nx">t</span><span class="p">.</span><span class="nf">Log</span><span class="p">(</span><span class="nx">time</span><span class="p">.</span><span class="nf">Now</span><span class="p">().</span><span class="nf">In</span><span class="p">(</span><span class="nx">time</span><span class="p">.</span><span class="nx">UTC</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">       <span class="c1">// This does not take 25 years.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>       <span class="nx">time</span><span class="p">.</span><span class="nf">Sleep</span><span class="p">(</span><span class="nx">time</span><span class="p">.</span><span class="nf">Until</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">           <span class="nx">time</span><span class="p">.</span><span class="nf">Date</span><span class="p">(</span><span class="mi">2025</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="nx">time</span><span class="p">.</span><span class="nx">UTC</span><span class="p">)))</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">       <span class="c1">// 2025-01-01 00:00:00 +0000 UTC
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>       <span class="nx">t</span><span class="p">.</span><span class="nf">Log</span><span class="p">(</span><span class="nx">time</span><span class="p">.</span><span class="nf">Now</span><span class="p">().</span><span class="nf">In</span><span class="p">(</span><span class="nx">time</span><span class="p">.</span><span class="nx">UTC</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">   <span class="p">})</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>时间只会在隔离环境中的所有协程都进入阻塞状态时才会流逝。您可以将这个隔离环境想象成一台模拟无限速度的计算机：无论进行多少计算，都不会消耗任何时间。</p>
+<p>以下测试函数无论实际经过多长时间，都会打印出测试开始后模拟时间的流逝为0秒：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span><span class="lnt">9
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">TestExpensiveWork</span><span class="p">(</span><span class="nx">t</span> <span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">   <span class="nx">synctest</span><span class="p">.</span><span class="nf">Test</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span> <span class="kd">func</span><span class="p">(</span><span class="nx">t</span> <span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">       <span class="nx">start</span> <span class="o">:=</span> <span class="nx">time</span><span class="p">.</span><span class="nf">Now</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">       <span class="k">for</span> <span class="k">range</span> <span class="mf">1e7</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">           <span class="c1">// do expensive work
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>       <span class="p">}</span>
+</span></span><span class="line"><span class="cl">       <span class="nx">t</span><span class="p">.</span><span class="nf">Log</span><span class="p">(</span><span class="nx">time</span><span class="p">.</span><span class="nf">Since</span><span class="p">(</span><span class="nx">start</span><span class="p">))</span> <span class="c1">// 0s
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>   <span class="p">})</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>而在接下来的测试中，<code>time.Sleep</code> 调用会立即返回，而不是等待真实的十秒。该测试将始终打印出自测试开始后，正好有十秒模拟时间已经流逝：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">TestSleep</span><span class="p">(</span><span class="nx">t</span> <span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">   <span class="nx">synctest</span><span class="p">.</span><span class="nf">Test</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span> <span class="kd">func</span><span class="p">(</span><span class="nx">t</span> <span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">       <span class="nx">start</span> <span class="o">:=</span> <span class="nx">time</span><span class="p">.</span><span class="nf">Now</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">       <span class="nx">time</span><span class="p">.</span><span class="nf">Sleep</span><span class="p">(</span><span class="mi">10</span> <span class="o">*</span> <span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">       <span class="nx">t</span><span class="p">.</span><span class="nf">Log</span><span class="p">(</span><span class="nx">time</span><span class="p">.</span><span class="nf">Since</span><span class="p">(</span><span class="nx">start</span><span class="p">))</span> <span class="c1">// 10s
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>   <span class="p">})</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="wait">wait</h3>
+<p><a class="link" href="https://go.dev/pkg/testing/synctest#Wait"  target="_blank" rel="noopener"
+    ><code>synctest.Wait</code></a> 函数让我们等待后台活动完成。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">TestWait</span><span class="p">(</span><span class="nx">t</span> <span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">   <span class="nx">synctest</span><span class="p">.</span><span class="nf">Test</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span> <span class="kd">func</span><span class="p">(</span><span class="nx">t</span> <span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">       <span class="nx">done</span> <span class="o">:=</span> <span class="kc">false</span>
+</span></span><span class="line"><span class="cl">       <span class="k">go</span> <span class="kd">func</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">           <span class="nx">done</span> <span class="p">=</span> <span class="kc">true</span>
+</span></span><span class="line"><span class="cl">       <span class="p">}()</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">       <span class="c1">// 等待上面的任务完成
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>       <span class="nx">synctest</span><span class="p">.</span><span class="nf">Wait</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">       <span class="nx">t</span><span class="p">.</span><span class="nf">Log</span><span class="p">(</span><span class="nx">done</span><span class="p">)</span> <span class="c1">// true
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>   <span class="p">})</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>如果上面的测试中没有 <code>Wait</code> 调用，就会出现竞争条件：一个 Goroutine 修改了 <code>done</code> 变量，而另一个 Goroutine 却在不同步的情况下读取了该变量。 <code>Wait</code> 调用提供了这种同步。</p>
+<p>您可能熟悉 <code>-race</code> 测试标志，它启用了数据竞争检测器。竞争检测器知道 <code>Wait</code> 提供的同步机制，因此不会对此测试发出警告。如果我们忘记了 <code>Wait</code> 调用，竞争检测器就会正确地发出警告。</p>
+<p>synctest.Wait 函数可提供同步功能，但时间的流逝无法提供同步功能。</p>
+<p>在下一个示例中，一个 goroutine 向 done 变量写入数据，而另一个 goroutine 则先休眠一纳秒，再从该变量读取数据。显然，若在 synctest 环境之外使用真实时钟运行这段代码，其中会存在竞态条件。在 synctest 环境中，尽管虚拟时钟会确保该 goroutine 在 time.Sleep 返回前完成操作，但竞态检测器仍会报告数据竞争 —— 就像这段代码在 synctest 环境外运行时的情况一样。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">TestTimeDataRace</span><span class="p">(</span><span class="nx">t</span> <span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">   <span class="nx">synctest</span><span class="p">.</span><span class="nf">Test</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span> <span class="kd">func</span><span class="p">(</span><span class="nx">t</span> <span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">       <span class="nx">done</span> <span class="o">:=</span> <span class="kc">false</span>
+</span></span><span class="line"><span class="cl">       <span class="k">go</span> <span class="kd">func</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">           <span class="nx">done</span> <span class="p">=</span> <span class="kc">true</span> <span class="c1">// write
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>       <span class="p">}()</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">       <span class="nx">time</span><span class="p">.</span><span class="nf">Sleep</span><span class="p">(</span><span class="mi">1</span> <span class="o">*</span> <span class="nx">time</span><span class="p">.</span><span class="nx">Nanosecond</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">       <span class="nx">t</span><span class="p">.</span><span class="nf">Log</span><span class="p">(</span><span class="nx">done</span><span class="p">)</span>     <span class="c1">// read (unsynchronized)
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>   <span class="p">})</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>添加 <code>Wait</code> 调用可提供显式同步并修复数据争用：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="nx">time</span><span class="p">.</span><span class="nf">Sleep</span><span class="p">(</span><span class="mi">1</span> <span class="o">*</span> <span class="nx">time</span><span class="p">.</span><span class="nx">Nanosecond</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="nx">synctest</span><span class="p">.</span><span class="nf">Wait</span><span class="p">()</span> <span class="c1">// synchronize
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="nx">t</span><span class="p">.</span><span class="nf">Log</span><span class="p">(</span><span class="nx">done</span><span class="p">)</span>     <span class="c1">// read
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="example-iocopyhttpsgodevblogtesting-timeexample-iocopy">Example: <code>io.Copy</code><a class="link" href="https://go.dev/blog/testing-time#example-iocopy"  target="_blank" rel="noopener"
+    >¶</a></h3>
+<p>利用 synctest.Wait 提供的同步机制，我们能够编写更简洁的测试，减少显式同步操作。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">TestIOCopy</span><span class="p">(</span><span class="nx">t</span> <span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">   <span class="nx">synctest</span><span class="p">.</span><span class="nf">Test</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span> <span class="kd">func</span><span class="p">(</span><span class="nx">t</span> <span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">       <span class="nx">srcReader</span><span class="p">,</span> <span class="nx">srcWriter</span> <span class="o">:=</span> <span class="nx">io</span><span class="p">.</span><span class="nf">Pipe</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">       <span class="k">defer</span> <span class="nx">srcWriter</span><span class="p">.</span><span class="nf">Close</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">       <span class="kd">var</span> <span class="nx">dst</span> <span class="nx">bytes</span><span class="p">.</span><span class="nx">Buffer</span>
+</span></span><span class="line"><span class="cl">       <span class="k">go</span> <span class="nx">io</span><span class="p">.</span><span class="nf">Copy</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">dst</span><span class="p">,</span> <span class="nx">srcReader</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">       <span class="nx">data</span> <span class="o">:=</span> <span class="s">&#34;1234&#34;</span>
+</span></span><span class="line"><span class="cl">       <span class="nx">srcWriter</span><span class="p">.</span><span class="nf">Write</span><span class="p">([]</span><span class="nb">byte</span><span class="p">(</span><span class="s">&#34;1234&#34;</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">       <span class="nx">synctest</span><span class="p">.</span><span class="nf">Wait</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">       <span class="k">if</span> <span class="nx">got</span><span class="p">,</span> <span class="nx">want</span> <span class="o">:=</span> <span class="nx">dst</span><span class="p">.</span><span class="nf">String</span><span class="p">(),</span> <span class="nx">data</span><span class="p">;</span> <span class="nx">got</span> <span class="o">!=</span> <span class="nx">want</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">           <span class="nx">t</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;Copy wrote %q, want %q&#34;</span><span class="p">,</span> <span class="nx">got</span><span class="p">,</span> <span class="nx">want</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">       <span class="p">}</span>
+</span></span><span class="line"><span class="cl">   <span class="p">})</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h2 id="参考">参考</h2>
+<p><a class="link" href="https://go.dev/blog/testing-time"  target="_blank" rel="noopener"
+    >Testing Time (and other asynchronicities) </a></p>
+
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/go/">Go</a>
+        
+            <a href="/tags/%E5%B9%B6%E5%8F%91/">并发</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">Related content</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/golang-%E7%9A%84-atomic/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Golang 的 Atomic</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/%E9%81%BF%E5%85%8D%E5%9C%A8-go-%E4%B8%AD%E6%84%8F%E5%A4%96%E5%9C%B0%E5%A4%8D%E5%88%B6%E7%BB%93%E6%9E%84%E4%BD%93/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">避免在 Go 中意外地复制结构体</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/24.atomic/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">24.atomic</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/20.%E5%85%B1%E4%BA%AB%E5%8F%98%E9%87%8F%E7%9A%84%E5%B9%B6%E5%8F%91/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">20.共享变量的并发</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/19.channels/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">19.Channels</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script src="https://utteranc.es/client.js" 
+        repo="ixugo/ixugo.github.io"
+        issue-term="pathname"
+        
+        crossorigin="anonymous"
+        async
+        >
+</script>
+
+<style>
+    .utterances {
+        max-width: unset;
+    }
+</style>
+
+<script>
+    function setUtterancesTheme(theme) {
+        let utterances = document.querySelector('.utterances iframe');
+        if (utterances) {
+            utterances.contentWindow.postMessage(
+                {
+                    type: 'set-theme',
+                    theme: `github-${theme}`
+                },
+                'https://utteranc.es'
+            );
+        }
+    }
+
+    addEventListener('message', event => {
+        if (event.origin !== 'https://utteranc.es') return;
+        setUtterancesTheme(document.documentElement.dataset.scheme)
+    });
+
+    window.addEventListener('onColorSchemeChange', (e) => {
+        setUtterancesTheme(e.detail)
+    })
+</script>
+
+
+    
+
+    <footer class="site-footer">
+  <section class="copyright">
+    &copy;
+    
+    2018 -
+    
+    2025 ixugo
+  </section>
+  <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+  <section class="powerby">
+
+    
+    <span id="busuanzi_container_page_pv">本文阅读量
+      <span style="font-size: 14px" id="busuanzi_value_page_pv"></span>
+      次，</span>
+    <span id="busuanzi_container_site_pv">总访问量
+      <span style="font-size: 14px" id="busuanzi_value_site_pv"></span>
+      次 </span>，总访客数
+    <span style="font-size: 14px" id="busuanzi_value_site_uv"></span> 人
+    <br />
+
+
+    Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> .&nbsp;&nbsp;
+    Theme <a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener"
+      data-version="3.16.0">Stack</a> designed by <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a>
+  </section>
+
+
+
+
+  <script>
+    function count() {
+      let href = window.location.href;
+      let regexp = /^https?:\/\/blog.golang.space\/?(page\/[\d]+\/?)?$/;
+      if (regexp.test(href)) {
+        let e = document.getElementById("busuanzi_container_page_pv");
+        e.innerText = "";
+      }
+    }
+    window.onload = count;
+  </script>
+</footer>
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

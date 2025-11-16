@@ -6,6 +6,7 @@ slug:
 image: 
 draft: false
 categories:
+    - Go
 tags:
     - Go
 ---
