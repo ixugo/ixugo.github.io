@@ -4,7 +4,7 @@ description:
 date: 2024-10-01
 slug: 
 image: 
-draft: false
+draft: true
 categories:
     - AI
 tags:

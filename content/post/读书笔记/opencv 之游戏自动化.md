@@ -3,12 +3,16 @@ title: OpenCV 之游戏自动化
 description: 
 date: 2025-11-16
 slug: 
-image: 
+image: http://img.golang.space/img-1763296949834.png
 draft: false
 categories:
+    - Python
 tags:
     - 开发笔记
+    - OpenCV
 ---
+
+![image-20251116204229556](http://img.golang.space/img-1763296949834.png)
 
 最近某款小程序游戏广告铺天盖地，出于好奇和学习的目的体验了一下，果然“上头”——玩法简单却极其消磨时间。
 
