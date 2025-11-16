@@ -57,7 +57,7 @@ pip install cv2
 
 ### 点击事件
 
-这款游戏主要就是考鼠标点击，首先要了解 python 库 `pyautogui` ，此库允许 python 脚本控制鼠标和键盘，从而实现与其他应用程序的自动化交互。
+这款游戏主要就是靠鼠标点击，首先要了解 python 库 `pyautogui` ，此库允许 python 脚本控制鼠标和键盘，从而实现与其他应用程序的自动化交互。
 
 ```python
 import pyautogui
@@ -312,3 +312,37 @@ def find_image(
     return None
 ```
 
+将找到的位置画框标记并保存图片
+
+```python
+# 画框
+def draw_box(img: cv2.typing.MatLike, max_loc: cv2.typing.Point, size: tuple[int, int]):
+    x, y = max_loc
+    w, h = size
+    x2 = x + w
+    y2 = y + h
+    center = (x + w // 2, y + h // 2)
+    cv2.rectangle(img, (x, y), (x2, y2), (0, 255, 0), 2)
+    cv2.putText(
+        img,
+        f"Match: ({center[0]},{center[1]})",
+        (x, y - 10),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.5,
+        (0, 255, 0),
+        2,
+    )
+    return img
+
+  
+  def save_image(
+    screen: cv2.typing.MatLike, max_loc: cv2.typing.Point, size: tuple[int, int]
+):
+    img = screen.copy()
+		# 画框
+    draw_box(img, max_loc, size)
+    # 保存图片
+    cv2.imwrite("screenshot.png", img)
+```
+
+有了以上基础知识，其实就是拼积木一样，按照游戏的流程，识别对应的操作，触发点击即可。
