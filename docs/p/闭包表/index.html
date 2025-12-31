@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='什么是闭包表? 闭包表 是一种用于在关系型数据库中高效表示和查询 树形层级结构（Tree / Hierarchy） 的设计模式。
+它通过一张额外的“关系表”来显式存储 所有祖先（ancestor）与后代（descendant）之间的路径关系，包括自己到自己的关系。
+为什么需要闭包表? 假设有如下分类结构：
+1 2 3 4 5 6 7 电子产品 ├── 手机 │ ├── 智能手机 │ └── 功能机 └── 电脑 ├── 笔记本 └── 台式机 传统做法（如邻接表模型）只存 parent_id id name parent_id 1 电子产品 NULL 2 手机 1 3 智能手机 2 4 功能机 2 5 电脑 1 6 笔记本 5 这种设计在以下操作中效率很低：
+查询“电子产品”下所有子分类（需递归多次查询）； 判断“智能手机”是否属于“电子产品”（需向上遍历）； 移动整个子树（如把“手机”移到“家电”下）逻辑复杂。 那采用路径枚举呢? 多存储一个 path 即每个节点保持从跟到自己的完整路径。
+id name parent_id path 1 电子产品 NULL &amp;ldquo;/1/&amp;rdquo; 2 手机 1 &amp;ldquo;/1/2/&amp;rdquo; 3 智能手机 2 &amp;ldquo;/1/2/3/&amp;rdquo; 5 电脑 1 &amp;ldquo;/1/5/&amp;rdquo; 6 笔记本 5 &amp;ldquo;/1/5/6/&amp;rdquo; 如果子树移动，则相关的树结构都要变动，优点是可读性高，实现简单。'>
+<title>闭包表</title>
+
+<link rel='canonical' href='https://blog.golang.space/p/%E9%97%AD%E5%8C%85%E8%A1%A8/'>
+
+<link rel="stylesheet" href="/scss/style.min.8191399262444ab68b72a18c97392f5349be20a1615d77445be51e974c144cff.css"><meta property='og:title' content='闭包表'>
+<meta property='og:description' content='什么是闭包表? 闭包表 是一种用于在关系型数据库中高效表示和查询 树形层级结构（Tree / Hierarchy） 的设计模式。
+它通过一张额外的“关系表”来显式存储 所有祖先（ancestor）与后代（descendant）之间的路径关系，包括自己到自己的关系。
+为什么需要闭包表? 假设有如下分类结构：
+1 2 3 4 5 6 7 电子产品 ├── 手机 │ ├── 智能手机 │ └── 功能机 └── 电脑 ├── 笔记本 └── 台式机 传统做法（如邻接表模型）只存 parent_id id name parent_id 1 电子产品 NULL 2 手机 1 3 智能手机 2 4 功能机 2 5 电脑 1 6 笔记本 5 这种设计在以下操作中效率很低：
+查询“电子产品”下所有子分类（需递归多次查询）； 判断“智能手机”是否属于“电子产品”（需向上遍历）； 移动整个子树（如把“手机”移到“家电”下）逻辑复杂。 那采用路径枚举呢? 多存储一个 path 即每个节点保持从跟到自己的完整路径。
+id name parent_id path 1 电子产品 NULL &amp;ldquo;/1/&amp;rdquo; 2 手机 1 &amp;ldquo;/1/2/&amp;rdquo; 3 智能手机 2 &amp;ldquo;/1/2/3/&amp;rdquo; 5 电脑 1 &amp;ldquo;/1/5/&amp;rdquo; 6 笔记本 5 &amp;ldquo;/1/5/6/&amp;rdquo; 如果子树移动，则相关的树结构都要变动，优点是可读性高，实现简单。'>
+<meta property='og:url' content='https://blog.golang.space/p/%E9%97%AD%E5%8C%85%E8%A1%A8/'>
+<meta property='og:site_name' content='ixugo'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='PostgreSQL' /><meta property='article:published_time' content='2025-12-23T00:00:00&#43;00:00'/><meta property='article:modified_time' content='2025-12-23T00:00:00&#43;00:00'/>
+<meta name="twitter:title" content="闭包表">
+<meta name="twitter:description" content="什么是闭包表? 闭包表 是一种用于在关系型数据库中高效表示和查询 树形层级结构（Tree / Hierarchy） 的设计模式。
+它通过一张额外的“关系表”来显式存储 所有祖先（ancestor）与后代（descendant）之间的路径关系，包括自己到自己的关系。
+为什么需要闭包表? 假设有如下分类结构：
+1 2 3 4 5 6 7 电子产品 ├── 手机 │ ├── 智能手机 │ └── 功能机 └── 电脑 ├── 笔记本 └── 台式机 传统做法（如邻接表模型）只存 parent_id id name parent_id 1 电子产品 NULL 2 手机 1 3 智能手机 2 4 功能机 2 5 电脑 1 6 笔记本 5 这种设计在以下操作中效率很低：
+查询“电子产品”下所有子分类（需递归多次查询）； 判断“智能手机”是否属于“电子产品”（需向上遍历）； 移动整个子树（如把“手机”移到“家电”下）逻辑复杂。 那采用路径枚举呢? 多存储一个 path 即每个节点保持从跟到自己的完整路径。
+id name parent_id path 1 电子产品 NULL &amp;ldquo;/1/&amp;rdquo; 2 手机 1 &amp;ldquo;/1/2/&amp;rdquo; 3 智能手机 2 &amp;ldquo;/1/2/3/&amp;rdquo; 5 电脑 1 &amp;ldquo;/1/5/&amp;rdquo; 6 笔记本 5 &amp;ldquo;/1/5/6/&amp;rdquo; 如果子树移动，则相关的树结构都要变动，优点是可读性高，实现简单。">
+    <link rel="shortcut icon" href="img/favicon.ico" />
+
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+	(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+	m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+	})(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+	ga('create', 'UA-192125643-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="Toggle Menu">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu0b04ba6d7249c9f90c92db974439eb8c_208246_300x0_resize_box_3.png" width="300"
+                            height="321" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🧐</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">ixugo</a></h1>
+            <h2 class="site-description">走出舒适区</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/ixugo'
+                        target="_blank"
+                        title="GitHub"
+                        rel="me"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>Home</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/about/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>About</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>Archives</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>Search</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>Dark Mode</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">Table of contents</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li>
+      <ol>
+        <li><a href="#什么是闭包表">什么是闭包表?</a></li>
+      </ol>
+    </li>
+    <li><a href="#为什么需要闭包表">为什么需要闭包表?</a>
+      <ol>
+        <li><a href="#传统做法如邻接表模型只存-parent_id">传统做法（如邻接表模型）只存 <code>parent_id</code></a></li>
+        <li><a href="#那采用路径枚举呢-多存储一个-path-">那采用<strong>路径枚举</strong>呢? 多存储一个 <code>path </code></a></li>
+        <li><a href="#闭包表">闭包表</a></li>
+      </ol>
+    </li>
+    <li><a href="#案例">案例</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+            <main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+    <header class="article-category">
+        
+            <a href="/categories/%E6%95%B0%E6%8D%AE%E5%BA%93/" >
+                数据库
+            </a>
+        
+    </header>
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/%E9%97%AD%E5%8C%85%E8%A1%A8/">闭包表</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    
+    
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Dec 23, 2025</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    2 minute read
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+
+</header>
+
+    <section class="article-content">
+    
+    
+    <h3 id="什么是闭包表">什么是闭包表?</h3>
+<p><strong>闭包表</strong> 是一种用于在关系型数据库中高效表示和查询 <strong>树形层级结构（Tree / Hierarchy）</strong> 的设计模式。</p>
+<p>它通过一张额外的“关系表”来显式存储 <strong>所有祖先（ancestor）与后代（descendant）之间的路径关系</strong>，包括自己到自己的关系。</p>
+<h2 id="为什么需要闭包表">为什么需要闭包表?</h2>
+<p>假设有如下分类结构：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">电子产品
+</span></span><span class="line"><span class="cl">├── 手机
+</span></span><span class="line"><span class="cl">│   ├── 智能手机
+</span></span><span class="line"><span class="cl">│   └── 功能机
+</span></span><span class="line"><span class="cl">└── 电脑
+</span></span><span class="line"><span class="cl">    ├── 笔记本
+</span></span><span class="line"><span class="cl">    └── 台式机
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="传统做法如邻接表模型只存-parent_id">传统做法（如邻接表模型）只存 <code>parent_id</code></h3>
+<div class="table-wrapper"><table>
+<thead>
+<tr>
+<th>id</th>
+<th>name</th>
+<th>parent_id</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>电子产品</td>
+<td>NULL</td>
+</tr>
+<tr>
+<td>2</td>
+<td>手机</td>
+<td>1</td>
+</tr>
+<tr>
+<td>3</td>
+<td>智能手机</td>
+<td>2</td>
+</tr>
+<tr>
+<td>4</td>
+<td>功能机</td>
+<td>2</td>
+</tr>
+<tr>
+<td>5</td>
+<td>电脑</td>
+<td>1</td>
+</tr>
+<tr>
+<td>6</td>
+<td>笔记本</td>
+<td>5</td>
+</tr>
+</tbody>
+</table></div>
+<p>这种设计在以下操作中效率很低：</p>
+<ul>
+<li>查询“电子产品”下所有子分类（需递归多次查询）；</li>
+<li>判断“智能手机”是否属于“电子产品”（需向上遍历）；</li>
+<li>移动整个子树（如把“手机”移到“家电”下）逻辑复杂。</li>
+</ul>
+<h3 id="那采用路径枚举呢-多存储一个-path-">那采用<strong>路径枚举</strong>呢? 多存储一个 <code>path </code></h3>
+<p>即每个节点保持从跟到自己的完整路径。</p>
+<div class="table-wrapper"><table>
+<thead>
+<tr>
+<th>id</th>
+<th>name</th>
+<th>parent_id</th>
+<th>path</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>电子产品</td>
+<td>NULL</td>
+<td>&ldquo;/1/&rdquo;</td>
+</tr>
+<tr>
+<td>2</td>
+<td>手机</td>
+<td>1</td>
+<td>&ldquo;/1/2/&rdquo;</td>
+</tr>
+<tr>
+<td>3</td>
+<td>智能手机</td>
+<td>2</td>
+<td>&ldquo;/1/2/3/&rdquo;</td>
+</tr>
+<tr>
+<td>5</td>
+<td>电脑</td>
+<td>1</td>
+<td>&ldquo;/1/5/&rdquo;</td>
+</tr>
+<tr>
+<td>6</td>
+<td>笔记本</td>
+<td>5</td>
+<td>&ldquo;/1/5/6/&rdquo;</td>
+</tr>
+</tbody>
+</table></div>
+<p>如果子树移动，则相关的树结构都要变动，优点是可读性高，实现简单。</p>
+<p><strong>1. 查询某个分类的所有子分类（含多级）</strong></p>
+<p>查询所有后代不包含自己</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-sql" data-lang="sql"><span class="line"><span class="cl"><span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> 
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="k">FROM</span><span class="w"> </span><span class="n">category</span><span class="w"> 
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="k">WHERE</span><span class="w"> </span><span class="n">path</span><span class="w"> </span><span class="o">&lt;@</span><span class="w"> </span><span class="s1">&#39;1&#39;</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">path</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="s1">&#39;1&#39;</span><span class="p">;</span><span class="w">
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><p><strong>适用场景</strong>:</p>
+<ul>
+<li>树结构基本不变</li>
+<li>层级路径直接用于业务逻辑展示，如面包屑导航</li>
+<li>轻量级系统，单父节点</li>
+</ul>
+<h3 id="闭包表">闭包表</h3>
+<p>新增一个表，记录所有祖先与后代之间的路径关系，包括自己到自己的关系。</p>
+<div class="table-wrapper"><table>
+<thead>
+<tr>
+<th>ancestor_id</th>
+<th>descendant_id</th>
+<th>depth</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>1</td>
+<td>0</td>
+</tr>
+<tr>
+<td>1</td>
+<td>2</td>
+<td>1</td>
+</tr>
+<tr>
+<td>1</td>
+<td>3</td>
+<td>2</td>
+</tr>
+<tr>
+<td>1</td>
+<td>4</td>
+<td>2</td>
+</tr>
+<tr>
+<td>1</td>
+<td>5</td>
+<td>1</td>
+</tr>
+<tr>
+<td>1</td>
+<td>6</td>
+<td>2</td>
+</tr>
+<tr>
+<td>2</td>
+<td>2</td>
+<td>0</td>
+</tr>
+<tr>
+<td>2</td>
+<td>3</td>
+<td>1</td>
+</tr>
+<tr>
+<td>2</td>
+<td>4</td>
+<td>1</td>
+</tr>
+<tr>
+<td>3</td>
+<td>3</td>
+<td>0</td>
+</tr>
+<tr>
+<td>4</td>
+<td>4</td>
+<td>0</td>
+</tr>
+<tr>
+<td>5</td>
+<td>5</td>
+<td>0</td>
+</tr>
+<tr>
+<td>5</td>
+<td>6</td>
+<td>1</td>
+</tr>
+<tr>
+<td>6</td>
+<td>6</td>
+<td>0</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>1. 查询某个分类的所有子分类（含多级）</strong></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">-- 查“电子产品”(id=1) 下所有子分类
+</span></span><span class="line"><span class="cl">SELECT c.*
+</span></span><span class="line"><span class="cl">FROM category c
+</span></span><span class="line"><span class="cl">JOIN category_closure cc ON c.id = cc.descendant_id
+</span></span><span class="line"><span class="cl">WHERE cc.ancestor_id = 1;
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><strong>2. 查询某个分类的所有祖先（向上追溯）</strong></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">-- 查“智能手机”(id=3) 的所有上级分类
+</span></span><span class="line"><span class="cl">SELECT c.*
+</span></span><span class="line"><span class="cl">FROM category c
+</span></span><span class="line"><span class="cl">JOIN category_closure cc ON c.id = cc.ancestor_id
+</span></span><span class="line"><span class="cl">WHERE cc.descendant_id = 3 AND cc.depth &gt; 0;
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><strong>3. 判断 A 是否是 B 的祖先</strong></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">SELECT EXISTS (
+</span></span><span class="line"><span class="cl">    SELECT 1 FROM category_closure
+</span></span><span class="line"><span class="cl">    WHERE ancestor_id = 1 AND descendant_id = 3
+</span></span><span class="line"><span class="cl">);
+</span></span><span class="line"><span class="cl">-- 返回 true，说明“电子产品”是“智能手机”的祖先
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><strong>4. 获取直接子节点（depth = 1）</strong></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">SELECT c.*
+</span></span><span class="line"><span class="cl">FROM category c
+</span></span><span class="line"><span class="cl">JOIN category_closure cc ON c.id = cc.descendant_id
+</span></span><span class="line"><span class="cl">WHERE cc.ancestor_id = 1 AND cc.depth = 1;
+</span></span><span class="line"><span class="cl">-- 返回“手机”和“电脑”
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><strong>5. 移动子树（例如把“手机”移到“家电”下）</strong></p>
+<ol>
+<li>删除以“手机”及其后代为 descendant 的所有旧祖先关系；</li>
+<li>插入新祖先（“家电”及其祖先）到“手机”子树的新路径。</li>
+</ol>
+<p><strong>适用场景</strong>:</p>
+<ul>
+<li>商品分类系统</li>
+<li>组织架构</li>
+<li>评论嵌套(楼中楼)</li>
+<li>文件夹/目录结构</li>
+<li>权限菜单树</li>
+</ul>
+<h2 id="案例">案例</h2>
+<p><strong>背景知识</strong></p>
+<ul>
+<li>分类有父级子级</li>
+<li>一个分类有多个资源</li>
+<li>一个资源可以绑定多个分类</li>
+<li>分类固定</li>
+</ul>
+<p><strong>解决方案</strong></p>
+<p>路径枚举 + 中间关联表</p>
+<p>避免过度设计，中间关联表可以缓存 path，连表查询相关数据。</p>
+
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/postgresql/">PostgreSQL</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">Related content</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="has-image">
+    <a href="/p/%E5%9F%BA%E4%BA%8E-docker-compose-%E6%A8%A1%E6%8B%9F-postgresql-12.2-%E4%B8%BB%E4%BB%8E/">
+        
+        
+            <div class="article-image">
+                
+                    <img src="http://img.golang.space/img-1669079318266.png" loading="lazy" data-key="" data-hash="http://img.golang.space/img-1669079318266.png"/>
+                
+            </div>
+        
+
+        <div class="article-details">
+            <h2 class="article-title">基于 docker-compose 模拟 PostgreSQL 12.2 主从</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/%E8%A1%A8%E5%88%86%E5%8C%BA/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">表分区</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/%E5%BA%8F%E5%88%97%E8%87%AA%E5%A2%9E%E6%AD%A5%E9%95%BF/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">序列自增步长</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/postgresql-%E5%9F%BA%E7%A1%80/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">PostgreSQL 基础</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/redis-%E5%9F%BA%E7%A1%80/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Redis 基础</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script src="https://utteranc.es/client.js" 
+        repo="ixugo/ixugo.github.io"
+        issue-term="pathname"
+        
+        crossorigin="anonymous"
+        async
+        >
+</script>
+
+<style>
+    .utterances {
+        max-width: unset;
+    }
+</style>
+
+<script>
+    function setUtterancesTheme(theme) {
+        let utterances = document.querySelector('.utterances iframe');
+        if (utterances) {
+            utterances.contentWindow.postMessage(
+                {
+                    type: 'set-theme',
+                    theme: `github-${theme}`
+                },
+                'https://utteranc.es'
+            );
+        }
+    }
+
+    addEventListener('message', event => {
+        if (event.origin !== 'https://utteranc.es') return;
+        setUtterancesTheme(document.documentElement.dataset.scheme)
+    });
+
+    window.addEventListener('onColorSchemeChange', (e) => {
+        setUtterancesTheme(e.detail)
+    })
+</script>
+
+
+    
+
+    <footer class="site-footer">
+  <section class="copyright">
+    &copy;
+    
+    2018 -
+    
+    2025 ixugo
+  </section>
+  <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+  <section class="powerby">
+
+    
+    <span id="busuanzi_container_page_pv">本文阅读量
+      <span style="font-size: 14px" id="busuanzi_value_page_pv"></span>
+      次，</span>
+    <span id="busuanzi_container_site_pv">总访问量
+      <span style="font-size: 14px" id="busuanzi_value_site_pv"></span>
+      次 </span>，总访客数
+    <span style="font-size: 14px" id="busuanzi_value_site_uv"></span> 人
+    <br />
+
+
+    Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> .&nbsp;&nbsp;
+    Theme <a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener"
+      data-version="3.16.0">Stack</a> designed by <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a>
+  </section>
+
+
+
+
+  <script>
+    function count() {
+      let href = window.location.href;
+      let regexp = /^https?:\/\/blog.golang.space\/?(page\/[\d]+\/?)?$/;
+      if (regexp.test(href)) {
+        let e = document.getElementById("busuanzi_container_page_pv");
+        e.innerText = "";
+      }
+    }
+    window.onload = count;
+  </script>
+</footer>
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>
