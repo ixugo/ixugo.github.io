@@ -1,0 +1,769 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+    <channel>
+        <title>音视频 on ixugo</title>
+        <link>https://blog.golang.space/categories/%E9%9F%B3%E8%A7%86%E9%A2%91/</link>
+        <description>Recent content in 音视频 on ixugo</description>
+        <generator>Hugo -- gohugo.io</generator>
+        <language>zh-cn</language>
+        <lastBuildDate>Sun, 12 Nov 2023 00:00:00 +0000</lastBuildDate><atom:link href="https://blog.golang.space/categories/%E9%9F%B3%E8%A7%86%E9%A2%91/index.xml" rel="self" type="application/rss+xml" /><item>
+        <title>WebRTC 入门</title>
+        <link>https://blog.golang.space/p/webrtc-%E5%85%A5%E9%97%A8/</link>
+        <pubDate>Sun, 12 Nov 2023 00:00:00 +0000</pubDate>
+        
+        <guid>https://blog.golang.space/p/webrtc-%E5%85%A5%E9%97%A8/</guid>
+        <description>&lt;p&gt;WebRTC 是 Web 实时通信（Real-Time Communication）的缩写，它既是 API 也是协议。WebRTC 协议是两个 WebRTC Agent 协商双向安全实时通信的一组规则。&lt;/p&gt;
+&lt;p&gt;可以用 HTTP 和 Fetch API 之间的关系作为类比。WebRTC 协议就是 HTTP，而 WebRTC API 就是 Fetch API。&lt;/p&gt;
+&lt;h2 id=&#34;webrtc-协议是一组其他技术的集合体&#34;&gt;WebRTC 协议是一组其他技术的集合体&lt;/h2&gt;
+&lt;p&gt;&lt;img src=&#34;http://img.golang.space/img-1699797441816.png&#34;
+	
+	
+	
+	loading=&#34;lazy&#34;
+	
+		alt=&#34;image-20231112215721642&#34;
+	
+	
+&gt;&lt;/p&gt;
+&lt;h3 id=&#34;信令peer-如何在-webrtc-中找到彼此&#34;&gt;信令：peer 如何在 WebRTC 中找到彼此&lt;/h3&gt;
+&lt;p&gt;当 WebRTC Agent 启动时，它不知道与谁通信以及他们将要通信的内容。信令解决了这个问题！信令用于引导呼叫，以便两个 WebRTC Agent 可以开始通信。&lt;/p&gt;
+&lt;p&gt;信令使用一种现有的协议 SDP（会话描述协议）。SDP 是一种纯文本协议。每个 SDP 消息均由键 / 值对组成，并包含“media sections（媒体部分）”列表。&lt;/p&gt;
+&lt;p&gt;任何适合发送消息的架构均可被用于传递 SDP 信息，许多应用程序都使用其现有的基础设施（例如 REST 端点，WebSocket 连接或身份验证代理）来解决适当客户端之间的 SDP 传递问题。&lt;/p&gt;
+&lt;h3 id=&#34;使用-stunturn-进行连接和-nat-穿透&#34;&gt;使用 STUN/TURN 进行连接和 NAT 穿透&lt;/h3&gt;
+&lt;p&gt;ICE（交互式连接建立）是 WebRTC 前现有的协议。ICE 允许在两个 Agent 之间建立连接。这些 Agent 可以在同一网络上，也可以在世界的另一端。ICE 是无需中央服务器即可建立直接连接的解决方案。&lt;/p&gt;
+&lt;h3 id=&#34;使用-dtls-和-srtp-加密传输层&#34;&gt;使用 DTLS 和 SRTP 加密传输层&lt;/h3&gt;
+&lt;p&gt;第一个协议是 DTLS（数据报传输层安全性），即基于 UDP 的 TLS。&lt;/p&gt;
+&lt;p&gt;第二种协议是 SRTP（安全实时传输协议）。&lt;/p&gt;
+&lt;p&gt;首先，WebRTC 通过在 ICE 建立的连接上进行 DTLS 握手来进行连接。与 HTTPS 不同，WebRTC 不使用中央授权来颁发证书。相反，WebRTC 只是判断通过 DTLS 交换的证书是否与通过信令共享的签名相符。&lt;/p&gt;
+&lt;p&gt;接下来，WebRTC 使用 RTP 协议进行音频 / 视频的传输。我们使用 SRTP 来保护我们的 RTP 数据包。我们从协商的 DTLS 会话中提取密钥，用来初始化 SRTP 会话。&lt;/p&gt;
+&lt;h3 id=&#34;通过-rtp-和-sctp-进行点对点通信&#34;&gt;通过 RTP 和 SCTP 进行点对点通信&lt;/h3&gt;
+&lt;p&gt;RTP（实时传输协议）和 SCTP（流控制传输协议）。我们使用 RTP 来交换用 SRTP 加密过的媒体数据，使用 SCTP 发送和接收那些用 DTLS 加密过的 DataChannel 消息。&lt;/p&gt;
+</description>
+        </item>
+        <item>
+        <title>FFmpeg 基础知识</title>
+        <link>https://blog.golang.space/p/ffmpeg-%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86/</link>
+        <pubDate>Fri, 25 Nov 2022 00:00:00 +0000</pubDate>
+        
+        <guid>https://blog.golang.space/p/ffmpeg-%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86/</guid>
+        <description>&lt;h1 id=&#34;ffmpeg-基础知识&#34;&gt;FFmpeg 基础知识&lt;/h1&gt;
+&lt;h2 id=&#34;ffmpeg-处理流程&#34;&gt;ffmpeg 处理流程&lt;/h2&gt;
+&lt;p&gt;从一种编码转换到另一种编码。&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;http://img.golang.space/img-1668348511785.png&#34;
+	
+	
+	
+	loading=&#34;lazy&#34;
+	
+		alt=&#34;image-20221113220831698&#34;
+	
+	
+&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;http://img.golang.space/img-1668348733039.png&#34;
+	
+	
+	
+	loading=&#34;lazy&#34;
+	
+		alt=&#34;image-20221113221212952&#34;
+	
+	
+&gt;&lt;/p&gt;
+&lt;h2 id=&#34;基本信息查询命令&#34;&gt;基本信息查询命令&lt;/h2&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;命令&lt;/th&gt;
+&lt;th&gt;说明&lt;/th&gt;
+&lt;th&gt;命令&lt;/th&gt;
+&lt;th&gt;说明&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;-version&lt;/td&gt;
+&lt;td&gt;版本&lt;/td&gt;
+&lt;td&gt;-formats&lt;/td&gt;
+&lt;td&gt;显示可用的格式&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;-demuxers&lt;/td&gt;
+&lt;td&gt;显示可用的 demuxers&lt;/td&gt;
+&lt;td&gt;-protocols&lt;/td&gt;
+&lt;td&gt;显示可用的协议&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;-muxers&lt;/td&gt;
+&lt;td&gt;显示可用的 muxers&lt;/td&gt;
+&lt;td&gt;-filters&lt;/td&gt;
+&lt;td&gt;显示可用的过滤器&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;-devices&lt;/td&gt;
+&lt;td&gt;显示可用的设备&lt;/td&gt;
+&lt;td&gt;-pix_fmts&lt;/td&gt;
+&lt;td&gt;显示可用的像素格式&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;-decoders&lt;/td&gt;
+&lt;td&gt;显示可用的解码器&lt;/td&gt;
+&lt;td&gt;-layouts&lt;/td&gt;
+&lt;td&gt;显示 channel 名称&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;-encoders&lt;/td&gt;
+&lt;td&gt;显示所有编码器&lt;/td&gt;
+&lt;td&gt;-colors&lt;/td&gt;
+&lt;td&gt;显示识别的颜色名称&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;-bsfs&lt;/td&gt;
+&lt;td&gt;显示比特率 filter&lt;/td&gt;
+&lt;td&gt;&lt;/td&gt;
+&lt;td&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;&lt;img src=&#34;http://img.golang.space/img-1669279990311.png&#34;
+	
+	
+	
+	loading=&#34;lazy&#34;
+	
+		alt=&#34;image-20221124165310226&#34;
+	
+	
+&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;D&lt;/code&gt; 表示解码器&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;E&lt;/code&gt; 表示编码器&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id=&#34;录制命令&#34;&gt;录制命令&lt;/h2&gt;
+&lt;p&gt;&lt;strong&gt;使用 ffmpeg 录制屏幕&lt;/strong&gt;&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;div class=&#34;chroma&#34;&gt;
+&lt;table class=&#34;lntable&#34;&gt;&lt;tr&gt;&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code&gt;&lt;span class=&#34;lnt&#34;&gt;1
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;ffmpeg -f avfoundation -r &lt;span class=&#34;m&#34;&gt;30&lt;/span&gt; -i &lt;span class=&#34;m&#34;&gt;2&lt;/span&gt; out.yuv
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;-f&lt;/code&gt;: 指定使用 avfoundation 采集数据，mac 下专用于音视频处理&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;-i&lt;/code&gt;: 指定从哪儿采集输入，是一个文件索引号&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;-r&lt;/code&gt;: 指定帧率&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;strong&gt;使用 ffplay 播放视频&lt;/strong&gt;&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;div class=&#34;chroma&#34;&gt;
+&lt;table class=&#34;lntable&#34;&gt;&lt;tr&gt;&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code&gt;&lt;span class=&#34;lnt&#34;&gt;1
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;ffplay -video_size 2560x1440 -pixel_format uyvy422 out.yuv
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;-video_size&lt;/code&gt;: yuv 中不包含视频大小，需要指定尺寸，在上面录制时就已给定。&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;-pixel_format&lt;/code&gt;: 播放帧格式与录制的格式必须相同，才能真确播放&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;strong&gt;上面提到 -i 指定采集输入，如何查看索引号呢?&lt;/strong&gt;&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;div class=&#34;chroma&#34;&gt;
+&lt;table class=&#34;lntable&#34;&gt;&lt;tr&gt;&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code&gt;&lt;span class=&#34;lnt&#34;&gt;1
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;ffmpeg -f avfoundation -list_devices &lt;span class=&#34;nb&#34;&gt;true&lt;/span&gt; -i &lt;span class=&#34;s2&#34;&gt;&amp;#34;&amp;#34;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;p&gt;&lt;strong&gt;使用 ffmpeg 录制音频&lt;/strong&gt;&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;div class=&#34;chroma&#34;&gt;
+&lt;table class=&#34;lntable&#34;&gt;&lt;tr&gt;&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code&gt;&lt;span class=&#34;lnt&#34;&gt;1
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;2
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;3
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;ffmpeg -f avfoundation -i :2 out.wav
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;c1&#34;&gt;# 播放音频&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;ffplay out.wav
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;ul&gt;
+&lt;li&gt;注意这次序号前面加了&lt;code&gt;:&lt;/code&gt;，冒号前面表示视频设备，冒号后面表示音频设备。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id=&#34;分解复用命令&#34;&gt;分解/复用命令&lt;/h2&gt;
+&lt;p&gt;&lt;img src=&#34;http://img.golang.space/img-1669282429474.png&#34;
+	
+	
+	
+	loading=&#34;lazy&#34;
+	
+		alt=&#34;image-20221124173349335&#34;
+	
+	
+&gt;&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;将 mp4 转成 flv&lt;/strong&gt;&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;div class=&#34;chroma&#34;&gt;
+&lt;table class=&#34;lntable&#34;&gt;&lt;tr&gt;&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code&gt;&lt;span class=&#34;lnt&#34;&gt;1
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;ffmpeg -i out.mp4 -vcodec copy -acodec copy out.flv
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;-vcodec&lt;/code&gt;: 视频编码处理方式，copy 表示使用原始格式q&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;-acodec&lt;/code&gt;: 音频编码处理方式&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;strong&gt;抽取视频&lt;/strong&gt;&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;div class=&#34;chroma&#34;&gt;
+&lt;table class=&#34;lntable&#34;&gt;&lt;tr&gt;&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code&gt;&lt;span class=&#34;lnt&#34;&gt;1
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;ffmpeg -i video.MP4 -an -vcodec copy out.h264
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;p&gt;&lt;strong&gt;抽取音频&lt;/strong&gt;&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;div class=&#34;chroma&#34;&gt;
+&lt;table class=&#34;lntable&#34;&gt;&lt;tr&gt;&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code&gt;&lt;span class=&#34;lnt&#34;&gt;1
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;ffmpeg -i video.MP4 -vn -acodec copy out.aac
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;-an&lt;/code&gt;: audio null，表示过滤掉音频&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;-vn&lt;/code&gt;: video null，表示过滤掉视频&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id=&#34;处理原始数据命令&#34;&gt;处理原始数据命令&lt;/h2&gt;
+&lt;p&gt;&lt;strong&gt;提前 YUV 数据&lt;/strong&gt;&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;div class=&#34;chroma&#34;&gt;
+&lt;table class=&#34;lntable&#34;&gt;&lt;tr&gt;&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code&gt;&lt;span class=&#34;lnt&#34;&gt;1
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;ffmpeg -i video.MP4 -an -c:v rawvideo -pixel_format yuv420p out.yuv
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;-c&lt;/code&gt;: 指定编解码器&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;-c:v&lt;/code&gt;: 限定只处理视频画面，例如 &lt;code&gt;-c:v libx264&lt;/code&gt;表示转换为 h264，&lt;code&gt;-c:v rawvideo&lt;/code&gt;表是提取 YUV 数据，也可以&lt;code&gt;-c:v h264&lt;/code&gt; 直接操作。&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;-c:a&lt;/code&gt;: 限定只处理音频声音，例如 &lt;code&gt;-c:a libmp3lame&lt;/code&gt;，表示转换 mp3，也可以&lt;code&gt;-c:a mp3&lt;/code&gt;直接操作。&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;-c:s&lt;/code&gt;: 限定只处理字幕&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;strong&gt;提取 PCM 数据&lt;/strong&gt;&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;div class=&#34;chroma&#34;&gt;
+&lt;table class=&#34;lntable&#34;&gt;&lt;tr&gt;&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code&gt;&lt;span class=&#34;lnt&#34;&gt;1
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;ffmpeg -i video.MP4 -vn -ar &lt;span class=&#34;m&#34;&gt;44100&lt;/span&gt; -ac2 -f s16le out.pcm
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;-ar&lt;/code&gt;: audio rate，指定音频采样率&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;-ac&lt;/code&gt;: audio channel，指定声道，2 表示双声道&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;-f&lt;/code&gt;: 指定格式，&lt;code&gt;s&lt;/code&gt;有符号，&lt;code&gt;16&lt;/code&gt;表示每个数值是 16 位&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;strong&gt;播放 PCM 数据&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;跟提取时一样，也要指定相关参数&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;div class=&#34;chroma&#34;&gt;
+&lt;table class=&#34;lntable&#34;&gt;&lt;tr&gt;&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code&gt;&lt;span class=&#34;lnt&#34;&gt;1
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;ffplay -ar &lt;span class=&#34;m&#34;&gt;44100&lt;/span&gt; -ac &lt;span class=&#34;m&#34;&gt;2&lt;/span&gt; -f s16le out.pcm
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;h2 id=&#34;裁剪与合并命令&#34;&gt;裁剪与合并命令&lt;/h2&gt;
+&lt;p&gt;&lt;strong&gt;视频裁剪&lt;/strong&gt;&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;div class=&#34;chroma&#34;&gt;
+&lt;table class=&#34;lntable&#34;&gt;&lt;tr&gt;&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code&gt;&lt;span class=&#34;lnt&#34;&gt;1
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;ffmpeg -i video.MP4 -c copy -ss 00:00:00 -t &lt;span class=&#34;m&#34;&gt;10&lt;/span&gt; out.ts
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;-ss&lt;/code&gt;: 开始裁剪时间，指定时分秒&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;-t&lt;/code&gt;: 裁剪市场，单位秒&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;strong&gt;视频合并&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;在合并之前，需要创建包含所有切片的文件&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;div class=&#34;chroma&#34;&gt;
+&lt;table class=&#34;lntable&#34;&gt;&lt;tr&gt;&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code&gt;&lt;span class=&#34;lnt&#34;&gt;1
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;2
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;3
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;c1&#34;&gt;# input.txt&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;file &lt;span class=&#34;s1&#34;&gt;&amp;#39;1.ts&amp;#39;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;file &lt;span class=&#34;s1&#34;&gt;&amp;#39;2.ts&amp;#39;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;div class=&#34;highlight&#34;&gt;&lt;div class=&#34;chroma&#34;&gt;
+&lt;table class=&#34;lntable&#34;&gt;&lt;tr&gt;&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code&gt;&lt;span class=&#34;lnt&#34;&gt;1
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;ffmpeg -f concat -i input.txt out.mp4
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;-f concat&lt;/code&gt;: 指定合并&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id=&#34;图片视频互转命令&#34;&gt;图片/视频互转命令&lt;/h2&gt;
+&lt;p&gt;&lt;strong&gt;视频转图片&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;配合视频裁剪有奇效。&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;div class=&#34;chroma&#34;&gt;
+&lt;table class=&#34;lntable&#34;&gt;&lt;tr&gt;&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code&gt;&lt;span class=&#34;lnt&#34;&gt;1
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;2
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;3
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;ffmpeg -i video.MP4 -r &lt;span class=&#34;m&#34;&gt;1&lt;/span&gt; -f image2 image-%3d.jpeg
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;ffmpeg -i video.MP4 -ss 00:00:00 -t &lt;span class=&#34;m&#34;&gt;5&lt;/span&gt; -r &lt;span class=&#34;m&#34;&gt;1&lt;/span&gt; -f image2 image-%2d.jpeg
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;-r&lt;/code&gt;: 指定转换图片的帧率，&lt;code&gt;1&lt;/code&gt; 表示每秒转出一张图片&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;-f image2&lt;/code&gt;: 指定 jpeg 编码器&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;%3d.jpeg&lt;/code&gt;: 这是一个动态增长的文件名，最大 3 位数，不足补 0。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;strong&gt;图片转视频&lt;/strong&gt;&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;div class=&#34;chroma&#34;&gt;
+&lt;table class=&#34;lntable&#34;&gt;&lt;tr&gt;&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code&gt;&lt;span class=&#34;lnt&#34;&gt;1
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;ffmpeg -i image-%2d.jpeg out.mp4
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;h2 id=&#34;直播推拉流&#34;&gt;直播推/拉流&lt;/h2&gt;
+&lt;p&gt;&lt;strong&gt;直播推流&lt;/strong&gt;&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;div class=&#34;chroma&#34;&gt;
+&lt;table class=&#34;lntable&#34;&gt;&lt;tr&gt;&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code&gt;&lt;span class=&#34;lnt&#34;&gt;1
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;ffmpeg -re -i video.mp4 -c copy -f flv &lt;span class=&#34;s2&#34;&gt;&amp;#34;rtmp://server/live/streamName&amp;#34;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;-re&lt;/code&gt;: 减慢帧率速度，对于直播流来说，让帧率与声音保持同步&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;-c copy&lt;/code&gt;: 不做音视频编码&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;strong&gt;直播拉流&lt;/strong&gt;&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;div class=&#34;chroma&#34;&gt;
+&lt;table class=&#34;lntable&#34;&gt;&lt;tr&gt;&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code&gt;&lt;span class=&#34;lnt&#34;&gt;1
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;ffmpeg -i &lt;span class=&#34;s2&#34;&gt;&amp;#34;rtmp://server/live/streamName&amp;#34;&lt;/span&gt; -c copy dump.flv
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;h2 id=&#34;滤镜命令&#34;&gt;滤镜命令&lt;/h2&gt;
+&lt;p&gt;倍速，画中画，修改长宽等。&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;http://img.golang.space/img-1669290762148.png&#34;
+	
+	
+	
+	loading=&#34;lazy&#34;
+	
+		alt=&#34;image-20221124195241972&#34;
+	
+	
+&gt;&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;调整宽高&lt;/strong&gt;&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;div class=&#34;chroma&#34;&gt;
+&lt;table class=&#34;lntable&#34;&gt;&lt;tr&gt;&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code&gt;&lt;span class=&#34;lnt&#34;&gt;1
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;ffmpeg -i video.MP4 -vf &lt;span class=&#34;nv&#34;&gt;crop&lt;/span&gt;&lt;span class=&#34;o&#34;&gt;=&lt;/span&gt;in_w-200:in_h-200 -c:v libx264 -c:a copy out.mp4
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;-vf&lt;/code&gt;: 指定滤镜&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;crop=in_w-200:in_h-200&lt;/code&gt;: 修改宽高&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;-c:v&lt;/code&gt;: 视频编码&lt;/li&gt;
+&lt;/ul&gt;
+</description>
+        </item>
+        <item>
+        <title>音视频基础</title>
+        <link>https://blog.golang.space/p/%E9%9F%B3%E8%A7%86%E9%A2%91%E5%9F%BA%E7%A1%80/</link>
+        <pubDate>Thu, 24 Nov 2022 00:00:00 +0000</pubDate>
+        
+        <guid>https://blog.golang.space/p/%E9%9F%B3%E8%A7%86%E9%A2%91%E5%9F%BA%E7%A1%80/</guid>
+        <description>&lt;h1 id=&#34;音视频基础&#34;&gt;音视频基础&lt;/h1&gt;
+&lt;h2 id=&#34;媒体基础知识&#34;&gt;媒体基础知识&lt;/h2&gt;
+&lt;h3 id=&#34;图像&#34;&gt;图像&lt;/h3&gt;
+&lt;p&gt;「图像」是「像素」的集合，有宽度和高度，每个像素块是单一的颜色。&lt;/p&gt;
+&lt;p&gt;「图像分辨率」表示图像的质量和像素数，由 x 轴乘以 Y 轴的像素个数得出，常见分辨率:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;HD( 1920 * 1080 )&lt;/li&gt;
+&lt;li&gt;UHD ( 3840*2160 )&lt;/li&gt;
+&lt;li&gt;4K ( 4096*2160 )&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;图像的纵横比是宽高比，常见的有&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;16:9&lt;/li&gt;
+&lt;li&gt;4:3&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;常见分辨率&lt;/p&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;格式&lt;/th&gt;
+&lt;th&gt;分辨率&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;360P(流畅)&lt;/td&gt;
+&lt;td&gt;640x360&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;480P(标清)&lt;/td&gt;
+&lt;td&gt;854x480&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;strong&gt;720P(高清)&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;1280*720&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;strong&gt;1080P(高清)&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;1920*1080&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;2160P(4K)&lt;/td&gt;
+&lt;td&gt;3840*2160&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;4320P(8K)&lt;/td&gt;
+&lt;td&gt;7860*4320&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;h3 id=&#34;视频&#34;&gt;视频&lt;/h3&gt;
+&lt;p&gt;视频是一系列的图像，在视频上下文中，每个图像称为「帧」，「帧率」(fps)表示每秒有多少帧，常见的帧率:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;15 (实时通信)&lt;/li&gt;
+&lt;li&gt;25 (动画)&lt;/li&gt;
+&lt;li&gt;30 (实时通信)&lt;/li&gt;
+&lt;li&gt;60 (电影/游戏)&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;未编码视频的 RGB 码流计算方法  = &lt;code&gt;分辨率 * 3 * 帧率&lt;/code&gt;&lt;/p&gt;
+&lt;p&gt;例如&lt;code&gt;1280*720*3*25&lt;/code&gt;，约等于每秒 69MB。&lt;/p&gt;
+&lt;h3 id=&#34;yuv&#34;&gt;YUV&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;Y 明亮度&lt;/li&gt;
+&lt;li&gt;UV 色彩及饱和度&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;主要的采样格式有:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;YUV4:2:0&lt;/code&gt;，应用最广泛的格式，&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;YUV4:2:2&lt;/code&gt;，每一个横行隔一个含有一个 uv&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;YUV4:4:4&lt;/code&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;RGB 用于屏幕图像的展示，YUV 用于采集和编码&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;生成 YUV&lt;/strong&gt;&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;div class=&#34;chroma&#34;&gt;
+&lt;table class=&#34;lntable&#34;&gt;&lt;tr&gt;&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code&gt;&lt;span class=&#34;lnt&#34;&gt;1
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;2
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;3
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;4
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;5
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;ffmpeg -i input.mp4 &lt;span class=&#34;se&#34;&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;se&#34;&gt;&lt;/span&gt;			 -an &lt;span class=&#34;se&#34;&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;se&#34;&gt;&lt;/span&gt;			 -c:v rawvideo &lt;span class=&#34;se&#34;&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;se&#34;&gt;&lt;/span&gt;			 -pix_fmt yuv420p &lt;span class=&#34;se&#34;&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;se&#34;&gt;&lt;/span&gt;			 out.yuv
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;-i&lt;/code&gt; 输入&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;-an&lt;/code&gt;，audio null，表示过滤掉音频&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;-c&lt;/code&gt;，指定视频编码器为 rawvideo&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id=&#34;视频编解码&#34;&gt;视频编解码&lt;/h3&gt;
+&lt;p&gt;H.264，在今天互联网上使用最多，与 YUV 的压缩比是百分之一。&lt;/p&gt;
+&lt;p&gt;H.265 是前者的继承者，提供了更好的压缩效果&lt;/p&gt;
+&lt;p&gt;VP9，起源于 Google&lt;/p&gt;
+&lt;p&gt;GOP，强相关的一组帧，强相关的帧放在一起压缩，压缩率更高&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;编码帧的分类&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;I (interframe frame) 帧，关键帧，采用帧内压缩技术&lt;/li&gt;
+&lt;li&gt;P (forward predicted frame)，向前参考帧，压缩时只参考前面已经处理的帧，采用帧间压缩技术，占 I 帧一半大小。&lt;/li&gt;
+&lt;li&gt;B (Bidirectionally predicted frame)，双向参考帧，压缩时即参考前面已处理的帧，也参考后面的帧，帧间压缩技术，占 I 帧 ¼ 大小。B 帧越多，延迟越大，占用 CPU，空间最小。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;IDR 帧是解码器立即刷新帧，解码器遇到 IDR 帧会清空 buffer 中的数据，防止错误的传播，每个 GOP 中的第一帧就是 IDR 帧。IDR 帧是一种特殊的 I 帧。&lt;/p&gt;
+&lt;p&gt;在每个 IDR 帧前面都有 SPS 与 PPS。&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;SPS (Sequence Parameter Set): 约束，参考帧的数量，解码图像尺寸，编码模式&lt;/li&gt;
+&lt;li&gt;PPS (Picture Parameter set): 图像参数集。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;img src=&#34;http://img.golang.space/img-1668955546874.png&#34;
+	
+	
+	
+	loading=&#34;lazy&#34;
+	
+		alt=&#34;image-20221120224546740&#34;
+	
+	
+&gt;&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;H264压缩技术&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;帧内压缩，解决的是空域数据冗余问题 (有损)&lt;/li&gt;
+&lt;li&gt;帧间压缩，解决的是时域数据冗余问题 (有损)&lt;/li&gt;
+&lt;li&gt;整数离散余弦变化(DCT)，将空间上的相关性变为频域上无关数据然后进行量化&lt;/li&gt;
+&lt;li&gt;CABAC 压缩&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;strong&gt;宏块&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;宏块是视频压缩操作的基本单元，无论是帧内压缩还是帧间压缩，他们都以宏块为单位。&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;http://img.golang.space/img-1668956077431.png&#34;
+	
+	
+	
+	loading=&#34;lazy&#34;
+	
+		alt=&#34;image-20221120225437330&#34;
+	
+	
+&gt;&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;视频花屏原因&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;GOP 分组中的帧丢失，造成解码端的图像发生错误，会出现花屏。&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;视频卡顿原因&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;为了避免花屏问题发生，发现有帧丢失时，就丢弃 GOP 内的所有帧，直到下一个 IDR 帧重新刷新图像。&lt;/p&gt;
+&lt;p&gt;I 帧有一个比较长的周期，在下一个 I 帧来之前不显示后面的图像，视频就静止不动了，即出现卡顿现象。&lt;/p&gt;
+&lt;h3 id=&#34;视频压缩&#34;&gt;视频压缩&lt;/h3&gt;
+&lt;p&gt;它的工作原理是从原始图像或视频帧中去除冗余信息，有两种冗余信息&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;图像或帧存在冗余&lt;/li&gt;
+&lt;li&gt;同一场景的每两个连续帧之间存在冗余&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;H264 Profile，对视频压缩特性的描述。&lt;/p&gt;
+&lt;p&gt;H264 Level 是对视频的描述，Level 越高，视频的码率，分辨率，fps 越高。&lt;/p&gt;
+&lt;h3 id=&#34;音频&#34;&gt;音频&lt;/h3&gt;
+&lt;p&gt;音频样本通常存储为 8 位，16 位，24 位，甚至是 32 位的值，位数越多，意味着音频质量越高。采样率表示每秒有多少个样本，可以对 44.1kHZ &amp;hellip;.采样，频率越高意味着更高的质量。&lt;/p&gt;
+&lt;p&gt;音频  channel 表示单个采样序列，channels 可以组成不同的布局，单个 channel 称为单声道，两个 channel 称为立体声(左声道/右声道)。&lt;/p&gt;
+&lt;p&gt;音轨(track) 表示 channel 的集合，单个媒体文件中可以有多个音轨。不同的音轨用于组织与同一时间线相关的不同声音&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;编解码&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;PCM，最流行的格式，但不压缩&lt;/li&gt;
+&lt;li&gt;AAC&lt;/li&gt;
+&lt;li&gt;MP3&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id=&#34;container&#34;&gt;container&lt;/h3&gt;
+&lt;p&gt;通常表示一种文件格式，媒体数据在文件中的组织方式。比如文件有多少流，哪里可以找到音轨等等。&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;MP4，最受欢迎的&lt;/li&gt;
+&lt;li&gt;MXF，大多数高质量的专业摄像机记录&lt;/li&gt;
+&lt;li&gt;QT/MOV&lt;/li&gt;
+&lt;li&gt;MKV&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;strong&gt;音频&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;WAV，用于存储高质量和压缩的 PCM 音频&lt;/li&gt;
+&lt;li&gt;M4A，用于存储压缩的 AAC 音频&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;img src=&#34;http://img.golang.space/img-1668344634827.png&#34;
+	
+	
+	
+	loading=&#34;lazy&#34;
+	
+		alt=&#34;image-20221113210354707&#34;
+	
+	
+&gt;&lt;/p&gt;
+&lt;h2 id=&#34;架构模型&#34;&gt;架构模型&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;流媒体服务器&lt;/li&gt;
+&lt;li&gt;推流工具( ffmepg / obs )&lt;/li&gt;
+&lt;li&gt;拉流 (ffplay / vlc / iina)&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;示例&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;div class=&#34;chroma&#34;&gt;
+&lt;table class=&#34;lntable&#34;&gt;&lt;tr&gt;&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code&gt;&lt;span class=&#34;lnt&#34;&gt;1
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;2
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;3
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;4
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;5
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;c1&#34;&gt;# 推流&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;ffmpeg -i video.mp4 -f flv -rtmp_playpath &lt;span class=&#34;s2&#34;&gt;&amp;#34;BSWMSId4g?sign=BSZaSIO4gz&amp;#34;&lt;/span&gt; rtmp://localhost/live 
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;c1&#34;&gt;# 拉流&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;ffplay rtmp://localhost/live/BSWMSId4g
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;-i&lt;/code&gt; 表示输入&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;-f&lt;/code&gt; 表示输出格式&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;-rtmp_playpath&lt;/code&gt; 指定路径&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;简单尝试一下，会发现推流失败或清晰度不高的问题。&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;-re&lt;/code&gt; 让媒体以原来音视频同步的速度播放，增加此参数可以避免推流失败&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;使用 &lt;code&gt;-f&lt;/code&gt; 指定输出格式，会将原格式编解码到新格式，将损失一定的质量，所以清晰度不高。&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;-c copy&lt;/code&gt;  不重新编码，使用原来的音视频方式，将会是原视频的清晰度。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id=&#34;音频处理流程&#34;&gt;音频处理流程&lt;/h2&gt;
+&lt;p&gt;&lt;img src=&#34;http://img.golang.space/img-1668760906384.png&#34;
+	
+	
+	
+	loading=&#34;lazy&#34;
+	
+		alt=&#34;image-20221118164146264&#34;
+	
+	
+&gt;&lt;/p&gt;
+&lt;p&gt;音频数据流&lt;/p&gt;
+&lt;p&gt;&lt;code&gt;原始数据 PCM&lt;/code&gt;  =&amp;gt; &lt;code&gt;压缩数据 AAC/MP3&lt;/code&gt; =&amp;gt; &lt;code&gt;多媒体包 MP4/FLV&lt;/code&gt;&lt;/p&gt;
+&lt;p&gt;&lt;code&gt;HZ&lt;/code&gt; ，声音在一秒内震动的次数，人类听觉范围是 20HZ ~ 20KHZ。&lt;/p&gt;
+&lt;p&gt;声音三要素:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;音调，音频的快慢&lt;/li&gt;
+&lt;li&gt;音量，振动的幅度&lt;/li&gt;
+&lt;li&gt;音色，谐波&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;模数转换，对声音进行量化，将十进制转换为二进制。&lt;/p&gt;
+&lt;p&gt;音频原始数据有两种，原始数据是 PCM，封装成格式后为 WAV。WAV 是在 PCM 的基础上套了一个 Header，增加了描述信息，如通道数，采样率，采样大小，字节对齐，采样率的字节数，&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;采样大小，一个采样用多少 bit 存放，常用是 16bit。&lt;/li&gt;
+&lt;li&gt;采样率，8K，16K，32K，44.1K，48K，通常打电话是 8K 有一定的失真。&lt;/li&gt;
+&lt;li&gt;声道数，单声道，双声道，多声道。比如在电影院感受到的声音就很震撼，有很多喇叭围绕在四周。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;码率计算&lt;/p&gt;
+&lt;p&gt;PCM 音频流的码率 = 采样率 * 采样大小 * 声道数&lt;/p&gt;
+&lt;p&gt;例如: 采样率=44.1KHz，采样大小为 16bit，双声道的 PCM 编码文件，44.1K * 16*2 = 1411.2KB/s。&lt;/p&gt;
+&lt;h3 id=&#34;aac-规格&#34;&gt;AAC 规格&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;AAC LC:(Low Complexity)低复杂度规格，码流是 128K，音质好。&lt;/li&gt;
+&lt;li&gt;AAC HE:等于 AAC LC + SBR，核心思想是按频谱分保存。码流是 64K。&lt;/li&gt;
+&lt;li&gt;AAC HE v2:等于 AAC LC + SBR + PS，双声道的声音存在某种相似性，只需存储一个声道，并花很少字节描述另一个声道不同的地方。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id=&#34;aac-格式&#34;&gt;AAC 格式&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;ADIF (audio date interchange format)，可以确定的找到音频数据的开始，只能从头开始解码。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;ADTS (audio data transport stream)，每一帧都有一个同步字，可以在音频任意位置解码，适用性更广，更适合流媒体传输。&lt;/p&gt;
+&lt;p&gt;由 7/9 个字节组成，&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id=&#34;通过-ffmpeg-生成-aac-文件&#34;&gt;通过 ffmpeg 生成 AAC 文件&lt;/h3&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;div class=&#34;chroma&#34;&gt;
+&lt;table class=&#34;lntable&#34;&gt;&lt;tr&gt;&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code&gt;&lt;span class=&#34;lnt&#34;&gt;1
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;2
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;3
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;4
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;5
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;6
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;7
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;ffmpeg -i xxx.mp4  &lt;span class=&#34;se&#34;&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;se&#34;&gt;&lt;/span&gt;			 -vn &lt;span class=&#34;se&#34;&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;se&#34;&gt;&lt;/span&gt;			 -c:a aac &lt;span class=&#34;se&#34;&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;se&#34;&gt;&lt;/span&gt;			 -ar &lt;span class=&#34;m&#34;&gt;44100&lt;/span&gt; &lt;span class=&#34;se&#34;&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;se&#34;&gt;&lt;/span&gt;			 -channels &lt;span class=&#34;m&#34;&gt;2&lt;/span&gt; &lt;span class=&#34;se&#34;&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;se&#34;&gt;&lt;/span&gt;			 -profile:a aac_he_v2 &lt;span class=&#34;se&#34;&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;se&#34;&gt;&lt;/span&gt;			 xxx.aac
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;-vn&lt;/code&gt;: video null，用于过滤掉视频&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;-c&lt;/code&gt;: 指定编码器，&lt;code&gt;a&lt;/code&gt; 表示 audio，&lt;code&gt;libfdk_aac&lt;/code&gt; 相对而言，这个性能是最好的编码器&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;-ar&lt;/code&gt;: audio rate 采样率&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;-channels&lt;/code&gt;: 通道数&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;-profile&lt;/code&gt;:指定参数&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id=&#34;音频重采样&#34;&gt;音频重采样?&lt;/h3&gt;
+&lt;p&gt;&lt;strong&gt;什么是音频重采样?&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;将音频三元组转换成另外一组值，例如将 &lt;code&gt;44100/16/2&lt;/code&gt; =&amp;gt; &lt;code&gt;48000/16/2&lt;/code&gt;&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;为什么要重采样?&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;采样的音频数据与编码器要求的数据不一致&lt;/li&gt;
+&lt;li&gt;扬声器要求的音频数据与要播放的音频数据不一致&lt;/li&gt;
+&lt;li&gt;方便运算，比如回音消除，需要将其转成单声道处理&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;strong&gt;如何知道是否需要进行重采样?&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;了解音频设备的参数&lt;/li&gt;
+&lt;li&gt;查看 ffmpeg 源码&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;strong&gt;重采样的步骤&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;创建重采样上下文&lt;/li&gt;
+&lt;li&gt;设置参数&lt;/li&gt;
+&lt;li&gt;初始化重采样&lt;/li&gt;
+&lt;li&gt;进行重采样&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id=&#34;流媒体&#34;&gt;流媒体&lt;/h2&gt;
+&lt;h3 id=&#34;rtmp-创建流的基本流程&#34;&gt;RTMP 创建流的基本流程&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;tcp 连接&lt;/li&gt;
+&lt;li&gt;rtmp 握手&lt;/li&gt;
+&lt;li&gt;建立 rtmp 连接&lt;/li&gt;
+&lt;li&gt;创建 rtmp 流&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;img src=&#34;http://img.golang.space/img-1669022585632.png&#34;
+	
+	
+	
+	loading=&#34;lazy&#34;
+	
+		alt=&#34;image-20221121172305496&#34;
+	
+	
+&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;http://img.golang.space/img-1669022663102.png&#34;
+	
+	
+	
+	loading=&#34;lazy&#34;
+	
+		alt=&#34;image-20221121172423006&#34;
+	
+	
+&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;http://img.golang.space/img-1669043697470.png&#34;
+	
+	
+	
+	loading=&#34;lazy&#34;
+	
+		alt=&#34;image-20221121231457324&#34;
+	
+	
+&gt;&lt;/p&gt;
+&lt;h2 id=&#34;参考&#34;&gt;参考&lt;/h2&gt;
+&lt;p&gt;&lt;a class=&#34;link&#34; href=&#34;https://blog.csdn.net/impingo/article/details/104163365&#34;  target=&#34;_blank&#34; rel=&#34;noopener&#34;
+    &gt;ffmpeg 推流 rtmp 的参数设置&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;&lt;a class=&#34;link&#34; href=&#34;https://docs.agora.io/cn&#34;  target=&#34;_blank&#34; rel=&#34;noopener&#34;
+    &gt;码流参考值&lt;/a&gt;&lt;/p&gt;
+</description>
+        </item>
+        
+    </channel>
+</rss>
