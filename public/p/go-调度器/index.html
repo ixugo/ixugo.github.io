@@ -1,0 +1,1134 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='免责声明 本博文主要关注在 ARM 架构 Linux 上运行的 Go 1.24 编程语言。它可能不涵盖其他操作系统或硬件架构的平台特定细节。
+本文内容基于其他资料以及我个人对 Go 的理解，因此可能并不完全准确。欢迎在文末评论区指正或提出建议😄。
+介绍 Golang 于 2009 年推出，作为一种用于构建并发应用程序的编程语言，其受欢迎程度稳步增长。它的设计目标是简单、高效且易于使用。
+Go 的并发模型围绕 goroutine 的概念构建，goroutine 是由 Go 运行时在用户空间管理的轻量级用户线程。Go 提供了诸如通道 (channel) 等用于同步的实用原语，帮助开发者轻松编写并发代码。它还采用了一些巧妙的技术来提高 I/O 密集型程序的效率。
+理解 Go 调度器对于 Go 程序员编写高效的并发程序至关重要。它还能帮助我们更好地排查性能问题或优化 Go 程序的性能。在本文中，我们将探讨 Go 调度器的发展历程，以及我们编写的 Go 代码在底层是如何运作的。
+编译和 Go 运行时 本文包含大量源代码解析，因此最好先对 Go 代码的编译和执行方式有一定的了解。Go 程序的构建过程分为三个阶段：
+Go 源文件（ *.go ）被编译成汇编文件（ *.s ） 然后将汇编文件（ *.s ）汇编成目标文件（ *.o ） 目标文件（ *.o ）链接在一起，生成一个可执行的二进制文件 要理解 Go 调度器，首先需要理解 Go 运行时。Go 运行时是这门编程语言的核心，它提供了调度、内存管理和数据结构等基本功能。它本质上就是一系列函数和数据结构的集合，正是这些函数和数据结构使 Go 程序能够正常运行。Go 运行时的实现位于 runtime 包中。Go 运行时是用 Go 代码和汇编代码混合编写的，其中汇编代码主要用于处理寄存器等底层操作。'>
+<title>Go 调度器</title>
+
+<link rel='canonical' href='https://blog.golang.space/p/go-%E8%B0%83%E5%BA%A6%E5%99%A8/'>
+
+<link rel="stylesheet" href="/scss/style.min.8191399262444ab68b72a18c97392f5349be20a1615d77445be51e974c144cff.css"><meta property='og:title' content='Go 调度器'>
+<meta property='og:description' content='免责声明 本博文主要关注在 ARM 架构 Linux 上运行的 Go 1.24 编程语言。它可能不涵盖其他操作系统或硬件架构的平台特定细节。
+本文内容基于其他资料以及我个人对 Go 的理解，因此可能并不完全准确。欢迎在文末评论区指正或提出建议😄。
+介绍 Golang 于 2009 年推出，作为一种用于构建并发应用程序的编程语言，其受欢迎程度稳步增长。它的设计目标是简单、高效且易于使用。
+Go 的并发模型围绕 goroutine 的概念构建，goroutine 是由 Go 运行时在用户空间管理的轻量级用户线程。Go 提供了诸如通道 (channel) 等用于同步的实用原语，帮助开发者轻松编写并发代码。它还采用了一些巧妙的技术来提高 I/O 密集型程序的效率。
+理解 Go 调度器对于 Go 程序员编写高效的并发程序至关重要。它还能帮助我们更好地排查性能问题或优化 Go 程序的性能。在本文中，我们将探讨 Go 调度器的发展历程，以及我们编写的 Go 代码在底层是如何运作的。
+编译和 Go 运行时 本文包含大量源代码解析，因此最好先对 Go 代码的编译和执行方式有一定的了解。Go 程序的构建过程分为三个阶段：
+Go 源文件（ *.go ）被编译成汇编文件（ *.s ） 然后将汇编文件（ *.s ）汇编成目标文件（ *.o ） 目标文件（ *.o ）链接在一起，生成一个可执行的二进制文件 要理解 Go 调度器，首先需要理解 Go 运行时。Go 运行时是这门编程语言的核心，它提供了调度、内存管理和数据结构等基本功能。它本质上就是一系列函数和数据结构的集合，正是这些函数和数据结构使 Go 程序能够正常运行。Go 运行时的实现位于 runtime 包中。Go 运行时是用 Go 代码和汇编代码混合编写的，其中汇编代码主要用于处理寄存器等底层操作。'>
+<meta property='og:url' content='https://blog.golang.space/p/go-%E8%B0%83%E5%BA%A6%E5%99%A8/'>
+<meta property='og:site_name' content='ixugo'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='Runtime' /><meta property='article:tag' content='读书笔记' /><meta property='article:published_time' content='2025-05-20T00:00:00&#43;00:00'/><meta property='article:modified_time' content='2025-05-20T00:00:00&#43;00:00'/>
+<meta name="twitter:title" content="Go 调度器">
+<meta name="twitter:description" content="免责声明 本博文主要关注在 ARM 架构 Linux 上运行的 Go 1.24 编程语言。它可能不涵盖其他操作系统或硬件架构的平台特定细节。
+本文内容基于其他资料以及我个人对 Go 的理解，因此可能并不完全准确。欢迎在文末评论区指正或提出建议😄。
+介绍 Golang 于 2009 年推出，作为一种用于构建并发应用程序的编程语言，其受欢迎程度稳步增长。它的设计目标是简单、高效且易于使用。
+Go 的并发模型围绕 goroutine 的概念构建，goroutine 是由 Go 运行时在用户空间管理的轻量级用户线程。Go 提供了诸如通道 (channel) 等用于同步的实用原语，帮助开发者轻松编写并发代码。它还采用了一些巧妙的技术来提高 I/O 密集型程序的效率。
+理解 Go 调度器对于 Go 程序员编写高效的并发程序至关重要。它还能帮助我们更好地排查性能问题或优化 Go 程序的性能。在本文中，我们将探讨 Go 调度器的发展历程，以及我们编写的 Go 代码在底层是如何运作的。
+编译和 Go 运行时 本文包含大量源代码解析，因此最好先对 Go 代码的编译和执行方式有一定的了解。Go 程序的构建过程分为三个阶段：
+Go 源文件（ *.go ）被编译成汇编文件（ *.s ） 然后将汇编文件（ *.s ）汇编成目标文件（ *.o ） 目标文件（ *.o ）链接在一起，生成一个可执行的二进制文件 要理解 Go 调度器，首先需要理解 Go 运行时。Go 运行时是这门编程语言的核心，它提供了调度、内存管理和数据结构等基本功能。它本质上就是一系列函数和数据结构的集合，正是这些函数和数据结构使 Go 程序能够正常运行。Go 运行时的实现位于 runtime 包中。Go 运行时是用 Go 代码和汇编代码混合编写的，其中汇编代码主要用于处理寄存器等底层操作。">
+    <link rel="shortcut icon" href="img/favicon.ico" />
+
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+	(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+	m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+	})(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+	ga('create', 'UA-192125643-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="Toggle Menu">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu0b04ba6d7249c9f90c92db974439eb8c_208246_300x0_resize_box_3.png" width="300"
+                            height="321" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🧐</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">ixugo</a></h1>
+            <h2 class="site-description">走出舒适区</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/ixugo'
+                        target="_blank"
+                        title="GitHub"
+                        rel="me"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>Home</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/about/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>About</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>Archives</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>Search</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>Dark Mode</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">Table of contents</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#免责声明">免责声明</a></li>
+    <li><a href="#介绍">介绍</a></li>
+    <li><a href="#编译和-go-运行时">编译和 Go 运行时</a></li>
+    <li><a href="#原始调度器">原始调度器</a></li>
+    <li><a href="#调度器增强">调度器增强</a>
+      <ol>
+        <li><a href="#方案一--引入本地运行队列">方案一:  引入本地运行队列</a></li>
+        <li><a href="#方案二-引入逻辑处理器">方案二: 引入逻辑处理器</a></li>
+        <li><a href="#gmp-模式">GMP 模式</a></li>
+      </ol>
+    </li>
+    <li><a href="#参考">参考</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+            <main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+    <header class="article-category">
+        
+            <a href="/categories/go/" >
+                Go
+            </a>
+        
+    </header>
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/go-%E8%B0%83%E5%BA%A6%E5%99%A8/">Go 调度器</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    
+    
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">May 20, 2025</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    6 minute read
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+
+</header>
+
+    <section class="article-content">
+    
+    
+    <h2 id="免责声明">免责声明</h2>
+<p>本博文主要关注在 <a class="link" href="https://en.wikipedia.org/wiki/ARM_architecture_family"  target="_blank" rel="noopener"
+    >ARM</a> 架构 <a class="link" href="https://en.wikipedia.org/wiki/Linux"  target="_blank" rel="noopener"
+    >Linux</a> 上运行的 <a class="link" href="https://tip.golang.org/doc/go1.24"  target="_blank" rel="noopener"
+    >Go 1.24</a> 编程语言。它可能不涵盖其他操作系统或硬件架构的平台特定细节。</p>
+<p>本文内容基于其他资料以及我个人对 Go 的理解，因此可能并不完全准确。欢迎在文末评论区指正或提出建议😄。</p>
+<h2 id="介绍">介绍</h2>
+<p>Golang 于 2009 年推出，作为一种用于构建并发应用程序的编程语言，其受欢迎程度稳步增长。它的设计目标是简单、高效且易于使用。</p>
+<p>Go 的并发模型围绕 goroutine 的概念构建，goroutine 是由 Go 运行时在用户空间管理的轻量级用户线程。Go 提供了诸如通道 (channel) 等用于同步的实用原语，帮助开发者轻松编写并发代码。它还采用了一些巧妙的技术来提高 I/O 密集型程序的效率。</p>
+<p>理解 Go 调度器对于 Go 程序员编写高效的并发程序至关重要。它还能帮助我们更好地排查性能问题或优化 Go 程序的性能。在本文中，我们将探讨 Go 调度器的发展历程，以及我们编写的 Go 代码在底层是如何运作的。</p>
+<h2 id="编译和-go-运行时">编译和 Go 运行时</h2>
+<p>本文包含大量源代码解析，因此最好先对 Go 代码的编译和执行方式有一定的了解。Go 程序的构建过程分为三个阶段：</p>
+<ul>
+<li>Go 源文件（ <code>*.go</code> ）被编译成汇编文件（ <code>*.s</code> ）</li>
+<li>然后将汇编文件（ <code>*.s</code> ）汇编成目标文件（ <code>*.o</code> ）</li>
+<li>目标文件（ <code>*.o</code> ）链接在一起，生成一个可执行的二进制文件</li>
+</ul>
+<p>要理解 Go 调度器，首先需要理解 Go 运行时。Go 运行时是这门编程语言的核心，它提供了调度、内存管理和数据结构等基本功能。它本质上就是一系列函数和数据结构的集合，正是这些函数和数据结构使 Go 程序能够正常运行。Go 运行时的实现位于 <a class="link" href="https://github.com/golang/go/tree/go1.24.0/src/runtime"  target="_blank" rel="noopener"
+    >runtime</a> 包中。Go 运行时是用 Go 代码和汇编代码混合编写的，其中汇编代码主要用于处理寄存器等底层操作。</p>
+<p><img src="http://img.golang.space/img-1769564763579.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="img"
+	
+	
+></p>
+<p>编译时，Go 编译器会将一些关键字和内置函数替换为 Go 运行时的函数调用。例如，用于创建新 goroutine 的 <code>go</code> 关键字会被替换为对 <a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/proc.go#L5014-L5030"  target="_blank" rel="noopener"
+    ><code>runtime.newproc</code></a> 的调用，或者用于分配新对象的 <code>new</code> 函数会被替换为对 <a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/malloc.go#L1710-L1715"  target="_blank" rel="noopener"
+    ><code>runtime.newobject</code></a> 的调用。</p>
+<p>你可能会惊讶地发现，Go 运行时中的某些函数根本没有 Go 实现。例如，像 <a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/stubs.go#L28-L31"  target="_blank" rel="noopener"
+    ><code>getg</code></a> 这样的函数会被 Go 编译器识别，并在编译过程中被替换为底层汇编代码。而像 <a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/stubs.go#L214-L214"  target="_blank" rel="noopener"
+    ><code>gogo</code></a> 这样的其他函数则是平台特定的，完全用汇编语言实现。Go 链接器的职责是将这些汇编实现与其 Go 声明连接起来。</p>
+<p>在某些情况下，一个函数在其包中似乎没有实现，但实际上它通过 <a class="link" href="https://pkg.go.dev/cmd/compile#hdr-Linkname_Directive"  target="_blank" rel="noopener"
+    ><code>//go:linkname</code></a> 编译器指令链接到了 Go 运行时中的定义。例如，常用的 <a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/time/sleep.go#L12-L14"  target="_blank" rel="noopener"
+    ><code>time.Sleep</code></a> 函数就链接到了其在 <a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/time.go#L297-L340"  target="_blank" rel="noopener"
+    ><code>runtime.timeSleep</code></a> 中的实际实现。</p>
+<h2 id="原始调度器">原始调度器</h2>
+<blockquote>
+<p>⚠️ Go 调度器并非一个独立的对象，而是一组用于辅助调度的函数集合。此外，它并不运行在专用线程上；相反，它与 goroutine 运行在相同的线程上。阅读本文后续内容后，这些概念将变得更加清晰。</p>
+</blockquote>
+<p>如果你曾经从事过并发编程，你可能对多线程模型有所了解。它规定了用户空间线程（Kotlin、Lua 中的协程或 Go 中的 goroutine）如何复用到单个或多个内核线程上。通常有三种模型：多对一 (N:1)、一对一 (1:1) 和多对多 (M:N)。</p>
+<p><img src="http://img.golang.space/img-1769567248984.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="img"
+	
+	
+></p>
+<p>Go 采用多对多（M:N）的线程模型，允许多个 goroutine 被复用（多路复用）到多个内核线程上。这种方法在一定程度上增加了复杂性，但能够充分利用多核系统的性能，并高效处理系统调用，从而克服了 N:1 模型和 1:1 模型各自存在的问题。由于内核并不知道 goroutine 的存在，它仅向用户空间应用程序提供线程作为并发单元，因此是由内核线程来运行调度逻辑、执行 goroutine 的代码，并代表 goroutine 发起系统调用。</p>
+<p>在早期，尤其是在 1.1 版本之前，Go 以一种较为简单的方式实现了 M:N 多线程模型。当时只有两种实体：goroutine（ <code>G</code> ）和内核线程（ <code>M</code> ，或<em>称机器</em> ）。所有可运行的 goroutine 都存储在一个全局运行队列中，并使用锁来防止竞态条件。调度器（运行在每个线程 <code>M</code> 上）负责从全局运行队列中选择一个 goroutine 并执行它。</p>
+<p><img src="http://img.golang.space/img-1769567426040.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="img"
+	
+	
+></p>
+<p>如今，Go 以其高效的并发模型广为人知。但早期的 Go 并非如此。Go 的核心贡献者之一 Dmitry Vyukov 在他著名的《可扩展的 Go 调度器设计》一文中指出了当时实现的多个问题。他提到：“总体而言，当时的调度器会阻碍用户在性能关键的场景中使用符合 Go 风格的细粒度并发。” 下面我来详细解释他的意思。</p>
+<p>首先，全局运行队列是性能瓶颈。当创建一个 goroutine 时，线程必须获取锁才能将其放入全局运行队列。同样，当线程想要从全局运行队列中取出 goroutine 时，也必须获取锁。您可能知道，加锁并非没有开销，它会带来锁竞争的开销。锁竞争会导致性能下降，尤其是在高并发场景下。</p>
+<p>其次，线程经常会将关联的 goroutine 移交给另一个线程。这会导致局部性差和过多的上下文切换开销。子 goroutine 通常需要与其父 goroutine 通信。因此，让子 goroutine 与其父 goroutine 运行在同一个线程上性能更高。</p>
+<p>第三，由于 Go 语言使用<a class="link" href="https://google.github.io/tcmalloc/design.html"  target="_blank" rel="noopener"
+    >线程缓存 Malloc</a> ，每个线程 <code>M</code> 都有一个线程局部缓存 <a class="link" href="https://nghiant3223.github.io/2025/06/03/memory_allocation_in_go.html#processors-memory-allocator-mcache"  target="_blank" rel="noopener"
+    ><code>mcache</code></a> ，用于内存分配或存放空闲内存。虽然 <a class="link" href="https://nghiant3223.github.io/2025/06/03/memory_allocation_in_go.html#processors-memory-allocator-mcache"  target="_blank" rel="noopener"
+    ><code>mcache</code></a> 仅供执行 Go 代码的 <code>M</code> 使用，但即使是阻塞在系统调用中的 <code>M</code> （这些线程根本不使用 <a class="link" href="https://nghiant3223.github.io/2025/06/03/memory_allocation_in_go.html#processors-memory-allocator-mcache"  target="_blank" rel="noopener"
+    ><code>mcache</code></a> 也会占用它。一个 <a class="link" href="https://nghiant3223.github.io/2025/06/03/memory_allocation_in_go.html#processors-memory-allocator-mcache"  target="_blank" rel="noopener"
+    ><code>mcache</code></a> 最多可以占用 2MB 的内存，并且只有在线程 <code>M</code> 被销毁时才会释放。由于执行 Go 代码的 <code>M</code> 与所有 <code>M</code> 的比例可能高达 1:100（过多的线程阻塞在系统调用中），这可能导致资源过度消耗和数据局部性差。</p>
+<h2 id="调度器增强">调度器增强</h2>
+<p>既然您已经了解了早期 Go 调度器的问题，让我们来看看一些改进提案，看看 Go 团队是如何解决这些问题的，从而使我们今天拥有一个高性能的调度器。</p>
+<h3 id="方案一--引入本地运行队列">方案一:  引入本地运行队列</h3>
+<p>每个线程 <code>M</code> 都配备一个本地运行队列，用于存储可运行的 goroutine。当线程 <code>M</code> 上正在运行的 goroutine <code>G</code> 使用 <code>go</code> 关键字生成一个新的 goroutine <code>G1</code> 时， <code>G1</code> 会被添加到 <code>M</code> 的本地运行队列中。如果本地队列已满，则 <code>G1</code> 会被放入全局运行队列。在选择要执行的 goroutine 时， <code>M</code> 会首先检查其本地运行队列，然后再查询全局运行队列。因此，本方案解决了上一节中描述的第一个和第二个问题。</p>
+<p><img src="http://img.golang.space/img-1769568770970.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="img"
+	
+	
+></p>
+<p>然而，它无法解决第三个问题。当许多线程 <code>M</code> 阻塞在系统调用中时，它们的 <a class="link" href="https://nghiant3223.github.io/2025/06/03/memory_allocation_in_go.html#processors-memory-allocator-mcache"  target="_blank" rel="noopener"
+    ><code>mcache</code></a> 会一直挂载，导致 Go 调度器本身内存占用过高，更不用说我们——Go 程序员——编写的程序的内存占用了。</p>
+<p>这还会引入另一个性能问题。为了避免阻塞线程 <code>M</code> 的本地运行队列（例如上图中的 <code>M1</code> 中的 goroutine 因饥饿而无法执行，调度器应该允许其他线程从该队列中 <em>“窃取</em> ”goroutine。然而，当阻塞线程数量庞大时，扫描所有线程以找到非空的运行队列会变得非常耗时。</p>
+<h3 id="方案二-引入逻辑处理器">方案二: 引入逻辑处理器</h3>
+<p>该方案在 <a class="link" href="https://docs.google.com/document/d/1TTj4T2JO42uD5ID9e89oa0sLKhJYD0Y_kqxDv3I3XMw"  target="_blank" rel="noopener"
+    >《可扩展的 Go 调度器设计》一文</a>中有所描述，其中引入了<em>逻辑</em>处理器 <code>P</code> 的概念。所谓 <em>“逻辑”</em> ，是指 <code>P</code> 表面上执行 goroutine 代码，但实际上，执行代码的是与 <code>P</code> 关联的线程 <code>M</code> 线程的本地运行队列和 <a class="link" href="https://nghiant3223.github.io/2025/06/03/memory_allocation_in_go.html#processors-memory-allocator-mcache"  target="_blank" rel="noopener"
+    ><code>mcache</code></a> 现在都归 <code>P</code> 所有。</p>
+<p>该方案有效地解决了上一节中遗留的问题。由于 <a class="link" href="https://nghiant3223.github.io/2025/06/03/memory_allocation_in_go.html#processors-memory-allocator-mcache"  target="_blank" rel="noopener"
+    ><code>mcache</code></a> 现在附加到 <code>P</code> 而不是 <code>M</code> ，并且当 <code>G</code> 进行系统调用时 <code>M</code> 会从 <code>P</code> 分离，因此即使有大量 <code>M</code> 进行系统调用，内存消耗也能保持较低水平。此外，由于 <code>P</code> 的数量有限，这种<em>内存窃取</em>机制也十分高效。</p>
+<p><img src="http://img.golang.space/img-1769569563522.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="img"
+	
+	
+></p>
+<p>随着逻辑处理器的引入，多线程模型仍然是 M:N。但在 Go 语言中，它被专门称为 GMP 模型，因为有三种实体：goroutine、线程和处理器。</p>
+<h3 id="gmp-模式">GMP 模式</h3>
+<p>当 <code>go</code> 关键字后面跟着函数调用时，会创建一个新的 <a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/runtime2.go#L396-L508"  target="_blank" rel="noopener"
+    ><code>g</code></a> 实例，称为 <code>G</code> <code>G</code> 是一个代表 goroutine 的对象，包含诸如执行状态、堆栈以及指向关联函数的程序计数器等元数据。执行 goroutine 就相当于运行 <code>G</code> 引用的函数。</p>
+<p>当一个 goroutine 执行完毕后，它不会被销毁；相反，它会变成 <em>“死亡”状态</em> ，并被放入当前处理器 <code>P</code> 的空闲列表中。如果 <code>P</code> 的空闲列表已满，则该死亡的 goroutine 会被移至全局空闲列表。当创建一个新的 goroutine 时，调度器会首先尝试从空闲列表中重用一个，然后再从头开始分配一个新的。这种循环机制使得创建 goroutine 的开销远低于创建新线程。</p>
+<p>下图和表格描述了 GMP 模型中 goroutine 的状态机。为简化起见，省略了一些状态和转换。触发状态转换的动作将在后续文章中进行描述。</p>
+<div class="table-wrapper"><table>
+<thead>
+<tr>
+<th style="text-align:center">State 状态</th>
+<th>Description 描述</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center"><a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/runtime2.go#L36-L39"  target="_blank" rel="noopener"
+    >Idle</a></td>
+<td>刚刚创建，尚未初始化</td>
+</tr>
+<tr>
+<td style="text-align:center"><a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/runtime2.go#L40-L42"  target="_blank" rel="noopener"
+    >Runnable</a></td>
+<td>当前已进入运行队列，即将执行代码</td>
+</tr>
+<tr>
+<td style="text-align:center"><a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/runtime2.go#L44-L47"  target="_blank" rel="noopener"
+    >Running</a></td>
+<td>不在运行队列中，正在执行代码</td>
+</tr>
+<tr>
+<td style="text-align:center"><a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/runtime2.go#L49-L52"  target="_blank" rel="noopener"
+    >Syscall</a></td>
+<td>执行系统调用，而不是执行代码</td>
+</tr>
+<tr>
+<td style="text-align:center"><a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/runtime2.go#L54-L62"  target="_blank" rel="noopener"
+    >Waiting</a></td>
+<td>未执行代码，且不在运行队列中，例如正在等待通道</td>
+</tr>
+<tr>
+<td style="text-align:center"><a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/runtime2.go#L68-L74"  target="_blank" rel="noopener"
+    >Dead</a></td>
+<td>当前处于空闲列表、刚刚退出或刚刚初始化</td>
+</tr>
+</tbody>
+</table></div>
+<p><img src="http://img.golang.space/img-1769569806061.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="img"
+	
+	
+></p>
+<p><strong>线程 M</strong></p>
+<p>所有 Go 代码——无论是用户代码、调度器还是垃圾回收器——都运行在由操作系统内核管理的线程上。为了使 Go 调度器能够在 GMP 模型下良好地运行线程，引入了表示线程的 <a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/runtime2.go#L528-L630"  target="_blank" rel="noopener"
+    ><code>m</code></a> 结构体， <a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/runtime2.go#L528-L630"  target="_blank" rel="noopener"
+    ><code>m</code></a> 的一个实例称为 <code>M</code></p>
+<p>M 会持有以下引用：当前的 goroutine G；如果 M 正在执行 Go 代码，则持有当前的处理器 P；如果 M 正在执行系统调用，则持有之前的处理器 P；如果 M 即将被创建，则持有下一个处理器 P。</p>
+<p>每个 <code>M</code> 还持有一个名为 <code>g0</code> 的特殊 goroutine 的引用，该 goroutine 运行在系统栈上——系统栈是由内核提供给线程的栈。与系统栈不同，普通 goroutine 的栈是动态调整大小的；它会根据需要增长和收缩。然而，增长或收缩栈的操作本身必须在有效的栈上运行。为此，系统栈被使用。当运行在 <code>M</code> 线程上的调度器需要执行栈管理时，它会从 goroutine 的栈切换到系统栈。除了栈的增长和收缩之外，诸如垃圾回收和 <a class="link" href="https://nghiant3223.github.io/2025/04/15/go-scheduler.html#goroutine-parking-gopark"  target="_blank" rel="noopener"
+    >goroutine 的停用之</a>类的操作也需要在系统栈上执行。每当线程执行此类操作时，它都会切换到系统栈，并在 <code>g0</code> 的上下文中执行该操作。</p>
+<p>与 goroutine 不同，线程在 <code>M</code> 创建后立即运行调度器代码，因此 <code>M</code> 的初始状态为<em>运行中</em> 。当 <code>M</code> 创建或被唤醒时，调度器会保证始终存在一个<em>空闲</em>处理器 <code>P</code> ，以便将其与 <code>M</code> 关联以运行 Go 代码。如果 <code>M</code> 正在执行系统调用，它将与 <code>P</code> 分离（将在 <a class="link" href="https://nghiant3223.github.io/2025/04/15/go-scheduler.html#handling-system-calls"  target="_blank" rel="noopener"
+    >“处理系统调用”</a> 部分中描述），并且 <code>P</code> 可能被另一个线程 <code>M1</code> 获取以继续其工作。如果 <code>M</code> 无法从其本地运行队列、全局运行队列或 <code>netpoll</code> （将在 <a class="link" href="https://nghiant3223.github.io/2025/04/15/go-scheduler.html#how-netpoll-works"  target="_blank" rel="noopener"
+    >“netpoll 工作原理 </a>”部分中描述）中找到可运行的 goroutine，它将持续自旋以再次从其他处理器 <code>P</code> 和全局运行队列中窃取 goroutine。请注意，并非所有 <code>M</code> 都会进入自旋状态，只有当自旋线程数少于繁忙处理器数的一半时才会进入自旋状态。当 <code>M</code> 没有事可做时，它不会销毁，而是进入睡眠状态，等待稍后被另一个处理器 <code>P1</code> 获取（在 <a class="link" href="https://nghiant3223.github.io/2025/04/15/go-scheduler.html#finding-a-runnable-goroutine"  target="_blank" rel="noopener"
+    >“寻找可运行的 Goroutine</a> ”中描述）。</p>
+<p>下图和表格描述了 GMP 模型中线程的状态机。 为简化起见，省略了一些状态和转换。 <em>自旋</em>是<em>空闲状态</em>的一种子状态，在这种状态下，线程会消耗 CPU 周期来执行占用 goroutine 的 Go 运行时代码。触发状态转换的操作将在后续文章中进行描述。</p>
+<div class="table-wrapper"><table>
+<thead>
+<tr>
+<th style="text-align:center">State 状态</th>
+<th>Description 描述</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center">Running</td>
+<td>执行 Go 运行时代码或用户 Go 代码</td>
+</tr>
+<tr>
+<td style="text-align:center">Syscall</td>
+<td>当前正在执行（阻塞）系统调用</td>
+</tr>
+<tr>
+<td style="text-align:center">Spinning</td>
+<td>从其他处理器窃取 goroutine</td>
+</tr>
+<tr>
+<td style="text-align:center">Sleep</td>
+<td>睡眠状态，不占用 CPU 周期</td>
+</tr>
+</tbody>
+</table></div>
+<p><img src="http://img.golang.space/img-1769570601286.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="img"
+	
+	
+></p>
+<p><strong>处理器 P</strong></p>
+<p><a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/runtime2.go#L632-L757"  target="_blank" rel="noopener"
+    ><code>p</code></a> 结构体在概念上代表一个用于执行 goroutine <code>P</code> <a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/runtime2.go#L632-L757"  target="_blank" rel="noopener"
+    ><code>p</code></a> 它们在程序的引导阶段创建。虽然创建的线程数可能很大（在 Go 1.24 中可达 <a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/proc.go#L827-L827"  target="_blank" rel="noopener"
+    >10000</a> ），但处理器的数量通常很少，由 <a class="link" href="https://pkg.go.dev/runtime#GOMAXPROCS"  target="_blank" rel="noopener"
+    ><code>GOMAXPROCS</code></a> 决定。无论程序处于何种状态，处理器的数量都恰好为 <a class="link" href="https://pkg.go.dev/runtime#GOMAXPROCS"  target="_blank" rel="noopener"
+    ><code>GOMAXPROCS</code></a> 。</p>
+<p>为了最大限度地减少全局运行队列上的锁争用，Go 运行时中的每个处理器 <code>P</code> 都维护一个本地运行队列。本地运行队列并非仅仅是一个队列，而是由两个组件构成： <a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/runtime2.go#L655-L667"  target="_blank" rel="noopener"
+    ><code>runnext</code></a> ，用于存放单个优先级不同的 goroutine；以及 <a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/runtime2.go#L654-L654"  target="_blank" rel="noopener"
+    ><code>runq</code></a> ，一个 goroutine 队列。这两个组件都为处理器 <code>P</code> 提供可运行的 goroutine，但 <a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/runtime2.go#L655-L667"  target="_blank" rel="noopener"
+    ><code>runnext</code></a> 存在本身就是为了优化性能。Go 调度器允许处理器 <code>P</code> 从其他处理器 <code>P1</code> 的本地运行队列中“窃取”goroutine。 只有当从 P1 的 <a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/runtime2.go#L654-L654"  target="_blank" rel="noopener"
+    ><code>runq</code></a> 中窃取 goroutine 的前三次尝试均失败后，才会查询 <code>P1</code> 的 <a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/runtime2.go#L655-L667"  target="_blank" rel="noopener"
+    ><code>runnext</code></a> 。因此，当 <code>P</code> 想要执行一个 goroutine 时，如果它首先从自己的 <a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/runtime2.go#L655-L667"  target="_blank" rel="noopener"
+    ><code>runnext</code></a> 中查找可运行的 goroutine，则可以减少锁争用。</p>
+<p><code>P</code> 的 <a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/runtime2.go#L654-L654"  target="_blank" rel="noopener"
+    ><code>runq</code></a> 组件是一个基于数组的、固定大小的循环队列。由于采用数组结构并固定大小（256 个槽位），它可以更好地保证缓存局部性并降低内存分配开销。固定大小对于 <code>P</code> 的本地运行队列来说是安全的，因为我们还有全局运行队列作为备份。循环结构允许高效地添加和删除 goroutine，而无需移动元素。</p>
+<p><a class="link" href="https://nghiant3223.github.io/2025/06/03/memory_allocation_in_go.html#processors-memory-allocator-mcache"  target="_blank" rel="noopener"
+    ><code>mcache</code></a> 在<a class="link" href="https://google.github.io/tcmalloc/design.html"  target="_blank" rel="noopener"
+    >线程缓存 Malloc</a> 模型中充当前端，并由 <code>P</code> 用来分配微型和小型对象。 另一方面， <a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/mpagecache.go#L14-L22"  target="_blank" rel="noopener"
+    ><code>pageCache</code></a> 使内存分配器能够在不获取<a class="link" href="https://www.ibm.com/docs/en/sdk-java-technology/8?topic=management-heap-allocation#the-allocator"  target="_blank" rel="noopener"
+    >堆锁的</a>情况下获取内存页，从而提高高并发下的性能。</p>
+<p>为了使 Go 程序能够很好地处理<a class="link" href="https://pkg.go.dev/time#Sleep"  target="_blank" rel="noopener"
+    >睡眠 </a>、<a class="link" href="https://pkg.go.dev/time#After"  target="_blank" rel="noopener"
+    > 超时</a>或<a class="link" href="https://pkg.go.dev/time#Tick"  target="_blank" rel="noopener"
+    >间隔</a>操作， <code>P</code> 还管理着由<a class="link" href="https://en.wikipedia.org/wiki/Heap_%28data_structure%29"  target="_blank" rel="noopener"
+    >最小堆</a>数据结构实现的定时器，其中最近的定时器位于堆顶。在查找可运行的 goroutine 时， <code>P</code> 还会检查是否存在已过期的定时器。如果存在， <code>P</code> 会将带有相应定时器的 goroutine 添加到其本地运行队列中，从而给该 goroutine 运行的机会。</p>
+<p>下图和表格描述了 GMP 模型中处理器的状态机。为简化起见，省略了一些状态和转换。触发状态转换的操作将在后续文章中进行描述。</p>
+<div class="table-wrapper"><table>
+<thead>
+<tr>
+<th style="text-align:center">State 状态</th>
+<th>Description 描述</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center"><a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/runtime2.go#L113-L120"  target="_blank" rel="noopener"
+    >Idle</a></td>
+<td>未执行 Go 运行时代码或用户 Go 代码</td>
+</tr>
+<tr>
+<td style="text-align:center"><a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/runtime2.go#L122-L129"  target="_blank" rel="noopener"
+    >Running</a></td>
+<td>与正在执行用户 Go 代码的 <code>M</code> 相关联</td>
+</tr>
+<tr>
+<td style="text-align:center"><a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/runtime2.go#L131-L141"  target="_blank" rel="noopener"
+    >Syscall</a></td>
+<td>与正在执行系统调用的 <code>M</code> 相关联</td>
+</tr>
+<tr>
+<td style="text-align:center"><a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/runtime2.go#L143-L151"  target="_blank" rel="noopener"
+    >GCStop</a></td>
+<td>与一个因垃圾收集而导致世界停摆的 <code>M</code> 有关</td>
+</tr>
+<tr>
+<td style="text-align:center"><a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/runtime2.go#L153-L157"  target="_blank" rel="noopener"
+    >Dead</a></td>
+<td>不再使用，等待 <a class="link" href="https://pkg.go.dev/runtime#GOMAXPROCS"  target="_blank" rel="noopener"
+    >GOMAXPROCS</a> 增长时重新使用。</td>
+</tr>
+</tbody>
+</table></div>
+<p><img src="http://img.golang.space/img-1769611601457.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="img"
+	
+	
+></p>
+<p>在 Go 程序执行初期，有 <a class="link" href="https://pkg.go.dev/runtime#GOMAXPROCS"  target="_blank" rel="noopener"
+    ><code>GOMAXPROCS</code></a> 个处理器 <code>P</code> 处于<em>空闲</em>状态。当线程 <code>M</code> 获取一个处理器来运行用户 Go 代码时， <code>P</code> 会转换到<em>运行</em>状态。如果当前 goroutine <code>G</code> 发起系统调用， <code>P</code> 会从 <code>M</code> 分离并进入<em>系统调用</em>状态。在系统调用期间，如果 <code>P</code> 被 <code>sysmon</code> 抢占（参见<a class="link" href="https://nghiant3223.github.io/2025/04/15/go-scheduler.html#non-cooperative-preemption"  target="_blank" rel="noopener"
+    >非合作抢占 </a>），它首先转换到<em>空闲状态</em> ，然后被移交给另一个线程（ <code>M1</code> ）并进入<em>运行</em>状态。否则，系统调用完成后， <code>P</code> 会重新附加到之前的 <code>M</code> 并恢复<em>运行</em>状态（参见<a class="link" href="https://nghiant3223.github.io/2025/04/15/go-scheduler.html#handling-system-calls"  target="_blank" rel="noopener"
+    >处理系统调用 </a>）。当发生 stop-the-world 垃圾回收时， <code>P</code> 会转换到 <em>gcStop</em> 状态，并在 start-the-world 恢复后返回到之前的状态。如果在运行时 <a class="link" href="https://pkg.go.dev/runtime#GOMAXPROCS"  target="_blank" rel="noopener"
+    ><code>GOMAXPROCS</code></a> 减少，冗余处理器会转换到 <em>dead</em> 状态，并在 <a class="link" href="https://pkg.go.dev/runtime#GOMAXPROCS"  target="_blank" rel="noopener"
+    ><code>GOMAXPROCS</code></a> 稍后增加时被重用。</p>
+<p><strong>程序引导</strong></p>
+<p>要启用 Go 调度器，必须在程序启动期间对其进行初始化。此初始化过程通过汇编语言中的 <a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/asm_amd64.s#L159-L159"  target="_blank" rel="noopener"
+    ><code>runtime·rt0_go</code></a> 函数完成。在此阶段，将创建线程 <a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/proc.go#L117-L117"  target="_blank" rel="noopener"
+    ><code>M0</code></a> （代表主线程）和 goroutine <a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/proc.go#L118-L118"  target="_blank" rel="noopener"
+    ><code>G0</code></a> （ <a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/proc.go#L117-L117"  target="_blank" rel="noopener"
+    ><code>M0</code></a> 的系统栈 goroutine）。 还为主线程设置了<a class="link" href="https://en.wikipedia.org/wiki/Thread-local_storage"  target="_blank" rel="noopener"
+    >线程本地存储 </a>（TLS），并将 <a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/proc.go#L118-L118"  target="_blank" rel="noopener"
+    ><code>G0</code></a> 的地址存储在此 TLS 中，以便稍后通过 <a class="link" href="https://nghiant3223.github.io/2025/04/15/go-scheduler.html#getting-goroutine-getg"  target="_blank" rel="noopener"
+    ><code>getg</code></a> 检索它。</p>
+<p>引导程序随后调用汇编函数 <a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/asm_amd64.s#L349"  target="_blank" rel="noopener"
+    ><code>runtime·schedinit</code></a> ，其 Go 实现位于 <a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/proc.go#L790-L898"  target="_blank" rel="noopener"
+    ><code>runtime.schedinit</code></a> 。该函数执行各种初始化操作，其中最重要的是调用 <a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/proc.go#L5719-L5868"  target="_blank" rel="noopener"
+    ><code>procresize</code></a> ，将 <a class="link" href="https://pkg.go.dev/runtime#GOMAXPROCS"  target="_blank" rel="noopener"
+    ><code>GOMAXPROCS</code></a> 个逻辑处理器 <code>P</code> 设置为<em>空闲</em>状态。然后，主线程 <a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/proc.go#L117-L117"  target="_blank" rel="noopener"
+    ><code>M0</code></a> 与第一个处理器关联，其状态从<em>空闲</em>转换为<em>运行状态</em>以执行 goroutine。</p>
+<p>之后，创建主 goroutine 来运行 <a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/proc.go#L146-L148"  target="_blank" rel="noopener"
+    ><code>runtime.main</code></a> 函数，该函数作为 Go 运行时入口点。在 <a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/proc.go#L146-L148"  target="_blank" rel="noopener"
+    ><code>runtime.main</code></a> 函数内部，会创建一个专用线程来启动 <code>sysmon</code> ，这将在 <a class="link" href="https://nghiant3223.github.io/2025/04/15/go-scheduler.html#non-cooperative-preemption"  target="_blank" rel="noopener"
+    >“非合作抢占”</a> 部分进行描述。请注意， <a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/proc.go#L146-L148"  target="_blank" rel="noopener"
+    ><code>runtime.main</code></a> 与我们编写的 <code>main</code> 函数不同；后者在运行时中显示为 <a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/proc.go#L134-L135"  target="_blank" rel="noopener"
+    ><code>main_main</code></a> 。</p>
+<p>主线程随后调用 <a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/proc.go#L1769-L1769"  target="_blank" rel="noopener"
+    ><code>mstart</code></a> 在内存 <a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/proc.go#L117-L117"  target="_blank" rel="noopener"
+    ><code>M0</code></a> 上开始执行，启动<a class="link" href="https://nghiant3223.github.io/2025/04/15/go-scheduler.html#schedule-loop"  target="_blank" rel="noopener"
+    >调度循环</a>以获取并执行主 goroutine。在 <a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/proc.go#L146-L148"  target="_blank" rel="noopener"
+    ><code>runtime.main</code></a> 函数中，经过额外的初始化步骤后，控制权最终交给用户定义的 <a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/proc.go#L134-L135"  target="_blank" rel="noopener"
+    ><code>main_main</code></a> 函数，程序开始执行用户编写的 Go 代码。</p>
+<p>值得注意的是，主线程 <a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/proc.go#L117-L117"  target="_blank" rel="noopener"
+    ><code>M0</code></a> 不仅负责运行主 goroutine，还负责执行其他 goroutine。每当主 goroutine 被阻塞时——例如等待系统调用或等待通道时——主线程都会寻找另一个可运行的 goroutine 并执行它。</p>
+<p>综上所述，程序启动时，有一个 goroutine <code>G</code> 执行 <code>main</code> 函数；两个线程——一个是主线程 <code>M0</code> ，另一个用于启动 <code>sysmon</code> ；一个处理器 <code>P0</code> 处于<em>运行</em>状态，以及 <code>GOMAXPROCS−1</code> 处理器处于<em>空闲</em>状态。主线程 <code>M0</code> 最初与处理器 <code>P0</code> 关联，以运行主 goroutine <code>G</code></p>
+<p>下图展示了程序启动时的状态。图中假设 <a class="link" href="https://pkg.go.dev/runtime#GOMAXPROCS"  target="_blank" rel="noopener"
+    ><code>GOMAXPROCS</code></a> 设置为 2，并且 <code>main</code> 函数刚刚开始执行。处理器 <code>P0</code> 正在执行主 goroutine，因此处于<em>运行</em>状态。处理器 <code>P1</code> 没有执行任何 goroutine，处于<em>空闲</em>状态。主线程 <code>M0</code> 与处理器 <code>P0</code> 关联以执行主 goroutine 的同时，创建了另一个线程 <code>M1</code> 来运行 <code>sysmon</code> 。</p>
+<p><img src="http://img.golang.space/img-1769611886747.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="img"
+	
+	
+></p>
+<p>值得一提的是，在启动阶段，运行时还会生成一些与内存管理相关的 goroutine，例如标记、清除和清理。不过，本文暂不讨论这些，我们将在后续文章中进行更详细的探讨。</p>
+<p><strong>创建 Goroutine</strong></p>
+<p>Go 提供了一个简单的 API 来启动并发执行单元： <code>go func() { ... } ()</code> <code>go</code> 实际上，Go 运行时在底层做了很多复杂的工作来实现这一点。<code>go</code> 关键字只是 Go 运行时 <a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/proc.go#L5014-L5030"  target="_blank" rel="noopener"
+    ><code>newproc</code></a> 函数的语法糖，该函数负责调度一个新的 goroutine。这个函数主要执行三件事：初始化 goroutine，将其放入调用 goroutine 的处理器 <code>P</code> 的运行队列中，以及唤醒另一个处理器 <code>P1</code> 。</p>
+<p><strong>初始化 Goroutine</strong></p>
+<p>调用 <a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/proc.go#L5014-L5030"  target="_blank" rel="noopener"
+    ><code>newproc</code></a> 时，仅当没有空闲的 goroutine 可用时才会创建一个新的 goroutine <code>G</code> 在执行完毕返回后会变为空闲状态。新创建的 goroutine <code>G</code> 会被初始化为一个 2KB 的栈，该栈大小由 Go 运行时中的 <a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/stack.go#L75-L75"  target="_blank" rel="noopener"
+    >stackMin</a> 常量定义。此外， <a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/stubs.go#L281-L291"  target="_blank" rel="noopener"
+    ><code>goexit</code></a> （负责清理逻辑和调度逻辑）会被压入 <code>G</code> 的调用栈，以确保它在 <code>G</code> 返回时执行。初始化完成后， <code>G</code> 会从<em>死</em>状态转换为<em>可运行</em>状态，表明它已准备好被调度执行。</p>
+<p><strong>将 Goroutine 放入队列</strong></p>
+<p>如前所述，每个处理器 <code>P</code> 都有一个由两部分组成的运行队列： <a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/runtime2.go#L655-L667"  target="_blank" rel="noopener"
+    ><code>runnext</code></a> 和 <a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/runtime2.go#L654-L654"  target="_blank" rel="noopener"
+    ><code>runq</code></a> 。当一个新的 goroutine 创建时，它会被放入 <a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/runtime2.go#L655-L667"  target="_blank" rel="noopener"
+    ><code>runnext</code></a> 中。如果 <a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/runtime2.go#L655-L667"  target="_blank" rel="noopener"
+    ><code>runnext</code></a> 已经存在 goroutine <code>G1</code> ，调度器会尝试将 <code>G1</code> 移至 <a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/runtime2.go#L654-L654"  target="_blank" rel="noopener"
+    ><code>runq</code></a> （前提是 <a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/runtime2.go#L654-L654"  target="_blank" rel="noopener"
+    ><code>runq</code></a> 未满），并将 <code>G</code> 放回 <a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/runtime2.go#L655-L667"  target="_blank" rel="noopener"
+    ><code>runnext</code></a> 。如果 <a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/runtime2.go#L654-L654"  target="_blank" rel="noopener"
+    ><code>runq</code></a> 已满，则 <code>G1</code> 以及 <a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/runtime2.go#L654-L654"  target="_blank" rel="noopener"
+    ><code>runq</code></a> 中一半的 goroutine 会被移至全局运行队列，以减轻处理器 <code>P</code> 的工作负载。</p>
+<p><strong>唤醒处理器</strong></p>
+<p>当创建一个新的 goroutine 时，为了最大化程序并发性，运行该 goroutine 的线程会尝试通过 <a class="link" href="https://man7.org/linux/man-pages/man2/futex.2.html"  target="_blank" rel="noopener"
+    ><code>futex</code></a> 系统调用唤醒另一个处理器 <code>P</code> 为此，它首先检查是否有空闲的处理器 P。如果有空闲的处理器 <code>P</code> 可用，则会创建一个新线程，或者唤醒一个现有线程进入<a class="link" href="https://nghiant3223.github.io/2025/04/15/go-scheduler.html#schedule-loop"  target="_blank" rel="noopener"
+    >调度循环 </a>，并在循环中寻找可执行的 goroutine。创建或重用线程的逻辑在 <a class="link" href="https://nghiant3223.github.io/2025/04/15/go-scheduler.html#start-thread-startm"  target="_blank" rel="noopener"
+    >“启动线程”</a> 部分中进行了描述。</p>
+<p>如前所述， <a class="link" href="https://pkg.go.dev/runtime#GOMAXPROCS"  target="_blank" rel="noopener"
+    ><code>GOMAXPROCS</code></a> （即活动处理器数量 <code>P</code> 决定了可以同时运行的 goroutine 数量。如果所有处理器都处于忙碌状态，并且不断生成新的 goroutine，则既不会唤醒现有线程，也不会创建新线程。</p>
+<p><strong>总结</strong></p>
+<p>下图展示了 goroutine 的创建过程。为简化起见，图中假设 <a class="link" href="https://pkg.go.dev/runtime#GOMAXPROCS"  target="_blank" rel="noopener"
+    ><code>GOMAXPROCS</code></a> 设置为 2，处理器 <code>P1</code> 尚未进入<a class="link" href="https://nghiant3223.github.io/2025/04/15/go-scheduler.html#schedule-loop"  target="_blank" rel="noopener"
+    >调度循环 </a>，且 <code>main</code> 函数除了不断创建新的 goroutine 之外不做任何其他操作。由于 goroutine 不执行系统调用（详见 <a class="link" href="https://nghiant3223.github.io/2025/04/15/go-scheduler.html#handling-system-calls"  target="_blank" rel="noopener"
+    >“处理系统调用”</a> 部分），因此会创建一个额外的线程 <code>M2</code> 与处理器 <code>P1</code> 关联。</p>
+<p><img src="http://img.golang.space/img-1769612199196.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="img"
+	
+	
+></p>
+<p><strong>调度循环</strong></p>
+<p>Go 运行时中的 <a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/proc.go#L3986-L4068"  target="_blank" rel="noopener"
+    ><code>schedule</code></a> 函数负责查找和执行可运行的 goroutine。它会在各种情况下被调用：创建新线程时、调用 <a class="link" href="https://pkg.go.dev/runtime#Gosched"  target="_blank" rel="noopener"
+    ><code>Gosched</code></a> 时、goroutine 被暂停或抢占时，或者 goroutine 完成系统调用并返回后。</p>
+<p>选择可运行的 goroutine 的过程比较复杂，将在 <a class="link" href="https://nghiant3223.github.io/2025/04/15/go-scheduler.html#finding-a-runnable-goroutine"  target="_blank" rel="noopener"
+    >“查找可运行的 goroutine”</a> 一节中详细介绍。一旦 goroutine 被选中，它的状态就会从<em>可运行</em>状态转变为<em>运行</em>状态，表明它已准备好运行。此时，内核线程会调用 <a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/stubs.go#L214-L214"  target="_blank" rel="noopener"
+    ><code>gogo</code></a> 函数来启动 goroutine 的执行。</p>
+<p>但为什么称之为<em>循环</em>呢？正如 <a class="link" href="https://nghiant3223.github.io/2025/04/15/go-scheduler.html#initializing-goroutine"  target="_blank" rel="noopener"
+    >“初始化 Goroutine”</a> 一节所述，当一个 goroutine 执行完毕时，会调用 <a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/stubs.go#L281-L291"  target="_blank" rel="noopener"
+    ><code>goexit</code></a> 函数。该函数最终会调用 <a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/proc.go#L4307-L4310"  target="_blank" rel="noopener"
+    ><code>goexit0</code></a> ，后者负责清理终止的 goroutine 并重新进入 <a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/proc.go#L3986-L4068"  target="_blank" rel="noopener"
+    ><code>schedule</code></a> 函数——从而再次形成 <a class="link" href="https://nghiant3223.github.io/2025/04/15/go-scheduler.html#schedule-loop"  target="_blank" rel="noopener"
+    >schedule 循环 </a>。</p>
+<p>下图展示了 Go 运行时中的调度循环，其中粉色代码块是用户编写的 Go 代码， 黄色代码块是 Go 运行时代码。虽然以下内容看似显而易见，但请注意，调度循环是由线程执行的。这就是为什么它会在线程初始化（ 蓝色代码块）之后执行的原因。</p>
+<p><img src="http://img.golang.space/img-1769612399600.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20260128225959394"
+	
+	
+></p>
+<p>但如果主线程陷入调度循环，进程如何退出呢？只需查看 Go 运行时中的 <a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/proc.go#L307-L307"  target="_blank" rel="noopener"
+    ><code>main</code></a> 函数，它由 main goroutine 执行。main_main <a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/proc.go#L134-L135"  target="_blank" rel="noopener"
+    ><code>main_main</code></a> Go 程序员编写的 <code>main</code> 函数的别名，返回后，会调用 <a class="link" href="https://man7.org/linux/man-pages/man3/exit.3.html"  target="_blank" rel="noopener"
+    ><code>exit</code></a> 系统调用来终止进程。这就是进程退出的方式，也是 main goroutine 不会等待由 <code>go</code> 关键字创建的 goroutine 的原因。</p>
+<p><strong>寻找可运行的 Goroutine</strong></p>
+<p>线程 <code>M</code> 的职责是找到合适的可运行 goroutine，以最大程度地减少 goroutine 饥饿现象。这一逻辑在 <a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/proc.go#L3267-L3646"  target="_blank" rel="noopener"
+    ><code>findRunnable</code></a> 函数中实现，该函数由<a class="link" href="https://nghiant3223.github.io/2025/04/15/go-scheduler.html#schedule-loop"  target="_blank" rel="noopener"
+    >调度循环</a>调用。</p>
+<p>线程 <code>M</code> 按以下顺序查找可运行的 goroutine，如果找到则停止链式调用：</p>
+<ol>
+<li>检查<a class="link" href="https://go.dev/blog/execution-traces-2024#trace-reader-api"  target="_blank" rel="noopener"
+    >跟踪读取器 </a>goroutine 的可用性（用于<a class="link" href="https://nghiant3223.github.io/2025/04/15/go-scheduler.html#non-cooperative-preemption"  target="_blank" rel="noopener"
+    >非合作抢占</a>部分）。</li>
+<li>检查垃圾回收工作程序 goroutine 的可用性（详见<a class="link" href="https://nghiant3223.github.io/2025/04/15/go-scheduler.html#garbage-collector"  target="_blank" rel="noopener"
+    >垃圾回收器</a>部分）。</li>
+<li>1/61 次，检查全局运行队列。</li>
+<li>检查关联处理器 <code>P</code> 的本地运行队列，如果 <code>M</code> 正在运行。</li>
+<li>再次检查全局运行队列。</li>
+<li>检查 netpoll 是否有 I/O 就绪的 goroutine（详见 <a class="link" href="https://nghiant3223.github.io/2025/04/15/go-scheduler.html#how-netpoll-works"  target="_blank" rel="noopener"
+    >netpoll 工作原理</a>部分）。</li>
+<li>从其他处理器 <code>P1</code> 的本地运行队列中窃取资源。</li>
+<li>再次检查垃圾回收工作程序 goroutine 的可用性。</li>
+<li>如果 <code>M</code> 正在运行，请再次检查全局运行队列</li>
+</ol>
+<p>步骤 1、2 和 8 仅供 Go 运行时内部使用。在步骤 1 中，使用跟踪读取器来跟踪程序的执行情况。稍后您将在 <a class="link" href="https://nghiant3223.github.io/2025/04/15/go-scheduler.html#goroutine-preemption"  target="_blank" rel="noopener"
+    >“Goroutine 抢占”</a> 部分看到它的用法。同时，步骤 2 和 8 允许垃圾回收器与常规 goroutine 并发运行。虽然这些步骤不会对“用户可见”的进度产生影响，但它们对于 Go 运行时的正常运行至关重要。</p>
+<p>步骤 3、5 和 9 并非只获取一个 goroutine，而是尝试获取一批 goroutine 以提高效率。批处理大小计算为 <code>(global_queue_size/number_of_processors)+1</code> ，但受到几个因素的限制：它不会超过指定的最大参数，也不会超过 P 本地队列容量的一半。确定要获取的 goroutine 数量后，它会弹出一个 goroutine 直接返回（该 goroutine 将立即运行），并将其余的 goroutine 放入 P 的本地运行队列中。这种批处理方法有助于在处理器之间进行负载均衡，并减少对全局队列锁的争用，因为处理器不需要频繁访问全局队列。</p>
+<p>步骤 4 稍微复杂一些，因为 <code>P</code> 的本地运行队列包含两部分： <code>runnext</code> 和 <code>runq</code> 。如果 <code>runnext</code> 不为空，则返回 <code>runnext</code> 中的 goroutine。否则，它会检查 <code>runq</code> 是否有可运行的 goroutine 并将其出队。步骤 6 将在 <a class="link" href="https://nghiant3223.github.io/2025/04/15/go-scheduler.html#how-netpoll-works"  target="_blank" rel="noopener"
+    >“netpoll 工作原理”</a> 部分详细描述。</p>
+<p>步骤 7 是整个过程中最复杂的部分。它最多会尝试四次从另一个处理器（称为 <code>P1</code> 窃取工作。在前三次尝试中，它只尝试从 <code>P1</code> 的 <code>runq</code> 中窃取 goroutine。如果成功， <code>P1</code> <code>runq</code> 中一半的 goroutine 会被转移到当前处理器 <code>P</code> 的 <code>runq</code> 中。在最后一次尝试中，它首先尝试从 <code>P1</code> 的 <code>runnext</code> 槽（如果可用）中窃取工作，如果仍然无法从中窃取，则回退到 <code>P1</code> 的 <code>runq</code> 。</p>
+<p>请注意， <a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/proc.go#L3267-L3646"  target="_blank" rel="noopener"
+    ><code>findRunnable</code></a> 不仅能找到可运行的 goroutine，还能唤醒在步骤 1 发生之前进入睡眠状态的 goroutine。goroutine 被唤醒后，将被放入执行它的处理器 <code>P</code> 的本地运行队列中，等待被某个线程 <code>M</code> 领取并执行。</p>
+<p>如果在步骤 9 之后仍未找到 goroutine，线程 <code>M</code> 将等待 <code>netpoll</code> 返回，直到最近的<a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/time.go#L35-L107"  target="_blank" rel="noopener"
+    >定时器</a>超时——例如 goroutine 从睡眠状态唤醒时（因为 Go 内部的睡眠操作会创建一个定时器）。为什么 <code>netpoll</code> 会与定时器相关？这是因为 Go 的定时器系统严重依赖于 <code>netpoll</code> ，正如<a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/time.go#L427-L427"  target="_blank" rel="noopener"
+    >这段</a>代码注释中所述。netpoll 返回后， <code>M</code> 将重新进入<a class="link" href="https://nghiant3223.github.io/2025/04/15/go-scheduler.html#schedule-loop"  target="_blank" rel="noopener"
+    >调度循环 </a><code>netpoll</code> 再次搜索可运行的 goroutine。</p>
+<p><a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/proc.go#L3267-L3646"  target="_blank" rel="noopener"
+    ><code>findRunnable</code></a> 的前两个行为允许 Go 调度器唤醒休眠的 goroutine，从而使程序能够继续执行。它们解释了为什么每个 goroutine（包括主 goroutine）在休眠后都有机会运行。我们将在另一篇文章中看看下面的 Go 程序是如何工作的 😄。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kn">package</span> <span class="nx">main</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kn">import</span> <span class="s">&#34;time&#34;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">main</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">go</span> <span class="kd">func</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">time</span><span class="p">.</span><span class="nf">Sleep</span><span class="p">(</span><span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}()</span>
+</span></span><span class="line"><span class="cl">	
+</span></span><span class="line"><span class="cl">    <span class="nx">time</span><span class="p">.</span><span class="nf">Sleep</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>如果 <code>P</code> 没有<a class="link" href="https://github.com/golang/go/blob/go1.24.0/src/runtime/time.go#L35-L107"  target="_blank" rel="noopener"
+    >定时器 </a>，则其对应的线程 <code>M</code> 将处于空闲状态。 <code>P</code> 被放入空闲列表， <code>M</code> 通过调用 <a class="link" href="https://nghiant3223.github.io/2025/04/15/go-scheduler.html#stop-thread-stopm"  target="_blank" rel="noopener"
+    ><code>stopm</code></a> 函数进入睡眠状态。它会一直保持睡眠状态，直到另一个 <code>M1</code> 线程将其唤醒，通常是在创建新的 goroutine 时，如 <a class="link" href="https://nghiant3223.github.io/2025/04/15/go-scheduler.html#waking-up-processor"  target="_blank" rel="noopener"
+    >“唤醒处理器”</a> 部分所述。一旦被唤醒， <code>M</code> 会重新进入<a class="link" href="https://nghiant3223.github.io/2025/04/15/go-scheduler.html#schedule-loop"  target="_blank" rel="noopener"
+    >调度循环 </a>，以查找并执行可运行的 goroutine。</p>
+<h2 id="参考">参考</h2>
+<p>本文翻译于 <a class="link" href="https://nghiant3223.github.io/2025/04/15/go-scheduler.html#go-scheduler"  target="_blank" rel="noopener"
+    >go-scheduler.html#go-scheduler</a></p>
+
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/runtime/">Runtime</a>
+        
+            <a href="/tags/%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/">读书笔记</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">Related content</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/15-%E4%B8%AA%E4%BD%A0%E5%8F%AF%E8%83%BD%E4%B8%8D%E7%9F%A5%E9%81%93%E7%9A%84-go-%E6%8A%80%E5%B7%A7/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">15 个你可能不知道的 Go 技巧</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/%E6%AF%94%E8%BE%83%E4%B8%A4%E4%B8%AA-go-pprof-%E6%96%87%E4%BB%B6%E6%9D%A5%E6%9F%A5%E6%89%BE%E6%80%A7%E8%83%BD%E9%97%AE%E9%A2%98/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">比较两个 go pprof 文件来查找性能问题</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/go-%E4%B8%AD%E7%9A%84-json-%E6%BC%94%E5%8F%98-%E4%BB%8E-v1-%E5%88%B0-v2/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Go 中的 JSON 演变, 从 v1 到 v2</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/go-%E4%B8%AD%E7%9A%84%E5%BC%B1%E6%8C%87%E9%92%88%E4%B8%BA%E4%BB%80%E4%B9%88%E4%BB%96%E4%BB%AC%E7%8E%B0%E5%9C%A8%E5%BE%88%E9%87%8D%E8%A6%81/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Go 中的弱指针:为什么他们现在很重要?</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/golang-io-cookbook/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Golang IO Cookbook</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script src="https://utteranc.es/client.js" 
+        repo="ixugo/ixugo.github.io"
+        issue-term="pathname"
+        
+        crossorigin="anonymous"
+        async
+        >
+</script>
+
+<style>
+    .utterances {
+        max-width: unset;
+    }
+</style>
+
+<script>
+    function setUtterancesTheme(theme) {
+        let utterances = document.querySelector('.utterances iframe');
+        if (utterances) {
+            utterances.contentWindow.postMessage(
+                {
+                    type: 'set-theme',
+                    theme: `github-${theme}`
+                },
+                'https://utteranc.es'
+            );
+        }
+    }
+
+    addEventListener('message', event => {
+        if (event.origin !== 'https://utteranc.es') return;
+        setUtterancesTheme(document.documentElement.dataset.scheme)
+    });
+
+    window.addEventListener('onColorSchemeChange', (e) => {
+        setUtterancesTheme(e.detail)
+    })
+</script>
+
+
+    
+
+    <footer class="site-footer">
+  <section class="copyright">
+    &copy;  2018 -  2026 ixugo
+  </section>
+  
+  <script defer src="https://events.vercount.one/js"></script>
+  <section class="powerby">
+    
+    <span id="busuanzi_container_page_pv"
+      >本文阅读量
+      <span style="font-size: 14px" id="vercount_value_page_pv"></span>
+      次，</span
+    >
+    <span id="busuanzi_container_site_pv"
+      >总访问量
+      <span style="font-size: 14px" id="vercount_value_site_pv"></span>
+      次 </span
+    >，总访客数
+    <span style="font-size: 14px" id="vercount_value_site_uv"></span> 人
+    <br />
+
+    Built with <a
+      href="https://gohugo.io/"
+      target="_blank"
+      rel="noopener"
+      >Hugo</a
+    >
+    .&nbsp;&nbsp; Theme <a
+      href="https://github.com/CaiJimmy/hugo-theme-stack"
+      target="_blank"
+      rel="noopener"
+      data-version="3.16.0"
+      >Stack</a
+    > designed by <a
+      href="https://jimmycai.com"
+      target="_blank"
+      rel="noopener"
+      >Jimmy</a
+    >
+  </section>
+
+  <script>
+    
+    function count() {
+      let href = window.location.href;
+      let regexp = /^https?:\/\/blog.golang.space\/?(page\/[\d]+\/?)?$/;
+      if (regexp.test(href)) {
+        let e = document.getElementById("busuanzi_container_page_pv");
+        e.innerText = "";
+      }
+    }
+    window.onload = count;
+  </script>
+</footer>
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

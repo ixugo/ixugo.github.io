@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='多年来，PostgreSQL 一直是支撑 ChatGPT 和 OpenAI API 等核心产品的关键底层数据系统之一。随着用户群的快速增长，数据库的需求也呈指数级增长。过去一年，PostgreSQL 的负载增长了十倍以上，并且仍在快速攀升。
+为了应对这种增长，我们不断改进生产基础设施，并在此过程中发现了一个新的问题：PostgreSQL 可以扩展，可靠地支持比许多人之前想象的要大得多的读取密集型工作负载。该系统（最初由加州大学伯克利分校的一个科学家团队创建）使我们能够仅使用一个主 Azure PostgreSQL 灵活服务器实例和分布在全球多个区域的近 50 个只读副本，就支持海量的全球流量。本文将讲述 OpenAI 如何通过严格的优化和扎实的工程设计，扩展 PostgreSQL 以支持每秒数百万次的查询，服务于 8 亿用户；我们还将分享在此过程中获得的关键经验。
+我们最初设计存在的缺陷 ChatGPT 上线后，流量以前所未有的速度增长。为了应对这一增长，我们迅速在应用层和 PostgreSQL 数据库层进行了广泛的优化，通过增加实例规模实现了向上扩展，并通过增加只读副本实现了向外扩展。这种架构长期以来运行良好，并且随着持续改进，它将继续为未来的增长提供充足的空间。
+单主架构能够满足 OpenAI 如此庞大的规模需求，这听起来或许令人惊讶；然而，实际操作起来却并非易事。我们已经目睹了多个由 Postgres 过载引发的严重事件 (SEV)，它们通常遵循相同的模式：上游问题导致数据库负载突然飙升，例如缓存层故障造成的大范围缓存未命中、大量耗时的多路连接操作导致 CPU 饱和，或是新功能发布引发的写入风暴。随着资源利用率的攀升，查询延迟增加，请求开始超时。重试操作会进一步加剧负载，从而引发恶性循环，并有可能导致整个 ChatGPT 和 API 服务的性能下降。
+尽管 PostgreSQL 在我们以读取为主的负载下扩展性表现良好，但在高写入流量期间我们仍然面临挑战。这在很大程度上源于 PostgreSQL 的多版本并发控制（MVCC）实现机制，使其在写入密集型工作负载下效率较低。例如，当一个查询更新某一行（tuple）或甚至只是其中单个字段时，系统都会复制整行数据以创建新版本。在高写入负载下，这会导致显著的写放大（write amplification）。同时，它还会加剧读放大（read amplification），因为查询必须扫描多个元组版本（即“死元组”）才能找到最新版本。
+MVCC 还带来了其他一系列挑战，例如表和索引膨胀（bloat）、索引维护开销增加，以及复杂的 autovacuum 调优问题。
+将 PostgreSQL 扩展到数百万 QPS 为了缓解这些限制并降低写入压力，我们已经将可分片（即可以水平分区）的写入密集型工作负载迁移到 Azure Cosmos DB 等分片系统，并持续进行迁移，同时优化应用程序逻辑以最大限度地减少不必要的写入。此外，我们不再允许向当前的 PostgreSQL 部署中添加新表。新的工作负载默认部署在分片系统中。
+即使我们的基础设施不断发展，PostgreSQL 仍然保持未分片状态，所有写入操作都由单个主实例处理。主要原因是，对现有应用程序工作负载进行分片将非常复杂且耗时，需要修改数百个应用程序端点，可能需要数月甚至数年时间。由于我们的工作负载主要以读取为主，并且我们已经实施了大量的优化，因此当前的架构仍然有足够的空间来支持持续的流量增长。虽然我们并未排除未来对 PostgreSQL 进行分片的可能性，但鉴于我们目前和未来的增长空间充足，这并非近期优先事项。
+在接下来的章节中，我们将深入探讨我们面临的挑战以及我们为解决这些挑战和防止未来中断而实施的大量优化措施，将 PostgreSQL 推向极限，并将其扩展到每秒数百万次查询 (QPS)。
+降低主负载 挑战：由于只有一个写入器，单主节点配置无法扩展写入能力。写入高峰会迅速导致主节点过载，并影响 ChatGPT 和我们的 API 等服务。'>
+<title>扩展 PostgreSQL 以支持 8 亿 ChatGPT 用户</title>
+
+<link rel='canonical' href='https://blog.golang.space/p/%E6%89%A9%E5%B1%95-postgresql-%E4%BB%A5%E6%94%AF%E6%8C%81-8-%E4%BA%BF-chatgpt-%E7%94%A8%E6%88%B7/'>
+
+<link rel="stylesheet" href="/scss/style.min.8191399262444ab68b72a18c97392f5349be20a1615d77445be51e974c144cff.css"><meta property='og:title' content='扩展 PostgreSQL 以支持 8 亿 ChatGPT 用户'>
+<meta property='og:description' content='多年来，PostgreSQL 一直是支撑 ChatGPT 和 OpenAI API 等核心产品的关键底层数据系统之一。随着用户群的快速增长，数据库的需求也呈指数级增长。过去一年，PostgreSQL 的负载增长了十倍以上，并且仍在快速攀升。
+为了应对这种增长，我们不断改进生产基础设施，并在此过程中发现了一个新的问题：PostgreSQL 可以扩展，可靠地支持比许多人之前想象的要大得多的读取密集型工作负载。该系统（最初由加州大学伯克利分校的一个科学家团队创建）使我们能够仅使用一个主 Azure PostgreSQL 灵活服务器实例和分布在全球多个区域的近 50 个只读副本，就支持海量的全球流量。本文将讲述 OpenAI 如何通过严格的优化和扎实的工程设计，扩展 PostgreSQL 以支持每秒数百万次的查询，服务于 8 亿用户；我们还将分享在此过程中获得的关键经验。
+我们最初设计存在的缺陷 ChatGPT 上线后，流量以前所未有的速度增长。为了应对这一增长，我们迅速在应用层和 PostgreSQL 数据库层进行了广泛的优化，通过增加实例规模实现了向上扩展，并通过增加只读副本实现了向外扩展。这种架构长期以来运行良好，并且随着持续改进，它将继续为未来的增长提供充足的空间。
+单主架构能够满足 OpenAI 如此庞大的规模需求，这听起来或许令人惊讶；然而，实际操作起来却并非易事。我们已经目睹了多个由 Postgres 过载引发的严重事件 (SEV)，它们通常遵循相同的模式：上游问题导致数据库负载突然飙升，例如缓存层故障造成的大范围缓存未命中、大量耗时的多路连接操作导致 CPU 饱和，或是新功能发布引发的写入风暴。随着资源利用率的攀升，查询延迟增加，请求开始超时。重试操作会进一步加剧负载，从而引发恶性循环，并有可能导致整个 ChatGPT 和 API 服务的性能下降。
+尽管 PostgreSQL 在我们以读取为主的负载下扩展性表现良好，但在高写入流量期间我们仍然面临挑战。这在很大程度上源于 PostgreSQL 的多版本并发控制（MVCC）实现机制，使其在写入密集型工作负载下效率较低。例如，当一个查询更新某一行（tuple）或甚至只是其中单个字段时，系统都会复制整行数据以创建新版本。在高写入负载下，这会导致显著的写放大（write amplification）。同时，它还会加剧读放大（read amplification），因为查询必须扫描多个元组版本（即“死元组”）才能找到最新版本。
+MVCC 还带来了其他一系列挑战，例如表和索引膨胀（bloat）、索引维护开销增加，以及复杂的 autovacuum 调优问题。
+将 PostgreSQL 扩展到数百万 QPS 为了缓解这些限制并降低写入压力，我们已经将可分片（即可以水平分区）的写入密集型工作负载迁移到 Azure Cosmos DB 等分片系统，并持续进行迁移，同时优化应用程序逻辑以最大限度地减少不必要的写入。此外，我们不再允许向当前的 PostgreSQL 部署中添加新表。新的工作负载默认部署在分片系统中。
+即使我们的基础设施不断发展，PostgreSQL 仍然保持未分片状态，所有写入操作都由单个主实例处理。主要原因是，对现有应用程序工作负载进行分片将非常复杂且耗时，需要修改数百个应用程序端点，可能需要数月甚至数年时间。由于我们的工作负载主要以读取为主，并且我们已经实施了大量的优化，因此当前的架构仍然有足够的空间来支持持续的流量增长。虽然我们并未排除未来对 PostgreSQL 进行分片的可能性，但鉴于我们目前和未来的增长空间充足，这并非近期优先事项。
+在接下来的章节中，我们将深入探讨我们面临的挑战以及我们为解决这些挑战和防止未来中断而实施的大量优化措施，将 PostgreSQL 推向极限，并将其扩展到每秒数百万次查询 (QPS)。
+降低主负载 挑战：由于只有一个写入器，单主节点配置无法扩展写入能力。写入高峰会迅速导致主节点过载，并影响 ChatGPT 和我们的 API 等服务。'>
+<meta property='og:url' content='https://blog.golang.space/p/%E6%89%A9%E5%B1%95-postgresql-%E4%BB%A5%E6%94%AF%E6%8C%81-8-%E4%BA%BF-chatgpt-%E7%94%A8%E6%88%B7/'>
+<meta property='og:site_name' content='ixugo'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='读书笔记' /><meta property='article:tag' content='翻译' /><meta property='article:published_time' content='2026-01-28T00:00:00&#43;00:00'/><meta property='article:modified_time' content='2026-01-28T00:00:00&#43;00:00'/>
+<meta name="twitter:title" content="扩展 PostgreSQL 以支持 8 亿 ChatGPT 用户">
+<meta name="twitter:description" content="多年来，PostgreSQL 一直是支撑 ChatGPT 和 OpenAI API 等核心产品的关键底层数据系统之一。随着用户群的快速增长，数据库的需求也呈指数级增长。过去一年，PostgreSQL 的负载增长了十倍以上，并且仍在快速攀升。
+为了应对这种增长，我们不断改进生产基础设施，并在此过程中发现了一个新的问题：PostgreSQL 可以扩展，可靠地支持比许多人之前想象的要大得多的读取密集型工作负载。该系统（最初由加州大学伯克利分校的一个科学家团队创建）使我们能够仅使用一个主 Azure PostgreSQL 灵活服务器实例和分布在全球多个区域的近 50 个只读副本，就支持海量的全球流量。本文将讲述 OpenAI 如何通过严格的优化和扎实的工程设计，扩展 PostgreSQL 以支持每秒数百万次的查询，服务于 8 亿用户；我们还将分享在此过程中获得的关键经验。
+我们最初设计存在的缺陷 ChatGPT 上线后，流量以前所未有的速度增长。为了应对这一增长，我们迅速在应用层和 PostgreSQL 数据库层进行了广泛的优化，通过增加实例规模实现了向上扩展，并通过增加只读副本实现了向外扩展。这种架构长期以来运行良好，并且随着持续改进，它将继续为未来的增长提供充足的空间。
+单主架构能够满足 OpenAI 如此庞大的规模需求，这听起来或许令人惊讶；然而，实际操作起来却并非易事。我们已经目睹了多个由 Postgres 过载引发的严重事件 (SEV)，它们通常遵循相同的模式：上游问题导致数据库负载突然飙升，例如缓存层故障造成的大范围缓存未命中、大量耗时的多路连接操作导致 CPU 饱和，或是新功能发布引发的写入风暴。随着资源利用率的攀升，查询延迟增加，请求开始超时。重试操作会进一步加剧负载，从而引发恶性循环，并有可能导致整个 ChatGPT 和 API 服务的性能下降。
+尽管 PostgreSQL 在我们以读取为主的负载下扩展性表现良好，但在高写入流量期间我们仍然面临挑战。这在很大程度上源于 PostgreSQL 的多版本并发控制（MVCC）实现机制，使其在写入密集型工作负载下效率较低。例如，当一个查询更新某一行（tuple）或甚至只是其中单个字段时，系统都会复制整行数据以创建新版本。在高写入负载下，这会导致显著的写放大（write amplification）。同时，它还会加剧读放大（read amplification），因为查询必须扫描多个元组版本（即“死元组”）才能找到最新版本。
+MVCC 还带来了其他一系列挑战，例如表和索引膨胀（bloat）、索引维护开销增加，以及复杂的 autovacuum 调优问题。
+将 PostgreSQL 扩展到数百万 QPS 为了缓解这些限制并降低写入压力，我们已经将可分片（即可以水平分区）的写入密集型工作负载迁移到 Azure Cosmos DB 等分片系统，并持续进行迁移，同时优化应用程序逻辑以最大限度地减少不必要的写入。此外，我们不再允许向当前的 PostgreSQL 部署中添加新表。新的工作负载默认部署在分片系统中。
+即使我们的基础设施不断发展，PostgreSQL 仍然保持未分片状态，所有写入操作都由单个主实例处理。主要原因是，对现有应用程序工作负载进行分片将非常复杂且耗时，需要修改数百个应用程序端点，可能需要数月甚至数年时间。由于我们的工作负载主要以读取为主，并且我们已经实施了大量的优化，因此当前的架构仍然有足够的空间来支持持续的流量增长。虽然我们并未排除未来对 PostgreSQL 进行分片的可能性，但鉴于我们目前和未来的增长空间充足，这并非近期优先事项。
+在接下来的章节中，我们将深入探讨我们面临的挑战以及我们为解决这些挑战和防止未来中断而实施的大量优化措施，将 PostgreSQL 推向极限，并将其扩展到每秒数百万次查询 (QPS)。
+降低主负载 挑战：由于只有一个写入器，单主节点配置无法扩展写入能力。写入高峰会迅速导致主节点过载，并影响 ChatGPT 和我们的 API 等服务。">
+    <link rel="shortcut icon" href="img/favicon.ico" />
+
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+	(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+	m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+	})(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+	ga('create', 'UA-192125643-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="Toggle Menu">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu0b04ba6d7249c9f90c92db974439eb8c_208246_300x0_resize_box_3.png" width="300"
+                            height="321" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🧐</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">ixugo</a></h1>
+            <h2 class="site-description">走出舒适区</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/ixugo'
+                        target="_blank"
+                        title="GitHub"
+                        rel="me"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>Home</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/about/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>About</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>Archives</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>Search</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>Dark Mode</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">Table of contents</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#我们最初设计存在的缺陷">我们最初设计存在的缺陷</a></li>
+    <li><a href="#将-postgresql-扩展到数百万-qps">将 PostgreSQL 扩展到数百万 QPS</a>
+      <ol>
+        <li>
+          <ol>
+            <li><a href="#降低主负载">降低主负载</a></li>
+            <li><a href="#查询优化">查询优化</a></li>
+            <li><a href="#单点故障缓解">单点故障缓解</a></li>
+            <li><a href="#工作负载隔离">工作负载隔离</a></li>
+            <li><a href="#连接池">连接池</a></li>
+            <li><a href="#缓存">缓存</a></li>
+            <li><a href="#扩展只读副本">扩展只读副本</a></li>
+            <li><a href="#速率限制">速率限制</a></li>
+            <li><a href="#模式管理">模式管理</a></li>
+          </ol>
+        </li>
+      </ol>
+    </li>
+    <li><a href="#结果与未来之路">结果与未来之路</a></li>
+    <li><a href="#参考">参考</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+            <main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+    <header class="article-category">
+        
+            <a href="/categories/postgresql/" >
+                PostgreSQL
+            </a>
+        
+    </header>
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/%E6%89%A9%E5%B1%95-postgresql-%E4%BB%A5%E6%94%AF%E6%8C%81-8-%E4%BA%BF-chatgpt-%E7%94%A8%E6%88%B7/">扩展 PostgreSQL 以支持 8 亿 ChatGPT 用户</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    
+    
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Jan 28, 2026</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    2 minute read
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+
+</header>
+
+    <section class="article-content">
+    
+    
+    <p>多年来，PostgreSQL 一直是支撑 ChatGPT 和 OpenAI API 等核心产品的关键底层数据系统之一。随着用户群的快速增长，数据库的需求也呈指数级增长。过去一年，PostgreSQL 的负载增长了十倍以上，并且仍在快速攀升。</p>
+<p>为了应对这种增长，我们不断改进生产基础设施，并在此过程中发现了一个新的问题：PostgreSQL 可以扩展，可靠地支持比许多人之前想象的要大得多的读取密集型工作负载。该系统（最初由加州大学伯克利分校的一个科学家团队创建）使我们能够仅使用一个主 Azure PostgreSQL 灵活服务器实例和分布在全球多个区域的近 50 个只读副本，就支持海量的全球流量。本文将讲述 OpenAI 如何通过严格的优化和扎实的工程设计，扩展 PostgreSQL 以支持每秒数百万次的查询，服务于 8 亿用户；我们还将分享在此过程中获得的关键经验。</p>
+<h2 id="我们最初设计存在的缺陷">我们最初设计存在的缺陷</h2>
+<p>ChatGPT 上线后，流量以前所未有的速度增长。为了应对这一增长，我们迅速在应用层和 PostgreSQL 数据库层进行了广泛的优化，通过增加实例规模实现了向上扩展，并通过增加只读副本实现了向外扩展。这种架构长期以来运行良好，并且随着持续改进，它将继续为未来的增长提供充足的空间。</p>
+<p>单主架构能够满足 OpenAI 如此庞大的规模需求，这听起来或许令人惊讶；然而，实际操作起来却并非易事。我们已经目睹了多个由 Postgres 过载引发的严重事件 (SEV)，它们通常遵循相同的模式：上游问题导致数据库负载突然飙升，例如缓存层故障造成的大范围缓存未命中、大量耗时的多路连接操作导致 CPU 饱和，或是新功能发布引发的写入风暴。随着资源利用率的攀升，查询延迟增加，请求开始超时。重试操作会进一步加剧负载，从而引发恶性循环，并有可能导致整个 ChatGPT 和 API 服务的性能下降。</p>
+<p><img src="http://img.golang.space/img-1769651748372.svg"
+	
+	
+	
+	loading="lazy"
+	
+		alt="Scaling load diagram"
+	
+	
+></p>
+<p>尽管 PostgreSQL 在我们以读取为主的负载下扩展性表现良好，但在高写入流量期间我们仍然面临挑战。这在很大程度上源于 PostgreSQL 的多版本并发控制（MVCC）实现机制，使其在写入密集型工作负载下效率较低。例如，当一个查询更新某一行（tuple）或甚至只是其中单个字段时，系统都会复制整行数据以创建新版本。在高写入负载下，这会导致显著的<strong>写放大</strong>（write amplification）。同时，它还会加剧<strong>读放大</strong>（read amplification），因为查询必须扫描多个元组版本（即“死元组”）才能找到最新版本。</p>
+<p>MVCC 还带来了其他一系列挑战，例如表和索引膨胀（bloat）、索引维护开销增加，以及复杂的 autovacuum 调优问题。</p>
+<h2 id="将-postgresql-扩展到数百万-qps">将 PostgreSQL 扩展到数百万 QPS</h2>
+<p>为了缓解这些限制并降低写入压力，我们已经将可分片（即可以水平分区）的写入密集型工作负载迁移到 Azure Cosmos DB 等分片系统，并持续进行迁移，同时优化应用程序逻辑以最大限度地减少不必要的写入。此外，我们不再允许向当前的 PostgreSQL 部署中添加新表。新的工作负载默认部署在分片系统中。</p>
+<p>即使我们的基础设施不断发展，PostgreSQL 仍然保持未分片状态，所有写入操作都由单个主实例处理。主要原因是，对现有应用程序工作负载进行分片将非常复杂且耗时，需要修改数百个应用程序端点，可能需要数月甚至数年时间。由于我们的工作负载主要以读取为主，并且我们已经实施了大量的优化，因此当前的架构仍然有足够的空间来支持持续的流量增长。虽然我们并未排除未来对 PostgreSQL 进行分片的可能性，但鉴于我们目前和未来的增长空间充足，这并非近期优先事项。</p>
+<p>在接下来的章节中，我们将深入探讨我们面临的挑战以及我们为解决这些挑战和防止未来中断而实施的大量优化措施，将 PostgreSQL 推向极限，并将其扩展到每秒数百万次查询 (QPS)。</p>
+<h4 id="降低主负载">降低主负载</h4>
+<p><em>挑战：由于只有一个写入器，单主节点配置无法扩展写入能力。写入高峰会迅速导致主节点过载，并影响 ChatGPT 和我们的 API 等服务。</em></p>
+<p>解决方案：我们尽可能降低主节点的负载（包括读取和写入），以确保其拥有足够的容量来应对写入高峰。读取流量尽可能卸载到副本。但是，某些读取查询必须保留在主节点上，因为它们是写入事务的一部分。对于这些查询，我们专注于确保其高效运行，避免出现慢查询。对于写入流量，我们已将可分片的、写入密集型工作负载迁移到 Azure Cosmos DB 等分片系统。难以分片但写入量仍然很高的工作负载需要更长时间才能迁移，并且该过程仍在进行中。我们还积极优化应用程序以降低写入负载；例如，我们修复了导致冗余写入的应用程序错误，并在适当情况下引入延迟写入，以平滑流量高峰。此外，在回填表字段时，我们实施严格的速率限制，以防止过大的写入压力。</p>
+<h4 id="查询优化">查询优化</h4>
+<p><em>挑战：我们发现 PostgreSQL 中存在一些开销较大的查询。过去，这些查询的请求量突然激增会消耗大量 CPU 资源，导致 ChatGPT 和 API 请求速度下降。</em></p>
+<p>解决方案：一些开销巨大的查询，例如连接多个表的查询，可能会显著降低服务性能，甚至导致整个服务崩溃。我们需要持续优化 PostgreSQL 查询，以确保其高效运行，并避免常见的在线事务处理 (OLTP) 反模式。例如，我们曾经发现一个开销极大的查询，它连接了 12 个表，而该查询的峰值正是导致过去高危 SEV 事件的原因。我们应该尽可能避免复杂的多表连接。如果必须使用连接，我们学会了考虑拆分查询，并将复杂的连接逻辑移至应用层。许多这类问题查询是由对象关系映射框架 (ORM) 生成的，因此仔细审查它们生成的 SQL 并确保其行为符合预期至关重要。在 PostgreSQL 中，长时间运行的空闲查询也很常见。配置诸如 <code>idle_in_transaction_session_timeout</code> 之类的超时机制对于防止它们阻塞自动清理 (autovacuum) 至关重要。</p>
+<h4 id="单点故障缓解">单点故障缓解</h4>
+<p><em>挑战：如果只读副本发生故障，流量仍然可以路由到其他副本。但是，依赖单个写入器意味着存在单点故障——如果它发生故障，整个服务都会受到影响。</em></p>
+<p>解决方案：大多数关键请求仅涉及读取查询。为了降低主节点单点故障的风险，我们将这些读取操作从写入节点转移到副本节点，从而确保即使主节点宕机，这些请求也能继续得到处理。虽然写入操作仍然会失败，但影响已经降低；由于读取操作仍然可用，因此不再属于 SEV0 级别。</p>
+<p>为了降低主服务器故障的风险，我们采用高可用性 (HA) 模式运行主服务器，并配备热备服务器。热备服务器是一个持续同步的副本，随时准备接管流量服务。如果主服务器宕机或需要离线维护，我们可以快速将备用服务器升级，最大限度地减少停机时间。Azure PostgreSQL 团队投入了大量精力，确保即使在高负载下，这些故障转移机制也能安全可靠地运行。为了应对只读副本故障，我们在每个区域部署了多个副本，并预留了足够的容量，确保单个副本故障不会导致区域性服务中断。</p>
+<h4 id="工作负载隔离">工作负载隔离</h4>
+<p><em>挑战：我们经常会遇到某些请求会消耗 PostgreSQL 实例上不成比例的资源的情况。这会导致运行在同一实例上的其他工作负载性能下降。例如，新功能的推出可能会引入低效的查询，这些查询会大量消耗 PostgreSQL 的 CPU 资源，从而减慢其他关键功能的请求速度。</em></p>
+<p>解决方案：为了缓解“嘈杂邻居”问题，我们将工作负载隔离到专用实例上，以确保资源密集型请求的突然激增不会影响其他流量。具体来说，我们将请求分为低优先级和高优先级两层，并分别路由到不同的实例。这样，即使低优先级工作负载资源消耗过大，也不会降低高优先级请求的性能。我们在不同的产品和服务中也应用了相同的策略，从而确保一个产品的活动不会影响其他产品的性能或可靠性。</p>
+<h4 id="连接池">连接池</h4>
+<p><em>挑战：每个实例都有最大连接数限制（Azure PostgreSQL 为 5,000）。很容易出现连接耗尽或闲置连接过多的情况。我们之前就遇到过连接风暴导致所有可用连接都被耗尽的事件。</em></p>
+<p>解决方案：我们部署了 PgBouncer 作为代理层来池化数据库连接。以语句池或事务池模式运行 PgBouncer，可以高效地重用连接，从而大幅减少活跃客户端连接数。这也有助于降低连接建立延迟：在我们的基准测试中，平均连接时间从 50 毫秒 (ms) 降至 5 毫秒。跨区域连接和请求的开销可能很大，因此我们将代理、客户端和副本部署在同一区域，以最大限度地减少网络开销和连接使用时间。此外，PgBouncer 的配置必须非常谨慎。诸如空闲超时之类的设置对于防止连接耗尽至关重要。</p>
+<p><img src="http://img.golang.space/img-1769651742151.svg"
+	
+	
+	
+	loading="lazy"
+	
+		alt="postgreSQL proxy diagram"
+	
+	
+></p>
+<p>每个读副本都有其独立的 Kubernetes Deployment，运行着多个 PgBouncer Pod。我们将多个 Kubernetes Deployment 放在同一个 Kubernetes Service 之后，由该 Service 在各个 Pod 之间进行流量负载均衡。</p>
+<h4 id="缓存">缓存</h4>
+<p><em>挑战：缓存未命中率的突然飙升可能会引发 PostgreSQL 数据库读取操作的激增，导致 CPU 饱和，从而减慢用户请求速度。</em></p>
+<p>解决方案：为了减轻 PostgreSQL 的读取压力，我们使用了一层缓存来处理大部分读请求。然而，当缓存命中率意外下降时，大量缓存未命中（cache misses）会瞬间将大量请求直接打到 PostgreSQL 上。这种数据库读取量的突发性激增会消耗大量系统资源，导致服务变慢。</p>
+<p>为防止在缓存未命中风暴（cache-miss storms）期间数据库过载，我们实现了一种<strong>缓存锁</strong>（cache locking）机制。具体来说，当多个请求同时未命中同一个缓存键时，只有其中一个请求能够获取锁，并负责从 PostgreSQL 中读取数据、重新填充缓存；其余请求则等待缓存更新完成，而不是全部同时访问数据库。</p>
+<p>这一机制显著减少了冗余的数据库读取操作，有效保护系统免受连锁性负载激增的影响。</p>
+<h4 id="扩展只读副本">扩展只读副本</h4>
+<p><em>挑战：主库将预写日志（WAL）数据流式传输到每个只读副本。随着副本数量的增加，主库必须向更多实例发送 WAL，这增加了网络带宽和 CPU 的压力。这导致副本延迟更高且更不稳定，使得系统难以可靠地扩展。</em></p>
+<p>解决方案：我们在多个地理区域运营近 50 个只读副本以最小化延迟。然而，根据当前架构，主库必须向每个副本流式传输 WAL。尽管目前使用非常大的实例类型和高网络带宽可以很好地扩展，但我们不能无限地添加副本而不最终使主库过载。为了解决这个问题，我们正在与 Azure PostgreSQL 团队合作开发级联复制功能，其中中间副本将 WAL 转发给下游副本。这种方法使我们能够扩展到可能超过一百个副本而不会使主库不堪重负。然而，这也引入了额外的操作复杂性，特别是在故障转移管理方面。该功能仍在测试中；我们将在推广到生产环境之前确保其稳定并能安全地进行故障转移。</p>
+<p><img src="http://img.golang.space/img-1769653262691.svg"
+	
+	
+	
+	loading="lazy"
+	
+		alt="postgreSQL cascading replication diagram"
+	
+	
+></p>
+<h4 id="速率限制">速率限制</h4>
+<p><em>挑战：特定端点上的突发流量高峰、昂贵查询的激增或重试风暴可能会迅速耗尽 CPU、I/O 和连接等关键资源，导致大范围的服务降级。</em></p>
+<p>解决方案：我们在多个层面实施了限流——应用层、连接池、代理和查询层面——以防止突发流量高峰压垮数据库实例并引发连锁故障。避免过短的重试间隔也至关重要，因为这可能触发重试风暴。我们还增强了 ORM 层以支持限流，并在必要时完全阻止特定查询摘要。这种有针对性的负载卸载形式能够从昂贵查询的突发激增中快速恢复。</p>
+<h4 id="模式管理">模式管理</h4>
+<p>挑战：即使是更改列类型这样的小模式变更也可能触发完整的表重写。因此我们谨慎应用模式变更——将其限制为轻量级操作，避免任何需要重写整个表的操作。</p>
+<p>解决方案：只允许轻量级模式变更，例如添加或删除不会触发完整表重写的某些列。我们对模式变更执行严格的 5 秒超时限制。允许并发创建和删除索引。模式变更仅限于现有表。如果新功能需要额外的表，它们必须位于其他分片系统中，如 Azure CosmosDB 而非 PostgreSQL。在回填表字段时，我们应用严格的速率限制以防止写入峰值。尽管此过程有时可能需要超过一周时间，但它确保了稳定性并避免了任何生产影响。</p>
+<h2 id="结果与未来之路">结果与未来之路</h2>
+<p>这项工作表明，通过正确的设计和优化，Azure PostgreSQL 可以扩展以处理最大的生产工作负载。PostgreSQL 为读取密集型工作负载处理数百万 QPS，为 OpenAI 最重要的产品如 ChatGPT 和 API 平台提供支持。我们添加了近 50 个只读副本，同时保持复制延迟接近零，在地理分布区域间维持低延迟读取，并构建了足够的容量余量以支持未来增长。</p>
+<p>这种扩展在最小化延迟和提高可靠性的同时发挥作用。我们持续提供客户端侧低两位数毫秒的 p99 延迟和生产环境中的五个九可用性。在过去 12 个月中，我们只有一次 SEV-0 PostgreSQL 事件（发生在 ChatGPT ImageGen 病毒式发布期间，当时由于超过 1 亿新用户在一周内注册，写入流量突然激增超过 10 倍。）</p>
+<p>虽然我们对 PostgreSQL 带给我们的发展感到满意，但我们继续推动其极限以确保为未来增长留有足够空间。我们已经将可分片的写入密集型工作负载迁移到了我们的分片系统如 CosmosDB。剩余的写入密集型工作负载更难以分片——我们正在积极迁移这些工作负载，以进一步减轻 PostgreSQL 主库的写入负担。我们还在与 Azure 合作启用级联复制，以便能够安全地扩展到更多只读副本。</p>
+<p>展望未来，随着我们的基础设施需求持续增长，我们将继续探索进一步扩展的其他方法，包括分片 PostgreSQL 或替代分布式系统。</p>
+<h2 id="参考">参考</h2>
+<p>本文翻译于 <a class="link" href="https://openai.com/index/scaling-postgresql/"  target="_blank" rel="noopener"
+    >scaling-postgresql</a></p>
+
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/">读书笔记</a>
+        
+            <a href="/tags/%E7%BF%BB%E8%AF%91/">翻译</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">Related content</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/%E9%97%AD%E5%8C%85%E8%A1%A8/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">闭包表</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/%E6%AF%94%E8%BE%83%E4%B8%A4%E4%B8%AA-go-pprof-%E6%96%87%E4%BB%B6%E6%9D%A5%E6%9F%A5%E6%89%BE%E6%80%A7%E8%83%BD%E9%97%AE%E9%A2%98/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">比较两个 go pprof 文件来查找性能问题</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/go-%E4%B8%AD%E7%9A%84-json-%E6%BC%94%E5%8F%98-%E4%BB%8E-v1-%E5%88%B0-v2/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Go 中的 JSON 演变, 从 v1 到 v2</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="has-image">
+    <a href="/p/%E5%9F%BA%E4%BA%8E-docker-compose-%E6%A8%A1%E6%8B%9F-postgresql-12.2-%E4%B8%BB%E4%BB%8E/">
+        
+        
+            <div class="article-image">
+                
+                    <img src="http://img.golang.space/img-1669079318266.png" loading="lazy" data-key="" data-hash="http://img.golang.space/img-1669079318266.png"/>
+                
+            </div>
+        
+
+        <div class="article-details">
+            <h2 class="article-title">基于 docker-compose 模拟 PostgreSQL 12.2 主从</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/%E8%A1%A8%E5%88%86%E5%8C%BA/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">表分区</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script src="https://utteranc.es/client.js" 
+        repo="ixugo/ixugo.github.io"
+        issue-term="pathname"
+        
+        crossorigin="anonymous"
+        async
+        >
+</script>
+
+<style>
+    .utterances {
+        max-width: unset;
+    }
+</style>
+
+<script>
+    function setUtterancesTheme(theme) {
+        let utterances = document.querySelector('.utterances iframe');
+        if (utterances) {
+            utterances.contentWindow.postMessage(
+                {
+                    type: 'set-theme',
+                    theme: `github-${theme}`
+                },
+                'https://utteranc.es'
+            );
+        }
+    }
+
+    addEventListener('message', event => {
+        if (event.origin !== 'https://utteranc.es') return;
+        setUtterancesTheme(document.documentElement.dataset.scheme)
+    });
+
+    window.addEventListener('onColorSchemeChange', (e) => {
+        setUtterancesTheme(e.detail)
+    })
+</script>
+
+
+    
+
+    <footer class="site-footer">
+  <section class="copyright">
+    &copy;  2018 -  2026 ixugo
+  </section>
+  
+  <script defer src="https://events.vercount.one/js"></script>
+  <section class="powerby">
+    
+    <span id="busuanzi_container_page_pv"
+      >本文阅读量
+      <span style="font-size: 14px" id="vercount_value_page_pv"></span>
+      次，</span
+    >
+    <span id="busuanzi_container_site_pv"
+      >总访问量
+      <span style="font-size: 14px" id="vercount_value_site_pv"></span>
+      次 </span
+    >，总访客数
+    <span style="font-size: 14px" id="vercount_value_site_uv"></span> 人
+    <br />
+
+    Built with <a
+      href="https://gohugo.io/"
+      target="_blank"
+      rel="noopener"
+      >Hugo</a
+    >
+    .&nbsp;&nbsp; Theme <a
+      href="https://github.com/CaiJimmy/hugo-theme-stack"
+      target="_blank"
+      rel="noopener"
+      data-version="3.16.0"
+      >Stack</a
+    > designed by <a
+      href="https://jimmycai.com"
+      target="_blank"
+      rel="noopener"
+      >Jimmy</a
+    >
+  </section>
+
+  <script>
+    
+    function count() {
+      let href = window.location.href;
+      let regexp = /^https?:\/\/blog.golang.space\/?(page\/[\d]+\/?)?$/;
+      if (regexp.test(href)) {
+        let e = document.getElementById("busuanzi_container_page_pv");
+        e.innerText = "";
+      }
+    }
+    window.onload = count;
+  </script>
+</footer>
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

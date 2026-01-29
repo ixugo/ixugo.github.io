@@ -6,9 +6,9 @@ slug:
 image: 
 draft: false
 categories:
-    - Go
+    - SQLite
 tags:
-    - 实践笔记
+    - Go
 ---
 
 

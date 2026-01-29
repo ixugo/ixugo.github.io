@@ -6,7 +6,7 @@ slug:
 image: http://img.golang.space/img-1669079318266.png
 draft: false
 categories:
-    - 数据库
+    - PostgreSQL
 tags:
     - PostgreSQL
 ---

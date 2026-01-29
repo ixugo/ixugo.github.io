@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='LiveKit Egress 是 LiveKit 实时音视频平台中的一个核心功能模块，用于将实时音视频导出为录制文件，并支持上传到云存储。它会以虚拟参与者的身份加入指定 Room，接收音视频流，使用 GStreamer 或 FFmpeg 等多媒体框架进行合成，编码和输出。
+一个房间录像大概占用 4 核 CPU。
+Livekit Egress 录像 LiveKit 通过 Redis 与 LiveKit Egress 通信，使用 SDK 调用录像开启和停止，但是如何知道录像的状态呢?
+LiveKit 提供了 webhook，其中有关于 Egress 存在 3 种回调:
+Egress Updated 出口已更新
+1 2 3 4 interface WebhookEvent { event: &amp;#39;egress_updated&amp;#39;; egressInfo: EgressInfo; } Egress Ended 出口已关闭
+1 2 3 4 interface WebhookEvent { event: &amp;#39;egress_ended&amp;#39;; egressInfo: EgressInfo; } Egress Started Ingress 已启动
+1 2 3 4 interface WebhookEvent { event: &amp;#39;egress_started&amp;#39;; ingressInfo: EgressInfo; } 三种回调的触发流程如下'>
+<title>Livekit Egress</title>
+
+<link rel='canonical' href='https://blog.golang.space/p/livekit-egress/'>
+
+<link rel="stylesheet" href="/scss/style.min.8191399262444ab68b72a18c97392f5349be20a1615d77445be51e974c144cff.css"><meta property='og:title' content='Livekit Egress'>
+<meta property='og:description' content='LiveKit Egress 是 LiveKit 实时音视频平台中的一个核心功能模块，用于将实时音视频导出为录制文件，并支持上传到云存储。它会以虚拟参与者的身份加入指定 Room，接收音视频流，使用 GStreamer 或 FFmpeg 等多媒体框架进行合成，编码和输出。
+一个房间录像大概占用 4 核 CPU。
+Livekit Egress 录像 LiveKit 通过 Redis 与 LiveKit Egress 通信，使用 SDK 调用录像开启和停止，但是如何知道录像的状态呢?
+LiveKit 提供了 webhook，其中有关于 Egress 存在 3 种回调:
+Egress Updated 出口已更新
+1 2 3 4 interface WebhookEvent { event: &amp;#39;egress_updated&amp;#39;; egressInfo: EgressInfo; } Egress Ended 出口已关闭
+1 2 3 4 interface WebhookEvent { event: &amp;#39;egress_ended&amp;#39;; egressInfo: EgressInfo; } Egress Started Ingress 已启动
+1 2 3 4 interface WebhookEvent { event: &amp;#39;egress_started&amp;#39;; ingressInfo: EgressInfo; } 三种回调的触发流程如下'>
+<meta property='og:url' content='https://blog.golang.space/p/livekit-egress/'>
+<meta property='og:site_name' content='ixugo'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='Go' /><meta property='article:tag' content='Livekit' /><meta property='article:published_time' content='2026-01-25T00:00:00&#43;00:00'/><meta property='article:modified_time' content='2026-01-25T00:00:00&#43;00:00'/>
+<meta name="twitter:title" content="Livekit Egress">
+<meta name="twitter:description" content="LiveKit Egress 是 LiveKit 实时音视频平台中的一个核心功能模块，用于将实时音视频导出为录制文件，并支持上传到云存储。它会以虚拟参与者的身份加入指定 Room，接收音视频流，使用 GStreamer 或 FFmpeg 等多媒体框架进行合成，编码和输出。
+一个房间录像大概占用 4 核 CPU。
+Livekit Egress 录像 LiveKit 通过 Redis 与 LiveKit Egress 通信，使用 SDK 调用录像开启和停止，但是如何知道录像的状态呢?
+LiveKit 提供了 webhook，其中有关于 Egress 存在 3 种回调:
+Egress Updated 出口已更新
+1 2 3 4 interface WebhookEvent { event: &amp;#39;egress_updated&amp;#39;; egressInfo: EgressInfo; } Egress Ended 出口已关闭
+1 2 3 4 interface WebhookEvent { event: &amp;#39;egress_ended&amp;#39;; egressInfo: EgressInfo; } Egress Started Ingress 已启动
+1 2 3 4 interface WebhookEvent { event: &amp;#39;egress_started&amp;#39;; ingressInfo: EgressInfo; } 三种回调的触发流程如下">
+    <link rel="shortcut icon" href="img/favicon.ico" />
+
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+	(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+	m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+	})(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+	ga('create', 'UA-192125643-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="Toggle Menu">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu0b04ba6d7249c9f90c92db974439eb8c_208246_300x0_resize_box_3.png" width="300"
+                            height="321" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🧐</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">ixugo</a></h1>
+            <h2 class="site-description">走出舒适区</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/ixugo'
+                        target="_blank"
+                        title="GitHub"
+                        rel="me"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>Home</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/about/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>About</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>Archives</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>Search</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>Dark Mode</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">Table of contents</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#livekit-egress-录像">Livekit Egress 录像</a>
+      <ol>
+        <li><a href="#输出文件">输出文件</a></li>
+        <li><a href="#回调重试">回调重试</a></li>
+      </ol>
+    </li>
+    <li><a href="#参考">参考</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+            <main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+    <header class="article-category">
+        
+            <a href="/categories/webrtc/" >
+                WebRTC
+            </a>
+        
+    </header>
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/livekit-egress/">Livekit Egress</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    
+    
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Jan 25, 2026</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    1 minute read
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+
+</header>
+
+    <section class="article-content">
+    
+    
+    <p>LiveKit Egress 是 LiveKit 实时音视频平台中的一个核心功能模块，用于将实时音视频导出为录制文件，并支持上传到云存储。它会以虚拟参与者的身份加入指定 Room，接收音视频流，使用 GStreamer 或 FFmpeg 等多媒体框架进行合成，编码和输出。</p>
+<p>一个房间录像大概占用 4 核 CPU。</p>
+<h2 id="livekit-egress-录像">Livekit Egress 录像</h2>
+<p>LiveKit 通过 Redis 与 LiveKit Egress 通信，使用 SDK 调用录像开启和停止，但是如何知道录像的状态呢?</p>
+<p>LiveKit 提供了 <a class="link" href="https://docs.livekit.io/intro/basics/rooms-participants-tracks/webhooks-events/"  target="_blank" rel="noopener"
+    >webhook</a>，其中有关于 Egress 存在 3 种回调:</p>
+<p><strong>Egress Updated 出口已更新</strong></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-typescript" data-lang="typescript"><span class="line"><span class="cl"><span class="kr">interface</span> <span class="nx">WebhookEvent</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">event</span><span class="o">:</span> <span class="s1">&#39;egress_updated&#39;</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">egressInfo</span>: <span class="kt">EgressInfo</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><strong>Egress Ended 出口已关闭</strong></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-typescript" data-lang="typescript"><span class="line"><span class="cl"><span class="kr">interface</span> <span class="nx">WebhookEvent</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">event</span><span class="o">:</span> <span class="s1">&#39;egress_ended&#39;</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">egressInfo</span>: <span class="kt">EgressInfo</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><strong>Egress Started Ingress 已启动</strong></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-typescript" data-lang="typescript"><span class="line"><span class="cl"><span class="kr">interface</span> <span class="nx">WebhookEvent</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">event</span><span class="o">:</span> <span class="s1">&#39;egress_started&#39;</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">ingressInfo</span>: <span class="kt">EgressInfo</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><strong>三种回调的触发流程如下</strong></p>
+<ol>
+<li>SDK 调用启动录像，收到 <code>egress_started</code>，状态为 <code>EGRESS_STARTING</code></li>
+<li>激活录像，收到<code>egress_updated</code>，状态为 <code>EGRESS_ACTIVE</code></li>
+<li>SDK 调用停止录像，收到 <code>egress_updated</code>，状态为 <code>EGRESS_ENDING</code></li>
+<li>录制结束，收到 <code>egress_ended</code>，状态为 <code>EGRESS_COMPLETE</code></li>
+</ol>
+<h3 id="输出文件">输出文件</h3>
+<p>录制完成后，存储里面会增加 2 个文件，一个是 <code>&lt;egress_id&gt;.json</code> ，另一个是 <code>xxx.mp4</code>。</p>
+<p>前者用于描述录像的开始时间，结束时间，房间号等信息，数据结构如下。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-json" data-lang="json"><span class="line"><span class="cl"><span class="p">{</span><span class="nt">&#34;egress_id&#34;</span><span class="p">:</span><span class="s2">&#34;EG_n2CdKF8XU4vD&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl"> <span class="nt">&#34;room_id&#34;</span><span class="p">:</span><span class="s2">&#34;RM_uidV4uaQornX&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl"> <span class="nt">&#34;room_name&#34;</span><span class="p">:</span><span class="s2">&#34;ro9ng2u&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl"> <span class="nt">&#34;started_at&#34;</span><span class="p">:</span><span class="mi">1768979059503804853</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl"> <span class="nt">&#34;ended_at&#34;</span><span class="p">:</span><span class="mi">1768979081731428616</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl"> <span class="nt">&#34;files&#34;</span><span class="p">:[{</span><span class="nt">&#34;filename&#34;</span><span class="p">:</span><span class="s2">&#34;/records/meeting/ro9ng2u_20260121_150418.mp4&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">           <span class="nt">&#34;location&#34;</span><span class="p">:</span><span class="s2">&#34;/records/meeting/ro9ng2u_20260121_150418.mp4&#34;</span><span class="p">}]</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>有 webhook 回调过来包含了以上数据，可以指定 <code>DisableManifest=true</code> 禁用这个文件的创建，节省存储空间。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="nx">req</span><span class="p">.</span><span class="nx">FileOutputs</span> <span class="p">=</span> <span class="p">[]</span><span class="o">*</span><span class="nx">livekit</span><span class="p">.</span><span class="nx">EncodedFileOutput</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="nx">FileType</span><span class="p">:</span>        <span class="nx">livekit</span><span class="p">.</span><span class="nx">EncodedFileType_MP4</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">			<span class="nx">Filepath</span><span class="p">:</span>        <span class="nx">recordPath</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">			<span class="nx">DisableManifest</span><span class="p">:</span> <span class="kc">true</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">		<span class="p">},</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>可以在 SDK 指定上传到 s3</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="nx">req</span><span class="p">.</span><span class="nx">FileOutputs</span><span class="p">[</span><span class="mi">0</span><span class="p">].</span><span class="nx">Output</span> <span class="p">=</span> <span class="o">&amp;</span><span class="nx">livekit</span><span class="p">.</span><span class="nx">EncodedFileOutput_S3</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">S3</span><span class="p">:</span> <span class="o">&amp;</span><span class="nx">livekit</span><span class="p">.</span><span class="nx">S3Upload</span><span class="p">{},</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>了解以上知识后，可以通过 webhook 将录像的元数据存入数据库，根据业务需要查询录像，录像文件存储到 s3 云存储，通过接口重定向到含有鉴权的 MP4 播放地址。</p>
+<h3 id="回调重试">回调重试</h3>
+<p>Webhook 是由 LiveKit 发送到指定后端的 HTTP 请求。由于该协议基于推送的特性，无法保证其交付成功。</p>
+<p>LiveKit 旨在通过多次重试 Webhook 请求来缓解瞬态故障。每条消息在被放弃之前都会经过多次投递尝试。如果多个事件排队等待投递，LiveKit 会对其进行正确的排序；仅在较旧的事件投递或放弃后才投递较新的事件。</p>
+<p>如果后端服务不稳定无法接收处理请求，是有概率导致丢失未入库的!</p>
+<ol>
+<li>通过负载均衡确保后端服务高可用</li>
+<li>订阅三种事件，都做入库处理</li>
+</ol>
+<p>上传 s3 时还可以放到临时目录，收到录像完成事件则移动到正式目录，可以定期遍历临时目录，进行同步。</p>
+<h2 id="参考">参考</h2>
+<p><a class="link" href="https://docs.livekit.io/intro/basics/rooms-participants-tracks/webhooks-events/"  target="_blank" rel="noopener"
+    >LiveKit WebHook</a></p>
+
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/go/">Go</a>
+        
+            <a href="/tags/livekit/">Livekit</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">Related content</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/%E4%BB%80%E4%B9%88%E6%98%AF-whip-%E5%92%8C-whep/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">什么是 WHIP 和 WHEP</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script src="https://utteranc.es/client.js" 
+        repo="ixugo/ixugo.github.io"
+        issue-term="pathname"
+        
+        crossorigin="anonymous"
+        async
+        >
+</script>
+
+<style>
+    .utterances {
+        max-width: unset;
+    }
+</style>
+
+<script>
+    function setUtterancesTheme(theme) {
+        let utterances = document.querySelector('.utterances iframe');
+        if (utterances) {
+            utterances.contentWindow.postMessage(
+                {
+                    type: 'set-theme',
+                    theme: `github-${theme}`
+                },
+                'https://utteranc.es'
+            );
+        }
+    }
+
+    addEventListener('message', event => {
+        if (event.origin !== 'https://utteranc.es') return;
+        setUtterancesTheme(document.documentElement.dataset.scheme)
+    });
+
+    window.addEventListener('onColorSchemeChange', (e) => {
+        setUtterancesTheme(e.detail)
+    })
+</script>
+
+
+    
+
+    <footer class="site-footer">
+  <section class="copyright">
+    &copy;  2018 -  2026 ixugo
+  </section>
+  
+  <script defer src="https://events.vercount.one/js"></script>
+  <section class="powerby">
+    
+    <span id="busuanzi_container_page_pv"
+      >本文阅读量
+      <span style="font-size: 14px" id="vercount_value_page_pv"></span>
+      次，</span
+    >
+    <span id="busuanzi_container_site_pv"
+      >总访问量
+      <span style="font-size: 14px" id="vercount_value_site_pv"></span>
+      次 </span
+    >，总访客数
+    <span style="font-size: 14px" id="vercount_value_site_uv"></span> 人
+    <br />
+
+    Built with <a
+      href="https://gohugo.io/"
+      target="_blank"
+      rel="noopener"
+      >Hugo</a
+    >
+    .&nbsp;&nbsp; Theme <a
+      href="https://github.com/CaiJimmy/hugo-theme-stack"
+      target="_blank"
+      rel="noopener"
+      data-version="3.16.0"
+      >Stack</a
+    > designed by <a
+      href="https://jimmycai.com"
+      target="_blank"
+      rel="noopener"
+      >Jimmy</a
+    >
+  </section>
+
+  <script>
+    
+    function count() {
+      let href = window.location.href;
+      let regexp = /^https?:\/\/blog.golang.space\/?(page\/[\d]+\/?)?$/;
+      if (regexp.test(href)) {
+        let e = document.getElementById("busuanzi_container_page_pv");
+        e.innerText = "";
+      }
+    }
+    window.onload = count;
+  </script>
+</footer>
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

@@ -6,7 +6,7 @@ slug:
 image: 
 draft: false
 categories:
-    - 数据库
+    - Redis
 tags:
     - Redis
 ---
