@@ -1,0 +1,1052 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='原生的 net/http 并没有提供请求失败时的重试功能，也没有限制每秒最大请求数的速率控制功能，通过 http.RoundTripper 来扩展实现这两个功能。'>
+<title>如何为 http.RoundTripper 添加速率控制和重试功能</title>
+
+<link rel='canonical' href='https://blog.golang.space/p/%E5%A6%82%E4%BD%95%E4%B8%BA-http.roundtripper-%E6%B7%BB%E5%8A%A0%E9%80%9F%E7%8E%87%E6%8E%A7%E5%88%B6%E5%92%8C%E9%87%8D%E8%AF%95%E5%8A%9F%E8%83%BD/'>
+
+<link rel="stylesheet" href="/scss/style.min.8191399262444ab68b72a18c97392f5349be20a1615d77445be51e974c144cff.css"><meta property='og:title' content='如何为 http.RoundTripper 添加速率控制和重试功能'>
+<meta property='og:description' content='原生的 net/http 并没有提供请求失败时的重试功能，也没有限制每秒最大请求数的速率控制功能，通过 http.RoundTripper 来扩展实现这两个功能。'>
+<meta property='og:url' content='https://blog.golang.space/p/%E5%A6%82%E4%BD%95%E4%B8%BA-http.roundtripper-%E6%B7%BB%E5%8A%A0%E9%80%9F%E7%8E%87%E6%8E%A7%E5%88%B6%E5%92%8C%E9%87%8D%E8%AF%95%E5%8A%9F%E8%83%BD/'>
+<meta property='og:site_name' content='ixugo'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='读书笔记' /><meta property='article:published_time' content='2022-10-21T00:00:00&#43;00:00'/><meta property='article:modified_time' content='2022-10-21T00:00:00&#43;00:00'/>
+<meta name="twitter:title" content="如何为 http.RoundTripper 添加速率控制和重试功能">
+<meta name="twitter:description" content="原生的 net/http 并没有提供请求失败时的重试功能，也没有限制每秒最大请求数的速率控制功能，通过 http.RoundTripper 来扩展实现这两个功能。">
+    <link rel="shortcut icon" href="img/favicon.ico" />
+
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+	(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+	m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+	})(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+	ga('create', 'UA-192125643-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="Toggle Menu">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu0b04ba6d7249c9f90c92db974439eb8c_208246_300x0_resize_box_3.png" width="300"
+                            height="321" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🧐</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">ixugo</a></h1>
+            <h2 class="site-description">走出舒适区</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/ixugo'
+                        target="_blank"
+                        title="GitHub"
+                        rel="me"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>Home</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/about/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>About</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>Archives</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>Search</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>Dark Mode</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">Table of contents</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#介绍">介绍</a></li>
+    <li><a href="#想要实现的功能">想要实现的功能</a></li>
+    <li><a href="#准备工作">准备工作</a></li>
+    <li><a href="#重试控制">重试控制</a></li>
+    <li><a href="#速率控制">速率控制</a></li>
+    <li><a href="#测试">测试</a></li>
+    <li><a href="#总结">总结</a></li>
+    <li><a href="#参考">参考</a></li>
+    <li><a href="#读后感">读后感</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+            <main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+    <header class="article-category">
+        
+            <a href="/categories/go/" >
+                Go
+            </a>
+        
+    </header>
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/%E5%A6%82%E4%BD%95%E4%B8%BA-http.roundtripper-%E6%B7%BB%E5%8A%A0%E9%80%9F%E7%8E%87%E6%8E%A7%E5%88%B6%E5%92%8C%E9%87%8D%E8%AF%95%E5%8A%9F%E8%83%BD/">如何为 http.RoundTripper 添加速率控制和重试功能</a>
+        </h2>
+    
+        
+        <h3 class="article-subtitle">
+            原生的 net/http 并没有提供请求失败时的重试功能，也没有限制每秒最大请求数的速率控制功能，通过 http.RoundTripper 来扩展实现这两个功能。
+        </h3>
+        
+    </div>
+
+    
+    
+    
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Oct 21, 2022</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    3 minute read
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+
+</header>
+
+    <section class="article-content">
+    
+    
+    <h2 id="介绍">介绍</h2>
+<p>在 Go 中向外部发起 HTTP 请求时，大多数情况下会使用 net/http。</p>
+<p>net/http 已具备常规所需的功能，但如果需要单独扩展功能，可以使用 http.RoundTripper 接口。</p>
+<h2 id="想要实现的功能">想要实现的功能</h2>
+<p>原生的 net/http 并没有提供请求失败时的重试功能，也没有限制每秒最大请求数的速率控制功能。</p>
+<p>因此本次我们打算实现以下两种功能：</p>
+<ul>
+<li>重试处理</li>
+<li>速率控制</li>
+</ul>
+<p>通过 http.RoundTripper 来扩展实现这两个功能。</p>
+<h2 id="准备工作">准备工作</h2>
+<p>首先准备本次要实现的 http.RoundTripper 框架。</p>
+<p>定义一个包含 http.RoundTripper 字段的结构体(MyTransport)，并定义初始化函数。</p>
+<p>此外，通过向 MayTransport 的接收器函数添加 <code>RoundTrip(req *http.Request) (*http.Response, error)</code> ，可以隐式地使其符合 http.RoundTripper 接口。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kn">import</span> <span class="p">(</span>
+</span></span><span class="line"><span class="cl">	<span class="s">&#34;net/http&#34;</span>
+</span></span><span class="line"><span class="cl"><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">MyTransport</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">wrapped</span> <span class="nx">http</span><span class="p">.</span><span class="nx">RoundTripper</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">NewMyTransport</span><span class="p">(</span><span class="nx">transport</span> <span class="nx">http</span><span class="p">.</span><span class="nx">RoundTripper</span><span class="p">)</span> <span class="o">*</span><span class="nx">MyTransport</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="o">&amp;</span><span class="nx">MyTransport</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">wrapped</span><span class="p">:</span> <span class="nx">transport</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">t</span> <span class="o">*</span><span class="nx">MyTransport</span><span class="p">)</span> <span class="nf">RoundTrip</span><span class="p">(</span><span class="nx">req</span> <span class="o">*</span><span class="nx">http</span><span class="p">.</span><span class="nx">Request</span><span class="p">)</span> <span class="p">(</span><span class="o">*</span><span class="nx">http</span><span class="p">.</span><span class="nx">Response</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="nx">t</span><span class="p">.</span><span class="nx">wrapped</span><span class="p">.</span><span class="nf">RoundTrip</span><span class="p">(</span><span class="nx">req</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>通过在 RoundTrip 中添加处理逻辑，可以在 HTTP 请求前后添加处理功能。</p>
+<h2 id="重试控制">重试控制</h2>
+<p>在 MyTransport 字段中添加最大重试次数和已重试次数。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">MyTransport</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">wrapped</span> <span class="nx">http</span><span class="p">.</span><span class="nx">RoundTripper</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="nx">maxRetryCounts</span> <span class="kt">int</span> <span class="c1">// 最大リトライ数
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">retryCounts</span>    <span class="kt">int</span> <span class="c1">// リトライした数
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>使初始化时能够传递 maxRetryCounts 的值。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">NewLimitedTransport</span><span class="p">(</span><span class="nx">transport</span> <span class="nx">http</span><span class="p">.</span><span class="nx">RoundTripper</span><span class="p">,</span> <span class="nx">maxRetryCounts</span> <span class="kt">int</span><span class="p">)</span> <span class="o">*</span><span class="nx">MyTransport</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="o">&amp;</span><span class="nx">MyTransport</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">wrapped</span><span class="p">:</span>        <span class="nx">transport</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">maxRetryCounts</span><span class="p">:</span> <span class="nx">maxRetryCounts</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>接下来在 RoundTrip 内部添加重试处理。</p>
+<p>当响应的状态码为 50x 及以上时进行重试。</p>
+<p>另外，重试次数不超过 maxRetryCounts 指定的上限，并使用 Exponential BackOff 算法呈指数级增加重试间隔。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">t</span> <span class="o">*</span><span class="nx">MyTransport</span><span class="p">)</span> <span class="nf">RoundTrip</span><span class="p">(</span><span class="nx">req</span> <span class="o">*</span><span class="nx">http</span><span class="p">.</span><span class="nx">Request</span><span class="p">)</span> <span class="p">(</span><span class="o">*</span><span class="nx">http</span><span class="p">.</span><span class="nx">Response</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="kd">var</span> <span class="nx">res</span> <span class="o">*</span><span class="nx">http</span><span class="p">.</span><span class="nx">Response</span>
+</span></span><span class="line"><span class="cl">	<span class="kd">var</span> <span class="nx">err</span> <span class="kt">error</span>
+</span></span><span class="line"><span class="cl">	<span class="k">for</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="c1">// 実際のhttpリクエストはここ
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="nx">res</span><span class="p">,</span> <span class="nx">err</span> <span class="p">=</span> <span class="nx">lt</span><span class="p">.</span><span class="nx">wrapped</span><span class="p">.</span><span class="nf">RoundTrip</span><span class="p">(</span><span class="nx">req</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="c1">// 50x系以上はリトライ
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="k">if</span> <span class="nx">res</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="o">&amp;&amp;</span> <span class="nx">res</span><span class="p">.</span><span class="nx">StatusCode</span> <span class="p">&lt;</span> <span class="nx">http</span><span class="p">.</span><span class="nx">StatusInternalServerError</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="k">break</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="c1">// リトライ数の上限チェック
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="nx">lt</span><span class="p">.</span><span class="nx">retryCounts</span><span class="o">++</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="nx">lt</span><span class="p">.</span><span class="nx">retryCounts</span> <span class="p">&gt;</span> <span class="nx">lt</span><span class="p">.</span><span class="nx">maxRetryCounts</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="k">break</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="c1">// Exponential BackOff でウェイトを入れる
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="nx">time</span><span class="p">.</span><span class="nf">Sleep</span><span class="p">(</span><span class="nx">time</span><span class="p">.</span><span class="nx">Second</span> <span class="o">*</span> <span class="nx">time</span><span class="p">.</span><span class="nf">Duration</span><span class="p">(</span><span class="nx">math</span><span class="p">.</span><span class="nf">Pow</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="nb">float64</span><span class="p">(</span><span class="nx">lt</span><span class="p">.</span><span class="nx">retryCounts</span><span class="p">))))</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">lt</span><span class="p">.</span><span class="nx">retryCounts</span> <span class="p">=</span> <span class="mi">0</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="nx">res</span><span class="p">,</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h2 id="速率控制">速率控制</h2>
+<p>本次我们使用 Fixed Window Counter 算法来实现速率控制。</p>
+<p>简单来说，就是将经过的时间按固定期间进行分割，在每个期间内限制允许的请求数量的算法。</p>
+<p>定义表示固定期间的结构体(Window)，并将单位时间内的请求次数上限、单位时间(ms)、当前 window 作为 MyTransport 的字段添加进去。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">MyTransport</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl"><span class="o">...</span> <span class="nx">省略</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">maxRequestCounts</span> <span class="kt">int</span>    
+</span></span><span class="line"><span class="cl">	<span class="nx">perMilliSecond</span>   <span class="kt">int64</span>  
+</span></span><span class="line"><span class="cl">	<span class="nx">window</span>           <span class="nx">Window</span> 
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">Window</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">key</span>           <span class="kt">int64</span> 
+</span></span><span class="line"><span class="cl">	<span class="nx">requestCounts</span> <span class="kt">int</span>   
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>在 MyTransport 的初始化时能够对这些进行初始化。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">NewMyTransport</span><span class="p">(</span><span class="nx">transport</span> <span class="nx">http</span><span class="p">.</span><span class="nx">RoundTripper</span><span class="p">,</span> <span class="nx">maxRetryCounts</span> <span class="kt">int</span><span class="p">,</span> <span class="nx">maxRequestCounts</span> <span class="kt">int</span><span class="p">,</span> <span class="nx">perMilliSecond</span> <span class="kt">int64</span><span class="p">)</span> <span class="o">*</span><span class="nx">MyTransport</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="o">&amp;</span><span class="nx">MyTransport</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">wrapped</span><span class="p">:</span>          <span class="nx">transport</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">maxRequestCounts</span><span class="p">:</span> <span class="nx">maxRequestCounts</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">perMilliSecond</span><span class="p">:</span>   <span class="nx">perMilliSecond</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">maxRetryCounts</span><span class="p">:</span>   <span class="nx">maxRetryCounts</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">retryCounts</span><span class="p">:</span>      <span class="mi">0</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">window</span><span class="p">:</span> <span class="nx">Window</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="nx">key</span><span class="p">:</span>           <span class="nb">int64</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span>
+</span></span><span class="line"><span class="cl">			<span class="nx">requestCounts</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">		<span class="p">},</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>最后将速率控制处理添加到 RoundTrip 中。</p>
+<p>将当前时间戳除以 perMilliSecond 并向下取整作为窗口的键值。</p>
+<p>这个键值每隔 perMilliSecond 毫秒就会更新为新值，因此在同一窗口内是唯一的键。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">t</span> <span class="o">*</span><span class="nx">MyTransport</span><span class="p">)</span> <span class="nf">RoundTrip</span><span class="p">(</span><span class="nx">req</span> <span class="o">*</span><span class="nx">http</span><span class="p">.</span><span class="nx">Request</span><span class="p">)</span> <span class="p">(</span><span class="o">*</span><span class="nx">http</span><span class="p">.</span><span class="nx">Response</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">for</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">now</span> <span class="o">:=</span> <span class="nx">time</span><span class="p">.</span><span class="nf">Now</span><span class="p">().</span><span class="nf">UnixMilli</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">cKey</span> <span class="o">:=</span> <span class="nx">now</span> <span class="o">/</span> <span class="nx">t</span><span class="p">.</span><span class="nx">perMilliSecond</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 如果当前窗口和上一次记录的窗口不同（即进入了一个新窗口），就重置计数器为 0，并允许立即发送请求
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="k">if</span> <span class="nx">t</span><span class="p">.</span><span class="nx">window</span><span class="p">.</span><span class="nx">key</span> <span class="o">!=</span> <span class="nx">cKey</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="nx">t</span><span class="p">.</span><span class="nx">window</span> <span class="p">=</span> <span class="nx">Window</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">				<span class="nx">key</span><span class="p">:</span>           <span class="nx">cKey</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">				<span class="nx">requestCounts</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">			<span class="p">}</span>
+</span></span><span class="line"><span class="cl">			<span class="k">break</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 如果还在同一个窗口内，但当前请求数还没达到上限（maxRequestCounts），也允许立即发送。
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="k">if</span> <span class="nx">t</span><span class="p">.</span><span class="nx">window</span><span class="p">.</span><span class="nx">requestCounts</span> <span class="p">&lt;</span> <span class="nx">t</span><span class="p">.</span><span class="nx">maxRequestCounts</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="k">break</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 如果当前窗口内请求数已达上限，则需要等待到当前窗口结束。
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="nx">wait</span> <span class="o">:=</span> <span class="nx">t</span><span class="p">.</span><span class="nx">perMilliSecond</span> <span class="o">-</span> <span class="nx">now</span><span class="o">%</span><span class="nx">t</span><span class="p">.</span><span class="nx">perMilliSecond</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">time</span><span class="p">.</span><span class="nf">Sleep</span><span class="p">(</span><span class="nx">time</span><span class="p">.</span><span class="nx">Millisecond</span> <span class="o">*</span> <span class="nx">time</span><span class="p">.</span><span class="nf">Duration</span><span class="p">(</span><span class="nx">wait</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">t</span><span class="p">.</span><span class="nx">window</span><span class="p">.</span><span class="nx">requestCounts</span><span class="o">++</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// ...省略，处理请求
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="k">return</span> <span class="nx">res</span><span class="p">,</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h2 id="测试">测试</h2>
+<p>那么，我们来使用完成的 MyTransport 进行测试。</p>
+<p>本次测试将使用以下设置:</p>
+<ul>
+<li>最大重试次数为 5</li>
+<li>每 4.5 秒最多 3 个请求</li>
+</ul>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="nx">client</span> <span class="o">:=</span> <span class="nx">http</span><span class="p">.</span><span class="nx">Client</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">Transport</span><span class="p">:</span> <span class="nf">NewMyTransport</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">http</span><span class="p">.</span><span class="nx">DefaultTransport</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">		<span class="mi">5</span><span class="p">,</span>    <span class="c1">// 最大リトライ数
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="mi">3</span><span class="p">,</span>    <span class="c1">// 単位時間あたりのリクエスト数上限
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="mi">4500</span><span class="p">,</span> <span class="c1">// 単位時間(ms)
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="p">),</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>使用此配置向返回 500 的端点发送请求试试看</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="nx">resp</span><span class="p">,</span> <span class="nx">_</span> <span class="o">:=</span> <span class="nx">client</span><span class="p">.</span><span class="nf">Get</span><span class="p">(</span><span class="nx">url</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="k">defer</span> <span class="nx">resp</span><span class="p">.</span><span class="nx">Body</span><span class="p">.</span><span class="nf">Close</span><span class="p">()</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>结果如图所示，可以看到重试间隔逐渐增大，并且最多重试了 5 次</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="p">{</span><span class="s">&#34;time&#34;</span><span class="p">:</span><span class="s">&#34;2022-09-09T08:59:01.521892211Z&#34;</span><span class="p">,</span><span class="s">&#34;level&#34;</span><span class="p">:</span><span class="s">&#34;INFO&#34;</span><span class="p">,</span><span class="s">&#34;prefix&#34;</span><span class="p">:</span><span class="s">&#34;-&#34;</span><span class="p">,</span><span class="s">&#34;file&#34;</span><span class="p">:</span><span class="s">&#34;http.go&#34;</span><span class="p">,</span><span class="s">&#34;line&#34;</span><span class="p">:</span><span class="s">&#34;69&#34;</span><span class="p">,</span><span class="s">&#34;message&#34;</span><span class="p">:</span><span class="s">&#34;500&#34;</span><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span><span class="s">&#34;time&#34;</span><span class="p">:</span><span class="s">&#34;2022-09-09T08:59:03.577460181Z&#34;</span><span class="p">,</span><span class="s">&#34;level&#34;</span><span class="p">:</span><span class="s">&#34;INFO&#34;</span><span class="p">,</span><span class="s">&#34;prefix&#34;</span><span class="p">:</span><span class="s">&#34;-&#34;</span><span class="p">,</span><span class="s">&#34;file&#34;</span><span class="p">:</span><span class="s">&#34;http.go&#34;</span><span class="p">,</span><span class="s">&#34;line&#34;</span><span class="p">:</span><span class="s">&#34;69&#34;</span><span class="p">,</span><span class="s">&#34;message&#34;</span><span class="p">:</span><span class="s">&#34;500&#34;</span><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span><span class="s">&#34;time&#34;</span><span class="p">:</span><span class="s">&#34;2022-09-09T08:59:07.642723871Z&#34;</span><span class="p">,</span><span class="s">&#34;level&#34;</span><span class="p">:</span><span class="s">&#34;INFO&#34;</span><span class="p">,</span><span class="s">&#34;prefix&#34;</span><span class="p">:</span><span class="s">&#34;-&#34;</span><span class="p">,</span><span class="s">&#34;file&#34;</span><span class="p">:</span><span class="s">&#34;http.go&#34;</span><span class="p">,</span><span class="s">&#34;line&#34;</span><span class="p">:</span><span class="s">&#34;69&#34;</span><span class="p">,</span><span class="s">&#34;message&#34;</span><span class="p">:</span><span class="s">&#34;500&#34;</span><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span><span class="s">&#34;time&#34;</span><span class="p">:</span><span class="s">&#34;2022-09-09T08:59:15.713717009Z&#34;</span><span class="p">,</span><span class="s">&#34;level&#34;</span><span class="p">:</span><span class="s">&#34;INFO&#34;</span><span class="p">,</span><span class="s">&#34;prefix&#34;</span><span class="p">:</span><span class="s">&#34;-&#34;</span><span class="p">,</span><span class="s">&#34;file&#34;</span><span class="p">:</span><span class="s">&#34;http.go&#34;</span><span class="p">,</span><span class="s">&#34;line&#34;</span><span class="p">:</span><span class="s">&#34;69&#34;</span><span class="p">,</span><span class="s">&#34;message&#34;</span><span class="p">:</span><span class="s">&#34;500&#34;</span><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span><span class="s">&#34;time&#34;</span><span class="p">:</span><span class="s">&#34;2022-09-09T08:59:31.822121165Z&#34;</span><span class="p">,</span><span class="s">&#34;level&#34;</span><span class="p">:</span><span class="s">&#34;INFO&#34;</span><span class="p">,</span><span class="s">&#34;prefix&#34;</span><span class="p">:</span><span class="s">&#34;-&#34;</span><span class="p">,</span><span class="s">&#34;file&#34;</span><span class="p">:</span><span class="s">&#34;http.go&#34;</span><span class="p">,</span><span class="s">&#34;line&#34;</span><span class="p">:</span><span class="s">&#34;69&#34;</span><span class="p">,</span><span class="s">&#34;message&#34;</span><span class="p">:</span><span class="s">&#34;500&#34;</span><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span><span class="s">&#34;time&#34;</span><span class="p">:</span><span class="s">&#34;2022-09-09T09:00:03.914825907Z&#34;</span><span class="p">,</span><span class="s">&#34;level&#34;</span><span class="p">:</span><span class="s">&#34;INFO&#34;</span><span class="p">,</span><span class="s">&#34;prefix&#34;</span><span class="p">:</span><span class="s">&#34;-&#34;</span><span class="p">,</span><span class="s">&#34;file&#34;</span><span class="p">:</span><span class="s">&#34;http.go&#34;</span><span class="p">,</span><span class="s">&#34;line&#34;</span><span class="p">:</span><span class="s">&#34;69&#34;</span><span class="p">,</span><span class="s">&#34;message&#34;</span><span class="p">:</span><span class="s">&#34;500&#34;</span><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>接下来，向返回 200 的端点连续发送 20 次请求试试看</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="mi">0</span><span class="p">;</span> <span class="nx">i</span> <span class="p">&lt;</span> <span class="mi">20</span><span class="p">;</span> <span class="nx">i</span><span class="o">++</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">resp</span><span class="p">,</span> <span class="nx">_</span> <span class="o">:=</span> <span class="nx">client</span><span class="p">.</span><span class="nf">Get</span><span class="p">(</span><span class="nx">url</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="k">defer</span> <span class="nx">resp</span><span class="p">.</span><span class="nx">Body</span><span class="p">.</span><span class="nf">Close</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>虽然看起来有些困难，但可以发现请求大约以每 4.5 秒 3 个请求的节奏发出。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="p">{</span><span class="s">&#34;time&#34;</span><span class="p">:</span><span class="s">&#34;2022-09-09T09:00:04.006523686Z&#34;</span><span class="p">,</span><span class="s">&#34;level&#34;</span><span class="p">:</span><span class="s">&#34;INFO&#34;</span><span class="p">,</span><span class="s">&#34;prefix&#34;</span><span class="p">:</span><span class="s">&#34;-&#34;</span><span class="p">,</span><span class="s">&#34;file&#34;</span><span class="p">:</span><span class="s">&#34;http.go&#34;</span><span class="p">,</span><span class="s">&#34;line&#34;</span><span class="p">:</span><span class="s">&#34;69&#34;</span><span class="p">,</span><span class="s">&#34;message&#34;</span><span class="p">:</span><span class="s">&#34;200&#34;</span><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span><span class="s">&#34;time&#34;</span><span class="p">:</span><span class="s">&#34;2022-09-09T09:00:04.103094697Z&#34;</span><span class="p">,</span><span class="s">&#34;level&#34;</span><span class="p">:</span><span class="s">&#34;INFO&#34;</span><span class="p">,</span><span class="s">&#34;prefix&#34;</span><span class="p">:</span><span class="s">&#34;-&#34;</span><span class="p">,</span><span class="s">&#34;file&#34;</span><span class="p">:</span><span class="s">&#34;http.go&#34;</span><span class="p">,</span><span class="s">&#34;line&#34;</span><span class="p">:</span><span class="s">&#34;69&#34;</span><span class="p">,</span><span class="s">&#34;message&#34;</span><span class="p">:</span><span class="s">&#34;200&#34;</span><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span><span class="s">&#34;time&#34;</span><span class="p">:</span><span class="s">&#34;2022-09-09T09:00:04.189073231Z&#34;</span><span class="p">,</span><span class="s">&#34;level&#34;</span><span class="p">:</span><span class="s">&#34;INFO&#34;</span><span class="p">,</span><span class="s">&#34;prefix&#34;</span><span class="p">:</span><span class="s">&#34;-&#34;</span><span class="p">,</span><span class="s">&#34;file&#34;</span><span class="p">:</span><span class="s">&#34;http.go&#34;</span><span class="p">,</span><span class="s">&#34;line&#34;</span><span class="p">:</span><span class="s">&#34;69&#34;</span><span class="p">,</span><span class="s">&#34;message&#34;</span><span class="p">:</span><span class="s">&#34;200&#34;</span><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span><span class="s">&#34;time&#34;</span><span class="p">:</span><span class="s">&#34;2022-09-09T09:00:04.552413101Z&#34;</span><span class="p">,</span><span class="s">&#34;level&#34;</span><span class="p">:</span><span class="s">&#34;INFO&#34;</span><span class="p">,</span><span class="s">&#34;prefix&#34;</span><span class="p">:</span><span class="s">&#34;-&#34;</span><span class="p">,</span><span class="s">&#34;file&#34;</span><span class="p">:</span><span class="s">&#34;http.go&#34;</span><span class="p">,</span><span class="s">&#34;line&#34;</span><span class="p">:</span><span class="s">&#34;69&#34;</span><span class="p">,</span><span class="s">&#34;message&#34;</span><span class="p">:</span><span class="s">&#34;200&#34;</span><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span><span class="s">&#34;time&#34;</span><span class="p">:</span><span class="s">&#34;2022-09-09T09:00:04.647212881Z&#34;</span><span class="p">,</span><span class="s">&#34;level&#34;</span><span class="p">:</span><span class="s">&#34;INFO&#34;</span><span class="p">,</span><span class="s">&#34;prefix&#34;</span><span class="p">:</span><span class="s">&#34;-&#34;</span><span class="p">,</span><span class="s">&#34;file&#34;</span><span class="p">:</span><span class="s">&#34;http.go&#34;</span><span class="p">,</span><span class="s">&#34;line&#34;</span><span class="p">:</span><span class="s">&#34;69&#34;</span><span class="p">,</span><span class="s">&#34;message&#34;</span><span class="p">:</span><span class="s">&#34;200&#34;</span><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span><span class="s">&#34;time&#34;</span><span class="p">:</span><span class="s">&#34;2022-09-09T09:00:04.727567042Z&#34;</span><span class="p">,</span><span class="s">&#34;level&#34;</span><span class="p">:</span><span class="s">&#34;INFO&#34;</span><span class="p">,</span><span class="s">&#34;prefix&#34;</span><span class="p">:</span><span class="s">&#34;-&#34;</span><span class="p">,</span><span class="s">&#34;file&#34;</span><span class="p">:</span><span class="s">&#34;http.go&#34;</span><span class="p">,</span><span class="s">&#34;line&#34;</span><span class="p">:</span><span class="s">&#34;69&#34;</span><span class="p">,</span><span class="s">&#34;message&#34;</span><span class="p">:</span><span class="s">&#34;200&#34;</span><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span><span class="s">&#34;time&#34;</span><span class="p">:</span><span class="s">&#34;2022-09-09T09:00:09.051296264Z&#34;</span><span class="p">,</span><span class="s">&#34;level&#34;</span><span class="p">:</span><span class="s">&#34;INFO&#34;</span><span class="p">,</span><span class="s">&#34;prefix&#34;</span><span class="p">:</span><span class="s">&#34;-&#34;</span><span class="p">,</span><span class="s">&#34;file&#34;</span><span class="p">:</span><span class="s">&#34;http.go&#34;</span><span class="p">,</span><span class="s">&#34;line&#34;</span><span class="p">:</span><span class="s">&#34;69&#34;</span><span class="p">,</span><span class="s">&#34;message&#34;</span><span class="p">:</span><span class="s">&#34;200&#34;</span><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span><span class="s">&#34;time&#34;</span><span class="p">:</span><span class="s">&#34;2022-09-09T09:00:09.149187824Z&#34;</span><span class="p">,</span><span class="s">&#34;level&#34;</span><span class="p">:</span><span class="s">&#34;INFO&#34;</span><span class="p">,</span><span class="s">&#34;prefix&#34;</span><span class="p">:</span><span class="s">&#34;-&#34;</span><span class="p">,</span><span class="s">&#34;file&#34;</span><span class="p">:</span><span class="s">&#34;http.go&#34;</span><span class="p">,</span><span class="s">&#34;line&#34;</span><span class="p">:</span><span class="s">&#34;69&#34;</span><span class="p">,</span><span class="s">&#34;message&#34;</span><span class="p">:</span><span class="s">&#34;200&#34;</span><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span><span class="s">&#34;time&#34;</span><span class="p">:</span><span class="s">&#34;2022-09-09T09:00:09.239032885Z&#34;</span><span class="p">,</span><span class="s">&#34;level&#34;</span><span class="p">:</span><span class="s">&#34;INFO&#34;</span><span class="p">,</span><span class="s">&#34;prefix&#34;</span><span class="p">:</span><span class="s">&#34;-&#34;</span><span class="p">,</span><span class="s">&#34;file&#34;</span><span class="p">:</span><span class="s">&#34;http.go&#34;</span><span class="p">,</span><span class="s">&#34;line&#34;</span><span class="p">:</span><span class="s">&#34;69&#34;</span><span class="p">,</span><span class="s">&#34;message&#34;</span><span class="p">:</span><span class="s">&#34;200&#34;</span><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span><span class="s">&#34;time&#34;</span><span class="p">:</span><span class="s">&#34;2022-09-09T09:00:13.549064137Z&#34;</span><span class="p">,</span><span class="s">&#34;level&#34;</span><span class="p">:</span><span class="s">&#34;INFO&#34;</span><span class="p">,</span><span class="s">&#34;prefix&#34;</span><span class="p">:</span><span class="s">&#34;-&#34;</span><span class="p">,</span><span class="s">&#34;file&#34;</span><span class="p">:</span><span class="s">&#34;http.go&#34;</span><span class="p">,</span><span class="s">&#34;line&#34;</span><span class="p">:</span><span class="s">&#34;69&#34;</span><span class="p">,</span><span class="s">&#34;message&#34;</span><span class="p">:</span><span class="s">&#34;200&#34;</span><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span><span class="s">&#34;time&#34;</span><span class="p">:</span><span class="s">&#34;2022-09-09T09:00:13.636816718Z&#34;</span><span class="p">,</span><span class="s">&#34;level&#34;</span><span class="p">:</span><span class="s">&#34;INFO&#34;</span><span class="p">,</span><span class="s">&#34;prefix&#34;</span><span class="p">:</span><span class="s">&#34;-&#34;</span><span class="p">,</span><span class="s">&#34;file&#34;</span><span class="p">:</span><span class="s">&#34;http.go&#34;</span><span class="p">,</span><span class="s">&#34;line&#34;</span><span class="p">:</span><span class="s">&#34;69&#34;</span><span class="p">,</span><span class="s">&#34;message&#34;</span><span class="p">:</span><span class="s">&#34;200&#34;</span><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span><span class="s">&#34;time&#34;</span><span class="p">:</span><span class="s">&#34;2022-09-09T09:00:13.724980151Z&#34;</span><span class="p">,</span><span class="s">&#34;level&#34;</span><span class="p">:</span><span class="s">&#34;INFO&#34;</span><span class="p">,</span><span class="s">&#34;prefix&#34;</span><span class="p">:</span><span class="s">&#34;-&#34;</span><span class="p">,</span><span class="s">&#34;file&#34;</span><span class="p">:</span><span class="s">&#34;http.go&#34;</span><span class="p">,</span><span class="s">&#34;line&#34;</span><span class="p">:</span><span class="s">&#34;69&#34;</span><span class="p">,</span><span class="s">&#34;message&#34;</span><span class="p">:</span><span class="s">&#34;200&#34;</span><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span><span class="s">&#34;time&#34;</span><span class="p">:</span><span class="s">&#34;2022-09-09T09:00:18.054925814Z&#34;</span><span class="p">,</span><span class="s">&#34;level&#34;</span><span class="p">:</span><span class="s">&#34;INFO&#34;</span><span class="p">,</span><span class="s">&#34;prefix&#34;</span><span class="p">:</span><span class="s">&#34;-&#34;</span><span class="p">,</span><span class="s">&#34;file&#34;</span><span class="p">:</span><span class="s">&#34;http.go&#34;</span><span class="p">,</span><span class="s">&#34;line&#34;</span><span class="p">:</span><span class="s">&#34;69&#34;</span><span class="p">,</span><span class="s">&#34;message&#34;</span><span class="p">:</span><span class="s">&#34;200&#34;</span><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span><span class="s">&#34;time&#34;</span><span class="p">:</span><span class="s">&#34;2022-09-09T09:00:18.15239561Z&#34;</span><span class="p">,</span><span class="s">&#34;level&#34;</span><span class="p">:</span><span class="s">&#34;INFO&#34;</span><span class="p">,</span><span class="s">&#34;prefix&#34;</span><span class="p">:</span><span class="s">&#34;-&#34;</span><span class="p">,</span><span class="s">&#34;file&#34;</span><span class="p">:</span><span class="s">&#34;http.go&#34;</span><span class="p">,</span><span class="s">&#34;line&#34;</span><span class="p">:</span><span class="s">&#34;69&#34;</span><span class="p">,</span><span class="s">&#34;message&#34;</span><span class="p">:</span><span class="s">&#34;200&#34;</span><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span><span class="s">&#34;time&#34;</span><span class="p">:</span><span class="s">&#34;2022-09-09T09:00:18.231450035Z&#34;</span><span class="p">,</span><span class="s">&#34;level&#34;</span><span class="p">:</span><span class="s">&#34;INFO&#34;</span><span class="p">,</span><span class="s">&#34;prefix&#34;</span><span class="p">:</span><span class="s">&#34;-&#34;</span><span class="p">,</span><span class="s">&#34;file&#34;</span><span class="p">:</span><span class="s">&#34;http.go&#34;</span><span class="p">,</span><span class="s">&#34;line&#34;</span><span class="p">:</span><span class="s">&#34;69&#34;</span><span class="p">,</span><span class="s">&#34;message&#34;</span><span class="p">:</span><span class="s">&#34;200&#34;</span><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span><span class="s">&#34;time&#34;</span><span class="p">:</span><span class="s">&#34;2022-09-09T09:00:22.566128516Z&#34;</span><span class="p">,</span><span class="s">&#34;level&#34;</span><span class="p">:</span><span class="s">&#34;INFO&#34;</span><span class="p">,</span><span class="s">&#34;prefix&#34;</span><span class="p">:</span><span class="s">&#34;-&#34;</span><span class="p">,</span><span class="s">&#34;file&#34;</span><span class="p">:</span><span class="s">&#34;http.go&#34;</span><span class="p">,</span><span class="s">&#34;line&#34;</span><span class="p">:</span><span class="s">&#34;69&#34;</span><span class="p">,</span><span class="s">&#34;message&#34;</span><span class="p">:</span><span class="s">&#34;200&#34;</span><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span><span class="s">&#34;time&#34;</span><span class="p">:</span><span class="s">&#34;2022-09-09T09:00:22.663002133Z&#34;</span><span class="p">,</span><span class="s">&#34;level&#34;</span><span class="p">:</span><span class="s">&#34;INFO&#34;</span><span class="p">,</span><span class="s">&#34;prefix&#34;</span><span class="p">:</span><span class="s">&#34;-&#34;</span><span class="p">,</span><span class="s">&#34;file&#34;</span><span class="p">:</span><span class="s">&#34;http.go&#34;</span><span class="p">,</span><span class="s">&#34;line&#34;</span><span class="p">:</span><span class="s">&#34;69&#34;</span><span class="p">,</span><span class="s">&#34;message&#34;</span><span class="p">:</span><span class="s">&#34;200&#34;</span><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span><span class="s">&#34;time&#34;</span><span class="p">:</span><span class="s">&#34;2022-09-09T09:00:22.750378144Z&#34;</span><span class="p">,</span><span class="s">&#34;level&#34;</span><span class="p">:</span><span class="s">&#34;INFO&#34;</span><span class="p">,</span><span class="s">&#34;prefix&#34;</span><span class="p">:</span><span class="s">&#34;-&#34;</span><span class="p">,</span><span class="s">&#34;file&#34;</span><span class="p">:</span><span class="s">&#34;http.go&#34;</span><span class="p">,</span><span class="s">&#34;line&#34;</span><span class="p">:</span><span class="s">&#34;69&#34;</span><span class="p">,</span><span class="s">&#34;message&#34;</span><span class="p">:</span><span class="s">&#34;200&#34;</span><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span><span class="s">&#34;time&#34;</span><span class="p">:</span><span class="s">&#34;2022-09-09T09:00:27.06199479Z&#34;</span><span class="p">,</span><span class="s">&#34;level&#34;</span><span class="p">:</span><span class="s">&#34;INFO&#34;</span><span class="p">,</span><span class="s">&#34;prefix&#34;</span><span class="p">:</span><span class="s">&#34;-&#34;</span><span class="p">,</span><span class="s">&#34;file&#34;</span><span class="p">:</span><span class="s">&#34;http.go&#34;</span><span class="p">,</span><span class="s">&#34;line&#34;</span><span class="p">:</span><span class="s">&#34;69&#34;</span><span class="p">,</span><span class="s">&#34;message&#34;</span><span class="p">:</span><span class="s">&#34;200&#34;</span><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span><span class="s">&#34;time&#34;</span><span class="p">:</span><span class="s">&#34;2022-09-09T09:00:27.156784826Z&#34;</span><span class="p">,</span><span class="s">&#34;level&#34;</span><span class="p">:</span><span class="s">&#34;INFO&#34;</span><span class="p">,</span><span class="s">&#34;prefix&#34;</span><span class="p">:</span><span class="s">&#34;-&#34;</span><span class="p">,</span><span class="s">&#34;file&#34;</span><span class="p">:</span><span class="s">&#34;http.go&#34;</span><span class="p">,</span><span class="s">&#34;line&#34;</span><span class="p">:</span><span class="s">&#34;69&#34;</span><span class="p">,</span><span class="s">&#34;message&#34;</span><span class="p">:</span><span class="s">&#34;200&#34;</span><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h2 id="总结">总结</h2>
+<p>本次我们通过扩展 Go 中的 http.RoundTripper 接口，</p>
+<p>实现了 HTTP 请求的速率控制和重试功能。</p>
+<p>在调用外部 API 时经常会遇到「每秒最多调用 N 次」这样的使用限制，希望这个实现能在这种场景下发挥作用。</p>
+<h2 id="参考">参考</h2>
+<p>本文翻译于 <a class="link" href="https://zenn.dev/fujisawa33/articles/aef6d266aa751f"  target="_blank" rel="noopener"
+    >Goのhttp.RoundTripperでレート制御とリトライの機能を追加する方法</a></p>
+<h2 id="读后感">读后感</h2>
+<p>以&quot;调用外部 API&quot; 为例，如果并发调用频繁，会导致有许多阻塞，且顺序会被打乱，以上现有的代码适合单线程的场景，将上级调用也阻塞等待。</p>
+<p>有个非常适合 <code>http.RoundTripper</code> 的用例，是 Digest 摘要鉴权，首次请求遇到 401，则带上鉴权信息第二次请求。</p>
+<p>上面提到的是请求频率限流，还有 <strong>带宽/流量限速</strong> ，可以通过包装 <code>io.Reader</code> 限制每秒读取字节数量，定义 LimieRead 结构体，替代 <code>req.Body</code>。</p>
+
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/">读书笔记</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">Related content</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/15-%E4%B8%AA%E4%BD%A0%E5%8F%AF%E8%83%BD%E4%B8%8D%E7%9F%A5%E9%81%93%E7%9A%84-go-%E6%8A%80%E5%B7%A7/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">15 个你可能不知道的 Go 技巧</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/%E6%AF%94%E8%BE%83%E4%B8%A4%E4%B8%AA-go-pprof-%E6%96%87%E4%BB%B6%E6%9D%A5%E6%9F%A5%E6%89%BE%E6%80%A7%E8%83%BD%E9%97%AE%E9%A2%98/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">比较两个 go pprof 文件来查找性能问题</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/go-%E4%B8%AD%E7%9A%84-json-%E6%BC%94%E5%8F%98-%E4%BB%8E-v1-%E5%88%B0-v2/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Go 中的 JSON 演变, 从 v1 到 v2</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/go-%E8%B0%83%E5%BA%A6%E5%99%A8/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Go 调度器</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/go-%E4%B8%AD%E7%9A%84%E5%BC%B1%E6%8C%87%E9%92%88%E4%B8%BA%E4%BB%80%E4%B9%88%E4%BB%96%E4%BB%AC%E7%8E%B0%E5%9C%A8%E5%BE%88%E9%87%8D%E8%A6%81/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Go 中的弱指针:为什么他们现在很重要?</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script src="https://utteranc.es/client.js" 
+        repo="ixugo/ixugo.github.io"
+        issue-term="pathname"
+        
+        crossorigin="anonymous"
+        async
+        >
+</script>
+
+<style>
+    .utterances {
+        max-width: unset;
+    }
+</style>
+
+<script>
+    function setUtterancesTheme(theme) {
+        let utterances = document.querySelector('.utterances iframe');
+        if (utterances) {
+            utterances.contentWindow.postMessage(
+                {
+                    type: 'set-theme',
+                    theme: `github-${theme}`
+                },
+                'https://utteranc.es'
+            );
+        }
+    }
+
+    addEventListener('message', event => {
+        if (event.origin !== 'https://utteranc.es') return;
+        setUtterancesTheme(document.documentElement.dataset.scheme)
+    });
+
+    window.addEventListener('onColorSchemeChange', (e) => {
+        setUtterancesTheme(e.detail)
+    })
+</script>
+
+
+    
+
+    <footer class="site-footer">
+  <section class="copyright">
+    &copy;  2018 -  2026 ixugo
+  </section>
+  
+  <script defer src="https://events.vercount.one/js"></script>
+  <section class="powerby">
+    
+    <span id="busuanzi_container_page_pv"
+      >本文阅读量
+      <span style="font-size: 14px" id="vercount_value_page_pv"></span>
+      次，</span
+    >
+    <span id="busuanzi_container_site_pv"
+      >总访问量
+      <span style="font-size: 14px" id="vercount_value_site_pv"></span>
+      次 </span
+    >，总访客数
+    <span style="font-size: 14px" id="vercount_value_site_uv"></span> 人
+    <br />
+
+    Built with <a
+      href="https://gohugo.io/"
+      target="_blank"
+      rel="noopener"
+      >Hugo</a
+    >
+    .&nbsp;&nbsp; Theme <a
+      href="https://github.com/CaiJimmy/hugo-theme-stack"
+      target="_blank"
+      rel="noopener"
+      data-version="3.16.0"
+      >Stack</a
+    > designed by <a
+      href="https://jimmycai.com"
+      target="_blank"
+      rel="noopener"
+      >Jimmy</a
+    >
+  </section>
+
+  <script>
+    
+    function count() {
+      let href = window.location.href;
+      let regexp = /^https?:\/\/blog.golang.space\/?(page\/[\d]+\/?)?$/;
+      if (regexp.test(href)) {
+        let e = document.getElementById("busuanzi_container_page_pv");
+        e.innerText = "";
+      }
+    }
+    window.onload = count;
+  </script>
+</footer>
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>
