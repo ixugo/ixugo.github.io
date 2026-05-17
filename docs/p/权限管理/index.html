@@ -1,0 +1,1434 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='核心模型 ACL (Access Control List) 每个资源上直接记录哪些用户可以做什么操作
+这是最原始最直观的权限模型，结构是这样
+1 2 3 4 资源 ├── userA : read ├── userB : read, write └── userC : admin 最典型就是 Linux 文件权限 -rwxr-xr-x
+如果用数据库实现 ACL，通常是这样设计
+1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 users ----- id name resources --------- id name permissions ----------- user_id resource_id action 例如
+1 2 3 4 5 permissions user1 file1 read user1 file1 write user2 file1 read ACL 的优点是直观和灵活，谁能做什么一目了然，可以精确到用户，资源，动作。缺点是权限爆炸，10000 用户*10000 资源，最终会表数据会异常庞大。'>
+<title>权限管理</title>
+
+<link rel='canonical' href='https://blog.golang.space/p/%E6%9D%83%E9%99%90%E7%AE%A1%E7%90%86/'>
+
+<link rel="stylesheet" href="/scss/style.min.8191399262444ab68b72a18c97392f5349be20a1615d77445be51e974c144cff.css"><meta property='og:title' content='权限管理'>
+<meta property='og:description' content='核心模型 ACL (Access Control List) 每个资源上直接记录哪些用户可以做什么操作
+这是最原始最直观的权限模型，结构是这样
+1 2 3 4 资源 ├── userA : read ├── userB : read, write └── userC : admin 最典型就是 Linux 文件权限 -rwxr-xr-x
+如果用数据库实现 ACL，通常是这样设计
+1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 users ----- id name resources --------- id name permissions ----------- user_id resource_id action 例如
+1 2 3 4 5 permissions user1 file1 read user1 file1 write user2 file1 read ACL 的优点是直观和灵活，谁能做什么一目了然，可以精确到用户，资源，动作。缺点是权限爆炸，10000 用户*10000 资源，最终会表数据会异常庞大。'>
+<meta property='og:url' content='https://blog.golang.space/p/%E6%9D%83%E9%99%90%E7%AE%A1%E7%90%86/'>
+<meta property='og:site_name' content='ixugo'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='读书笔记' /><meta property='article:published_time' content='2026-03-07T00:00:00&#43;00:00'/><meta property='article:modified_time' content='2026-03-07T00:00:00&#43;00:00'/>
+<meta name="twitter:title" content="权限管理">
+<meta name="twitter:description" content="核心模型 ACL (Access Control List) 每个资源上直接记录哪些用户可以做什么操作
+这是最原始最直观的权限模型，结构是这样
+1 2 3 4 资源 ├── userA : read ├── userB : read, write └── userC : admin 最典型就是 Linux 文件权限 -rwxr-xr-x
+如果用数据库实现 ACL，通常是这样设计
+1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 users ----- id name resources --------- id name permissions ----------- user_id resource_id action 例如
+1 2 3 4 5 permissions user1 file1 read user1 file1 write user2 file1 read ACL 的优点是直观和灵活，谁能做什么一目了然，可以精确到用户，资源，动作。缺点是权限爆炸，10000 用户*10000 资源，最终会表数据会异常庞大。">
+    <link rel="shortcut icon" href="img/favicon.ico" />
+
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+	(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+	m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+	})(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+	ga('create', 'UA-192125643-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="Toggle Menu">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu0b04ba6d7249c9f90c92db974439eb8c_208246_300x0_resize_box_3.png" width="300"
+                            height="321" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🧐</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">ixugo</a></h1>
+            <h2 class="site-description">走出舒适区</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/ixugo'
+                        target="_blank"
+                        title="GitHub"
+                        rel="me"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>Home</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/about/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>About</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>Archives</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>Search</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>Dark Mode</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">Table of contents</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#核心模型">核心模型</a>
+      <ol>
+        <li><a href="#acl-access-control-list">ACL (Access Control List)</a></li>
+        <li><a href="#rbac-role-based-access-control">RBAC (Role Based Access Control)</a>
+          <ol>
+            <li><a href="#提问">提问</a></li>
+          </ol>
+        </li>
+        <li><a href="#rbac--数据权限">RBAC + 数据权限</a>
+          <ol>
+            <li><a href="#场景的模型权限">场景的模型权限</a></li>
+            <li><a href="#最佳实践">最佳实践</a></li>
+          </ol>
+        </li>
+        <li><a href="#菜单权限-vs-接口权限">菜单权限 VS 接口权限</a>
+          <ol>
+            <li><a href="#错误设计">错误设计</a></li>
+            <li><a href="#最佳实践-1">最佳实践</a></li>
+          </ol>
+        </li>
+        <li><a href="#abacattribute-based-access-control">ABAC(Attribute Based Access Control)</a></li>
+        <li><a href="#多租户权限">多租户权限</a></li>
+        <li><a href="#真正的高级问题">真正的高级问题</a></li>
+      </ol>
+    </li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+            <main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+    <header class="article-category">
+        
+            <a href="/categories/%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/" >
+                读书笔记
+            </a>
+        
+    </header>
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/%E6%9D%83%E9%99%90%E7%AE%A1%E7%90%86/">权限管理</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    
+    
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Mar 07, 2026</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    4 minute read
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+
+</header>
+
+    <section class="article-content">
+    
+    
+    <h2 id="核心模型">核心模型</h2>
+<h3 id="acl-access-control-list">ACL (Access Control List)</h3>
+<blockquote>
+<p>每个资源上直接记录哪些用户可以做什么操作</p>
+</blockquote>
+<p>这是最原始最直观的权限模型，结构是这样</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">资源
+</span></span><span class="line"><span class="cl"> ├── userA : <span class="nb">read</span>
+</span></span><span class="line"><span class="cl"> ├── userB : read, write
+</span></span><span class="line"><span class="cl"> └── userC : admin
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>最典型就是 Linux 文件权限 <code>-rwxr-xr-x</code></p>
+<p>如果用数据库实现 ACL，通常是这样设计</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">users
+</span></span><span class="line"><span class="cl">-----
+</span></span><span class="line"><span class="cl">id
+</span></span><span class="line"><span class="cl">name
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">resources
+</span></span><span class="line"><span class="cl">---------
+</span></span><span class="line"><span class="cl">id
+</span></span><span class="line"><span class="cl">name
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">permissions
+</span></span><span class="line"><span class="cl">-----------
+</span></span><span class="line"><span class="cl">user_id
+</span></span><span class="line"><span class="cl">resource_id
+</span></span><span class="line"><span class="cl">action
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>例如</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">permissions
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">user1  file1  <span class="nb">read</span>
+</span></span><span class="line"><span class="cl">user1  file1  write
+</span></span><span class="line"><span class="cl">user2  file1  <span class="nb">read</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>ACL 的优点是直观和灵活，谁能做什么一目了然，可以精确到用户，资源，动作。缺点是权限爆炸，10000 用户*10000 资源，最终会表数据会异常庞大。</p>
+<p>缺点是无法表达角色。</p>
+<p>ACL 适合少数资源共享的场景，例如某个仓库或某个文件的读写权限，不适合中后台系统。</p>
+<h3 id="rbac-role-based-access-control">RBAC (Role Based Access Control)</h3>
+<blockquote>
+<p>用户不直接拥有权限，而是通过角色获取权限</p>
+</blockquote>
+<p>这是中后台管理系统的常用模型，结构变成三层，<code>用户 &gt; 角色 &gt; 权限</code></p>
+<p>如果用数据库实现 ACL，通常是这样设计:</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">用户
+</span></span><span class="line"><span class="cl">-------
+</span></span><span class="line"><span class="cl">张三
+</span></span><span class="line"><span class="cl">李四
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">角色
+</span></span><span class="line"><span class="cl">-------
+</span></span><span class="line"><span class="cl">运营
+</span></span><span class="line"><span class="cl">审核员
+</span></span><span class="line"><span class="cl">管理员
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">权限
+</span></span><span class="line"><span class="cl">-------
+</span></span><span class="line"><span class="cl">video.review
+</span></span><span class="line"><span class="cl">video.delete
+</span></span><span class="line"><span class="cl">video.publish
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>关系是</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">张三 -&gt; 运营
+</span></span><span class="line"><span class="cl">李四 -&gt; 审核员
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">运营 -&gt; video.review
+</span></span><span class="line"><span class="cl">审核员 -&gt; video.review
+</span></span><span class="line"><span class="cl">管理员 -&gt; video.delete
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><code>RBAC</code> 的数据库设计几乎都是这 5 张表</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="c1"># 资源</span>
+</span></span><span class="line"><span class="cl">users
+</span></span><span class="line"><span class="cl">roles
+</span></span><span class="line"><span class="cl">permissions
+</span></span><span class="line"><span class="cl"><span class="c1"># 关系</span>
+</span></span><span class="line"><span class="cl">user_roles
+</span></span><span class="line"><span class="cl">role_permissions
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>RBAC 的优势</p>
+<ol>
+<li>权限复用，不用给每个用户配权限，只需要给用户绑定角色，解决了 acl 的权限爆炸问题</li>
+<li>权限管理集中，修改权限只需要修改角色</li>
+</ol>
+<p>缺点</p>
+<p>RBAC 只解决了接口权限，但是很多系统还有 <strong>数据权限</strong>，例如:</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">运营A 只能看自己视频
+</span></span><span class="line"><span class="cl">运营B 只能看自己视频
+</span></span><span class="line"><span class="cl">管理员 可以看所有视频
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>RBAC 无法表达，不能控制读取哪些数据 ，这是所有中后台最核心的设计问题。</p>
+<p>接口权限 ≠ 数据权限，用户可以访问删除接口，但是不能删除别人的数据!</p>
+<h4 id="提问">提问</h4>
+<p>下面两个接口设计哪个更好？</p>
+<p>方案 A</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">GET /api/my_videos
+</span></span><span class="line"><span class="cl">GET /api/all_videos
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>方案 B</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">GET /api/videos
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>普通用户：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">只返回自己视频
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>管理员：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">返回所有视频
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>你觉得哪个更好？</p>
+<p><strong>回答</strong></p>
+<p>大部分系统采用 B 方案，<strong>原因是权限属于业务逻辑不属于 API 设计</strong>，RESTful API 接口设计应该表达<strong>资源</strong>，而不是 <strong>角色</strong>，所以权限控制应该是 service 层。否则会接口爆炸，每种权限都要设计对应的接口。</p>
+<p>那么什么时候用 A 呢?  <strong>业务语义不同</strong>，例如</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">GET /users/:id/orders
+</span></span><span class="line"><span class="cl">GET /admin/orders
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><code>/users/:id/orders</code> 就是一种资源，但是 <code>all_videos</code> 不符合 RESTful 设计。不要因为权限而增加接口，根据业务语义设计接口。</p>
+<p>举个栗子</p>
+<p>一个后台系统，根据&quot;运营&quot;，&ldquo;管理&rdquo; 需要展示不同的数据内容，这属于数据权限，一个接口足以。</p>
+<p>一个用户系统一个后台系统，用户系统展示的是用户的子资源，后台系统展示的顶级资源，可以设计为两个接口，根据业务设计接口，不要根据数据权限设计接口。</p>
+<p>还可能需要查询出相同的数据结构，但是同一个用户在不同的页面需要查询出不同的结果，在个人页面仅查询出自己的。</p>
+<h3 id="rbac--数据权限">RBAC + 数据权限</h3>
+<p>很多系统不仅要解决能不能访问接口，还需要能看到哪些数据。</p>
+<h4 id="场景的模型权限">场景的模型权限</h4>
+<p><strong>1. 仅自己</strong></p>
+<p>我的订单，我的视频，我的文章，sql 条件是 <code>where user_id = ?</code></p>
+<p><strong>2. 部门权限</strong></p>
+<p>企业系统常见</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">销售A
+</span></span><span class="line"><span class="cl">销售B
+</span></span><span class="line"><span class="cl">销售经理
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>权限</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">销售A -&gt; 自己
+</span></span><span class="line"><span class="cl">销售经理 -&gt; 整个部门
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>SQL</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">WHERE dept_id IN <span class="o">(</span>...<span class="o">)</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><strong>3. 组织树权限</strong></p>
+<p>大型公司</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">集团
+</span></span><span class="line"><span class="cl"> ├ 华东
+</span></span><span class="line"><span class="cl"> │   ├ 上海
+</span></span><span class="line"><span class="cl"> │   └ 杭州
+</span></span><span class="line"><span class="cl"> └ 华南
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>权限</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">华东负责人
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>能看</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">上海 + 杭州
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>SQL</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">org_path LIKE <span class="s1">&#39;1/2/%&#39;</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><strong>4. 自定义数据权限</strong></p>
+<p>例如</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">运营A
+</span></span><span class="line"><span class="cl">能看
+</span></span><span class="line"><span class="cl"><span class="nv">tag</span><span class="o">=</span>游戏 的视频
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>SQL</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">WHERE tag IN <span class="o">(</span>...<span class="o">)</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>这种系统一般叫 ABAC。</p>
+<p>互联网后台最常见的设计就是 RBAC+数据范围，例如角色表增加 <code>data_scope</code> 字段，参数例如</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">ALL
+</span></span><span class="line"><span class="cl">DEPT
+</span></span><span class="line"><span class="cl">SELF
+</span></span><span class="line"><span class="cl">CUSTOM
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>权限关系是</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">管理员 -&gt; ALL
+</span></span><span class="line"><span class="cl">用户 -&gt; SELF
+</span></span><span class="line"><span class="cl">经理 -&gt; DEPT
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>伪代码逻辑</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-Go" data-lang="Go"><span class="line"><span class="cl"><span class="k">if</span> <span class="nx">role</span><span class="p">.</span><span class="nx">data_scope</span> <span class="o">==</span> <span class="nx">ALL</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 不加条件
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">if</span> <span class="nx">role</span><span class="p">.</span><span class="nx">data_scope</span> <span class="o">==</span> <span class="nx">SELF</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">where</span> <span class="nx">user_id</span> <span class="p">=</span> <span class="nx">current_user</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">if</span> <span class="nx">role</span><span class="p">.</span><span class="nx">data_scope</span> <span class="o">==</span> <span class="nx">DEPT</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">where</span> <span class="nx">dept_id</span> <span class="nf">in</span> <span class="p">(</span><span class="o">...</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>这就是工业界最常见的方案 <code>RBAC + data_scope</code></p>
+<h4 id="最佳实践">最佳实践</h4>
+<ul>
+<li>api 层不处理数据权限</li>
+<li>service 层决定数据范围(决定规则)</li>
+<li>db 层执行 sql(执行规则)</li>
+</ul>
+<p>通过 SQL 查询就过滤 <code>WHERE user_id = ?</code> 权限更安全，且 SQL 性能会更好。</p>
+<h3 id="菜单权限-vs-接口权限">菜单权限 VS 接口权限</h3>
+<p>很多中后台系统都会有菜单的控制，根据用户角色展示哪些菜单，例如&quot;用户管理&quot;，&ldquo;订单管理&rdquo;，&ldquo;系统设置&rdquo; 等。</p>
+<p><strong>菜单权限要不要等于接口权限?</strong> 答案是否定的，这一个非常大的坑!</p>
+<h4 id="错误设计">错误设计</h4>
+<p>数据库</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">permissions
+</span></span><span class="line"><span class="cl">-----------
+</span></span><span class="line"><span class="cl">video:list
+</span></span><span class="line"><span class="cl">video:delete
+</span></span><span class="line"><span class="cl">video:create
+</span></span><span class="line"><span class="cl">video:update
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>然后</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="nv">菜单</span> <span class="o">=</span> permission
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>前端</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="k">if</span><span class="o">(</span>hasPermission<span class="o">(</span><span class="s2">&#34;video:list&#34;</span><span class="o">))</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>问题来了!! 一个页面可能调用</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">GET /videos
+</span></span><span class="line"><span class="cl">GET /users
+</span></span><span class="line"><span class="cl">GET /tags
+</span></span><span class="line"><span class="cl">POST /videos
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>假设系统有 200 个API，那权限就有 200 个! 角色配置就变成某个角色绑定 200 个相关接口，这些接口对于人类很难读懂，假如让项目经理或 ui 设计师来看，<code>GET /videos</code>，他们不知道这个接口是查看视频还是审核视频。</p>
+<h4 id="最佳实践-1">最佳实践</h4>
+<blockquote>
+<p>菜单权限 ≠ 接口权限，但菜单需要依赖接口权限。</p>
+</blockquote>
+<blockquote>
+<p>UI 权限只是体验控制，不是安全控制。</p>
+</blockquote>
+<p>权限分为三层</p>
+<ul>
+<li>菜单权限</li>
+<li>按钮权限</li>
+<li>接口权限</li>
+</ul>
+<p>结构</p>
+<ul>
+<li>菜单权限 &gt; 控制页面访问，例如 <code>video_page</code></li>
+<li>按钮权限 &gt; 控制按钮是否显示，例如 <code>video_delete_button</code></li>
+<li>接口权限 &gt; 后端 API 控制，例如 <code>DELETE /videos/:id</code></li>
+</ul>
+<p>为什么必须是三层?</p>
+<p>前端权限只是 UI，可以被绕过，最终权限必须在后端，成熟的权限架构是</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">前端
+</span></span><span class="line"><span class="cl">  ↓
+</span></span><span class="line"><span class="cl">菜单权限（控制页面）
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">按钮权限（控制UI）
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">后端
+</span></span><span class="line"><span class="cl">  ↓
+</span></span><span class="line"><span class="cl">RBAC接口权限
+</span></span><span class="line"><span class="cl">  ↓
+</span></span><span class="line"><span class="cl">数据权限
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>结构</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">用户
+</span></span><span class="line"><span class="cl"> ↓
+</span></span><span class="line"><span class="cl">角色
+</span></span><span class="line"><span class="cl"> ↓
+</span></span><span class="line"><span class="cl">菜单权限
+</span></span><span class="line"><span class="cl"> ↓
+</span></span><span class="line"><span class="cl">按钮权限
+</span></span><span class="line"><span class="cl"> ↓
+</span></span><span class="line"><span class="cl">接口权限
+</span></span><span class="line"><span class="cl"> ↓
+</span></span><span class="line"><span class="cl">数据权限
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><strong>数据库设计</strong></p>
+<ol>
+<li>
+<p>用户表</p>
+</li>
+<li>
+<p>角色表</p>
+</li>
+<li>
+<p>用户角色关联表</p>
+</li>
+<li>
+<p>权限表 permissions(id, code, name)</p>
+</li>
+<li>
+<p>角色权限关联表</p>
+</li>
+<li>
+<p>菜单表 menus(id,name, type, permission_code)</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="m">1</span> 视频管理 page video_read
+</span></span><span class="line"><span class="cl"><span class="m">2</span> 删除按钮 button video_delete
+</span></span><span class="line"><span class="cl"><span class="m">3</span> 发布按钮 button video_publish
+</span></span></code></pre></td></tr></table>
+</div>
+</div></li>
+<li>
+<p>api 权限映射表 api_permissions(id, method, path, permission_code)</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">GET     /videos             video_read
+</span></span><span class="line"><span class="cl">POST    /videos             video_create
+</span></span><span class="line"><span class="cl">DELETE  /videos/:id         video_delete
+</span></span><span class="line"><span class="cl">POST    /videos/publish     video_publish
+</span></span></code></pre></td></tr></table>
+</div>
+</div></li>
+</ol>
+<p><strong>流程</strong></p>
+<p>当用户请求 <code>DELETE /videos/10</code></p>
+<ol>
+<li>根据 api <code>DELETE /videos/10</code>查询权限，得到 <code>video_delete</code></li>
+<li>找到用户角色 <code>user</code></li>
+<li>判断用户角色 <code>user</code> 权限是否有 <code>video_delete</code></li>
+</ol>
+<p><strong>权限有三种来源</strong></p>
+<ol>
+<li>角色直接绑定权限</li>
+<li>角色拥有菜单 &gt; 菜单绑定权限</li>
+<li>特殊用户权限</li>
+</ol>
+<p>通常取并集来判断一个用户是否有相关权限。</p>
+<h3 id="abacattribute-based-access-control">ABAC(Attribute Based Access Control)</h3>
+<p>RBAC 在中小系统非常好用，但是当系统规模变大时，RBAC 就会开始出现三个严重问题!!</p>
+<ol>
+<li>权限爆炸，当系统发展一年后，500 个 API，50 个页面，200 个按钮，权限数量 800+，角色 100+，权限关系 5000+，这个时候就没人敢改动权限，改错一个就可能影响多个角色。</li>
+<li>角色爆炸，现实业务通常是部门不同，地区不同，业务线不同，因为产生非常多的角色</li>
+<li>RBAC 只能表达有没有权限，不能表达在什么条件下有权限，比如运营可以删除视频，但条件是 <strong>只能删除自己创建的视频</strong>。</li>
+</ol>
+<blockquote>
+<p>RBAC 解决的是谁能做什么，现实问题是，谁在什么条件下，对什么资源，做什么操作。</p>
+</blockquote>
+<p>这时候就需要 ABAC，核心是 <strong>通过属性决定权限</strong></p>
+<p>一般会有一个 policy 引擎，例如规则</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">allow <span class="k">if</span>
+</span></span><span class="line"><span class="cl">user.role <span class="o">==</span> <span class="s2">&#34;operator&#34;</span>
+</span></span><span class="line"><span class="cl">AND
+</span></span><span class="line"><span class="cl">resource.owner_id <span class="o">==</span> user.id
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>访问时</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">DELETE /videos/123
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>系统会读取</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">user attributes
+</span></span><span class="line"><span class="cl">resource attributes
+</span></span><span class="line"><span class="cl">policy
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>最后计算出</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">allow / deny
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>Go 比较流行的权限引擎有 <code>Casbin</code>，其规则是</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">p, role_admin, video, delete
+</span></span><span class="line"><span class="cl">g, alice, role_admin
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="多租户权限">多租户权限</h3>
+<p>多租户是很多 SaaS 系统的核心，模型是</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">Tenant <span class="o">(</span>租户<span class="o">)</span>
+</span></span><span class="line"><span class="cl">  ↓
+</span></span><span class="line"><span class="cl">Users
+</span></span><span class="line"><span class="cl">  ↓
+</span></span><span class="line"><span class="cl">Roles
+</span></span><span class="line"><span class="cl">  ↓
+</span></span><span class="line"><span class="cl">Permissions
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>数据结构是</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">tenants
+</span></span><span class="line"><span class="cl">-------
+</span></span><span class="line"><span class="cl">id
+</span></span><span class="line"><span class="cl">name
+</span></span></code></pre></td></tr></table>
+</div>
+</div><div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-sql" data-lang="sql"><span class="line"><span class="cl"><span class="n">users</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="c1">-----
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="n">id</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="n">tenant_id</span><span class="w">
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-sql" data-lang="sql"><span class="line"><span class="cl"><span class="n">users</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="c1">-----
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="n">id</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="n">tenant_id</span><span class="w">
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><p>所有的业务操作查询必须带上，否则就会出现 <strong>数据串租户</strong></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-sql" data-lang="sql"><span class="line"><span class="cl"><span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">videos</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="k">WHERE</span><span class="w"> </span><span class="n">tenant_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">?</span><span class="w">
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="真正的高级问题">真正的高级问题</h3>
+<p>很多系统会遇到一个<strong>超级难的问题</strong>：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">数据权限怎么写 SQL
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>例如</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">运营可以看
+</span></span><span class="line"><span class="cl">自己部门
+</span></span><span class="line"><span class="cl">+ 下级部门
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>SQL 会变成</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">department_tree 查询
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>这会让查询变得很复杂。</p>
+
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/">读书笔记</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">Related content</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/%E6%B5%8B%E8%AF%95%E6%97%B6%E9%97%B4%E5%92%8C%E5%85%B6%E5%AE%83%E5%BC%82%E6%AD%A5/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">测试时间和其它异步</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/golang-%E7%9A%84-atomic/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Golang 的 Atomic</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/%E9%81%BF%E5%85%8D%E5%9C%A8-go-%E4%B8%AD%E6%84%8F%E5%A4%96%E5%9C%B0%E5%A4%8D%E5%88%B6%E7%BB%93%E6%9E%84%E4%BD%93/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">避免在 Go 中意外地复制结构体</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script src="https://utteranc.es/client.js" 
+        repo="ixugo/ixugo.github.io"
+        issue-term="pathname"
+        
+        crossorigin="anonymous"
+        async
+        >
+</script>
+
+<style>
+    .utterances {
+        max-width: unset;
+    }
+</style>
+
+<script>
+    function setUtterancesTheme(theme) {
+        let utterances = document.querySelector('.utterances iframe');
+        if (utterances) {
+            utterances.contentWindow.postMessage(
+                {
+                    type: 'set-theme',
+                    theme: `github-${theme}`
+                },
+                'https://utteranc.es'
+            );
+        }
+    }
+
+    addEventListener('message', event => {
+        if (event.origin !== 'https://utteranc.es') return;
+        setUtterancesTheme(document.documentElement.dataset.scheme)
+    });
+
+    window.addEventListener('onColorSchemeChange', (e) => {
+        setUtterancesTheme(e.detail)
+    })
+</script>
+
+
+    
+
+    <footer class="site-footer">
+  <section class="copyright">
+    &copy;  2018 -  2026 ixugo
+  </section>
+  
+  <script defer src="https://events.vercount.one/js"></script>
+  <section class="powerby">
+    
+    <span id="busuanzi_container_page_pv"
+      >本文阅读量
+      <span style="font-size: 14px" id="vercount_value_page_pv"></span>
+      次，</span
+    >
+    <span id="busuanzi_container_site_pv"
+      >总访问量
+      <span style="font-size: 14px" id="vercount_value_site_pv"></span>
+      次 </span
+    >，总访客数
+    <span style="font-size: 14px" id="vercount_value_site_uv"></span> 人
+    <br />
+
+    Built with <a
+      href="https://gohugo.io/"
+      target="_blank"
+      rel="noopener"
+      >Hugo</a
+    >
+    .&nbsp;&nbsp; Theme <a
+      href="https://github.com/CaiJimmy/hugo-theme-stack"
+      target="_blank"
+      rel="noopener"
+      data-version="3.16.0"
+      >Stack</a
+    > designed by <a
+      href="https://jimmycai.com"
+      target="_blank"
+      rel="noopener"
+      >Jimmy</a
+    >
+  </section>
+
+  <script>
+    
+    function count() {
+      let href = window.location.href;
+      let regexp = /^https?:\/\/blog.golang.space\/?(page\/[\d]+\/?)?$/;
+      if (regexp.test(href)) {
+        let e = document.getElementById("busuanzi_container_page_pv");
+        e.innerText = "";
+      }
+    }
+    window.onload = count;
+  </script>
+</footer>
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>
