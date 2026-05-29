@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='一、上下文体系与交互基础 1.1 交互基础：@ 与 ! @（上下文注入）：@file.go 引用文件，@dir/ 引用目录（自动遵守 .gitignore）。AI读取后理解项目结构，输出自动成为下轮对话上下文。 !（Shell执行）：!go test ./... 直接在对话中执行命令。AI也可主动提议操作，用户审批后执行。逐行使用，无沉浸式子Shell。 1.2 CLAUDE.md —— 持久化长期记忆 五级分层加载（高优先级覆盖低优先级）：
+企业级 managed-settings.json（不可覆盖） 命令行参数 --model（临时） 项目级个人 .claude/settings.local.json（gitignore，不提交） 项目级共享 .claude/settings.json（提交Git，团队共享） 用户级 ~/.claude/settings.json（个人全局） CLAUDE.md 查找机制：
+向上递归：从cwd到根目录，沿途所有CLAUDE.md拼接加载。monorepo中极为有用：根目录放全局规范，子服务目录放专属规范，启动时自动合并。 向下发现：子目录的CLAUDE.md按需加载（AI通过 @ 或 Read 读取该目录文件时才触发），避免启动时撑爆上下文窗口。 生命周期管理：
+/init —— 扫描项目自动生成CLAUDE.md模板（分析go.mod、Makefile、目录结构等） /memory —— 在编辑器中系统性编辑CLAUDE.md，保存后即时生效 直接用自然语言&amp;quot;请把这条规则记下来&amp;quot;也能追加 @ 导入语法：在CLAUDE.md中写 @~/.claude/contexts/golang-style.md 可导入外部文件，实现模块化组合。团队共享CLAUDE.md &#43; 个人偏好文件 = 兼顾一致性和个性化。
+1.3 AGENTS.md —— 跨Agent行业标准 AGENTS.md放通用规范，CLAUDE.md放CC专属指令，后者用 @../AGENTS.md 导入前者 1.4 constitution.md —— 项目&amp;quot;宪法&amp;quot; 定位：比CLAUDE.md更底层的&amp;quot;根本大法&amp;quot;，存放不可协商的架构原则。CLAUDE.md通过 @constitution.md 导入。 内容示例：简单性原则（优先标准库）、测试先行铁律（TDD不可协商）、明确性原则（错误必须 %w 包装）、单一职责原则。 强制执行机制：plan.md 模板中嵌入&amp;quot;Constitution Check&amp;quot;章节，内含门禁清单（简单性/测试先行/明确性），门禁未通过须在&amp;quot;复杂性追踪&amp;quot;中给出理由。 引导保障：在 CLAUDE.'>
+<title>Claude Code 与 SDD 编程</title>
+
+<link rel='canonical' href='https://blog.golang.space/p/claude-code-%E4%B8%8E-sdd-%E7%BC%96%E7%A8%8B/'>
+
+<link rel="stylesheet" href="/scss/style.min.8191399262444ab68b72a18c97392f5349be20a1615d77445be51e974c144cff.css"><meta property='og:title' content='Claude Code 与 SDD 编程'>
+<meta property='og:description' content='一、上下文体系与交互基础 1.1 交互基础：@ 与 ! @（上下文注入）：@file.go 引用文件，@dir/ 引用目录（自动遵守 .gitignore）。AI读取后理解项目结构，输出自动成为下轮对话上下文。 !（Shell执行）：!go test ./... 直接在对话中执行命令。AI也可主动提议操作，用户审批后执行。逐行使用，无沉浸式子Shell。 1.2 CLAUDE.md —— 持久化长期记忆 五级分层加载（高优先级覆盖低优先级）：
+企业级 managed-settings.json（不可覆盖） 命令行参数 --model（临时） 项目级个人 .claude/settings.local.json（gitignore，不提交） 项目级共享 .claude/settings.json（提交Git，团队共享） 用户级 ~/.claude/settings.json（个人全局） CLAUDE.md 查找机制：
+向上递归：从cwd到根目录，沿途所有CLAUDE.md拼接加载。monorepo中极为有用：根目录放全局规范，子服务目录放专属规范，启动时自动合并。 向下发现：子目录的CLAUDE.md按需加载（AI通过 @ 或 Read 读取该目录文件时才触发），避免启动时撑爆上下文窗口。 生命周期管理：
+/init —— 扫描项目自动生成CLAUDE.md模板（分析go.mod、Makefile、目录结构等） /memory —— 在编辑器中系统性编辑CLAUDE.md，保存后即时生效 直接用自然语言&amp;quot;请把这条规则记下来&amp;quot;也能追加 @ 导入语法：在CLAUDE.md中写 @~/.claude/contexts/golang-style.md 可导入外部文件，实现模块化组合。团队共享CLAUDE.md &#43; 个人偏好文件 = 兼顾一致性和个性化。
+1.3 AGENTS.md —— 跨Agent行业标准 AGENTS.md放通用规范，CLAUDE.md放CC专属指令，后者用 @../AGENTS.md 导入前者 1.4 constitution.md —— 项目&amp;quot;宪法&amp;quot; 定位：比CLAUDE.md更底层的&amp;quot;根本大法&amp;quot;，存放不可协商的架构原则。CLAUDE.md通过 @constitution.md 导入。 内容示例：简单性原则（优先标准库）、测试先行铁律（TDD不可协商）、明确性原则（错误必须 %w 包装）、单一职责原则。 强制执行机制：plan.md 模板中嵌入&amp;quot;Constitution Check&amp;quot;章节，内含门禁清单（简单性/测试先行/明确性），门禁未通过须在&amp;quot;复杂性追踪&amp;quot;中给出理由。 引导保障：在 CLAUDE.'>
+<meta property='og:url' content='https://blog.golang.space/p/claude-code-%E4%B8%8E-sdd-%E7%BC%96%E7%A8%8B/'>
+<meta property='og:site_name' content='ixugo'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:published_time' content='2025-03-21T00:00:00&#43;00:00'/><meta property='article:modified_time' content='2025-03-21T00:00:00&#43;00:00'/><meta property='og:image' content='http://img.golang.space/img-1780019430592.png' />
+<meta name="twitter:title" content="Claude Code 与 SDD 编程">
+<meta name="twitter:description" content="一、上下文体系与交互基础 1.1 交互基础：@ 与 ! @（上下文注入）：@file.go 引用文件，@dir/ 引用目录（自动遵守 .gitignore）。AI读取后理解项目结构，输出自动成为下轮对话上下文。 !（Shell执行）：!go test ./... 直接在对话中执行命令。AI也可主动提议操作，用户审批后执行。逐行使用，无沉浸式子Shell。 1.2 CLAUDE.md —— 持久化长期记忆 五级分层加载（高优先级覆盖低优先级）：
+企业级 managed-settings.json（不可覆盖） 命令行参数 --model（临时） 项目级个人 .claude/settings.local.json（gitignore，不提交） 项目级共享 .claude/settings.json（提交Git，团队共享） 用户级 ~/.claude/settings.json（个人全局） CLAUDE.md 查找机制：
+向上递归：从cwd到根目录，沿途所有CLAUDE.md拼接加载。monorepo中极为有用：根目录放全局规范，子服务目录放专属规范，启动时自动合并。 向下发现：子目录的CLAUDE.md按需加载（AI通过 @ 或 Read 读取该目录文件时才触发），避免启动时撑爆上下文窗口。 生命周期管理：
+/init —— 扫描项目自动生成CLAUDE.md模板（分析go.mod、Makefile、目录结构等） /memory —— 在编辑器中系统性编辑CLAUDE.md，保存后即时生效 直接用自然语言&amp;quot;请把这条规则记下来&amp;quot;也能追加 @ 导入语法：在CLAUDE.md中写 @~/.claude/contexts/golang-style.md 可导入外部文件，实现模块化组合。团队共享CLAUDE.md &#43; 个人偏好文件 = 兼顾一致性和个性化。
+1.3 AGENTS.md —— 跨Agent行业标准 AGENTS.md放通用规范，CLAUDE.md放CC专属指令，后者用 @../AGENTS.md 导入前者 1.4 constitution.md —— 项目&amp;quot;宪法&amp;quot; 定位：比CLAUDE.md更底层的&amp;quot;根本大法&amp;quot;，存放不可协商的架构原则。CLAUDE.md通过 @constitution.md 导入。 内容示例：简单性原则（优先标准库）、测试先行铁律（TDD不可协商）、明确性原则（错误必须 %w 包装）、单一职责原则。 强制执行机制：plan.md 模板中嵌入&amp;quot;Constitution Check&amp;quot;章节，内含门禁清单（简单性/测试先行/明确性），门禁未通过须在&amp;quot;复杂性追踪&amp;quot;中给出理由。 引导保障：在 CLAUDE."><meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:image" content='http://img.golang.space/img-1780019430592.png' />
+    <link rel="shortcut icon" href="img/favicon.ico" />
+
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+	(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+	m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+	})(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+	ga('create', 'UA-192125643-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="Toggle Menu">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu0b04ba6d7249c9f90c92db974439eb8c_208246_300x0_resize_box_3.png" width="300"
+                            height="321" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🧐</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">ixugo</a></h1>
+            <h2 class="site-description">走出舒适区</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/ixugo'
+                        target="_blank"
+                        title="GitHub"
+                        rel="me"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>Home</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/about/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>About</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>Archives</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>Search</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>Dark Mode</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">Table of contents</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#一上下文体系与交互基础">一、上下文体系与交互基础</a>
+      <ol>
+        <li><a href="#11-交互基础-与-">1.1 交互基础：<code>@</code> 与 <code>!</code></a></li>
+        <li><a href="#12-claudemd--持久化长期记忆">1.2 CLAUDE.md —— 持久化长期记忆</a></li>
+        <li><a href="#13-agentsmd--跨agent行业标准">1.3 AGENTS.md —— 跨Agent行业标准</a></li>
+        <li><a href="#14-constitutionmd--项目宪法">1.4 constitution.md —— 项目&quot;宪法&quot;</a></li>
+        <li><a href="#15-settingsjson-分层配置体系">1.5 settings.json 分层配置体系</a></li>
+      </ol>
+    </li>
+    <li><a href="#二能力扩展四件套">二、能力扩展四件套</a>
+      <ol>
+        <li><a href="#21-slash-commands--自定义斜杠指令">2.1 Slash Commands —— 自定义斜杠指令</a></li>
+        <li><a href="#22-hooks--事件驱动自动化">2.2 Hooks —— 事件驱动自动化</a></li>
+        <li><a href="#23-mcp-server--连接外部系统">2.3 MCP Server —— 连接外部系统</a></li>
+        <li><a href="#24-agent-skills--ai自主发现的专家能力">2.4 Agent Skills —— AI自主发现的专家能力</a></li>
+        <li><a href="#25-subagent--独立上下文的专家分身">2.5 Subagent —— 独立上下文的专家分身</a></li>
+      </ol>
+    </li>
+    <li><a href="#三自动化闭环">三、自动化闭环</a>
+      <ol>
+        <li><a href="#31-headless模式--ai可编程函数">3.1 Headless模式 —— AI可编程函数</a></li>
+        <li><a href="#32-安全体系">3.2 安全体系</a></li>
+        <li><a href="#33-实战全流程sdd">3.3 实战全流程（SDD）</a></li>
+      </ol>
+    </li>
+    <li><a href="#四速查关键命令清单">四、速查：关键命令清单</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+            <main class="main full-width">
+    <article class="has-image main-article">
+    <header class="article-header">
+        <div class="article-image">
+            <a href="/p/claude-code-%E4%B8%8E-sdd-%E7%BC%96%E7%A8%8B/">
+                
+                    <img src="http://img.golang.space/img-1780019430592.png" loading="lazy" alt="Featured image of post Claude Code 与 SDD 编程" />
+                
+            </a>
+        </div>
+    
+
+    <div class="article-details">
+    
+    <header class="article-category">
+        
+            <a href="/categories/ai/" >
+                AI
+            </a>
+        
+    </header>
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/claude-code-%E4%B8%8E-sdd-%E7%BC%96%E7%A8%8B/">Claude Code 与 SDD 编程</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    
+    
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Mar 21, 2025</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    3 minute read
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+
+</header>
+
+    <section class="article-content">
+    
+    
+    <h2 id="一上下文体系与交互基础">一、上下文体系与交互基础</h2>
+<h3 id="11-交互基础-与-">1.1 交互基础：<code>@</code> 与 <code>!</code></h3>
+<ul>
+<li><strong><code>@</code></strong>（上下文注入）：<code>@file.go</code> 引用文件，<code>@dir/</code> 引用目录（自动遵守 <code>.gitignore</code>）。AI读取后理解项目结构，输出自动成为下轮对话上下文。</li>
+<li><strong><code>!</code></strong>（Shell执行）：<code>!go test ./...</code> 直接在对话中执行命令。AI也可主动提议操作，用户审批后执行。逐行使用，无沉浸式子Shell。</li>
+</ul>
+<h3 id="12-claudemd--持久化长期记忆">1.2 CLAUDE.md —— 持久化长期记忆</h3>
+<p><strong>五级分层加载</strong>（高优先级覆盖低优先级）：</p>
+<ol>
+<li>企业级 <code>managed-settings.json</code>（不可覆盖）</li>
+<li>命令行参数 <code>--model</code>（临时）</li>
+<li>项目级个人 <code>.claude/settings.local.json</code>（gitignore，不提交）</li>
+<li>项目级共享 <code>.claude/settings.json</code>（提交Git，团队共享）</li>
+<li>用户级 <code>~/.claude/settings.json</code>（个人全局）</li>
+</ol>
+<p><strong>CLAUDE.md 查找机制</strong>：</p>
+<ul>
+<li><strong>向上递归</strong>：从cwd到根目录，沿途所有CLAUDE.md拼接加载。monorepo中极为有用：根目录放全局规范，子服务目录放专属规范，启动时自动合并。</li>
+<li><strong>向下发现</strong>：子目录的CLAUDE.md按需加载（AI通过 <code>@</code> 或 Read 读取该目录文件时才触发），避免启动时撑爆上下文窗口。</li>
+</ul>
+<p><strong>生命周期管理</strong>：</p>
+<ul>
+<li><code>/init</code> —— 扫描项目自动生成CLAUDE.md模板（分析go.mod、Makefile、目录结构等）</li>
+<li><code>/memory</code> —— 在编辑器中系统性编辑CLAUDE.md，保存后即时生效</li>
+<li>直接用自然语言&quot;请把这条规则记下来&quot;也能追加</li>
+</ul>
+<p><strong>@ 导入语法</strong>：在CLAUDE.md中写 <code>@~/.claude/contexts/golang-style.md</code> 可导入外部文件，实现模块化组合。团队共享CLAUDE.md + 个人偏好文件 = 兼顾一致性和个性化。</p>
+<h3 id="13-agentsmd--跨agent行业标准">1.3 AGENTS.md —— 跨Agent行业标准</h3>
+<ul>
+<li>AGENTS.md放通用规范，CLAUDE.md放CC专属指令，后者用 <code>@../AGENTS.md</code> 导入前者</li>
+</ul>
+<h3 id="14-constitutionmd--项目宪法">1.4 constitution.md —— 项目&quot;宪法&quot;</h3>
+<ul>
+<li>定位：比CLAUDE.md更底层的&quot;根本大法&quot;，存放不可协商的架构原则。CLAUDE.md通过 <code>@constitution.md</code> 导入。</li>
+<li>内容示例：简单性原则（优先标准库）、测试先行铁律（TDD不可协商）、明确性原则（错误必须 <code>%w</code> 包装）、单一职责原则。</li>
+<li><strong>强制执行机制</strong>：<code>plan.md</code> 模板中嵌入&quot;Constitution Check&quot;章节，内含门禁清单（简单性/测试先行/明确性），门禁未通过须在&quot;复杂性追踪&quot;中给出理由。</li>
+<li><strong>引导保障</strong>：在 <code>CLAUDE.md</code> 中写明，添加新功能时第一步先用 <code>@</code> 读相关包，再对照 <code>constitution.md</code> 原则，然后才提方案。</li>
+<li>AI审查代码时做&quot;合宪性审查&quot;（Constitution Check），逐条比对宪法原则。</li>
+</ul>
+<h3 id="15-settingsjson-分层配置体系">1.5 settings.json 分层配置体系</h3>
+<p>五层优先级：企业级策略 &gt; 命令行参数 &gt; 项目级个人(local.json, gitignore) &gt; 项目级共享(提交Git) &gt; 用户级全局(~/.claude/)</p>
+<p><strong>引擎切换</strong>：环境变量 <code>ANTHROPIC_BASE_URL</code> + <code>ANTHROPIC_AUTH_TOKEN</code> 重定向到国产模型；<code>settings.json</code> 的 <code>env</code> 中设 <code>ANTHROPIC_DEFAULT_SONNET_MODEL</code> 覆盖默认模型。</p>
+<hr>
+<h2 id="二能力扩展四件套">二、能力扩展四件套</h2>
+<h3 id="21-slash-commands--自定义斜杠指令">2.1 Slash Commands —— 自定义斜杠指令</h3>
+<p><strong>存放位置</strong>：</p>
+<ul>
+<li>项目级：<code>./.claude/commands/xxx.md</code>（提交Git，团队共享，<code>/help</code> 中标记为 project）</li>
+<li>用户级：<code>~/.claude/commands/xxx.md</code>（个人跨项目，标记为 gitignored）</li>
+</ul>
+<p><strong>参数系统</strong>：</p>
+<ul>
+<li><code>$ARGUMENTS</code> —— 捕获所有参数（适合不定长自然语言或单一ID）</li>
+<li><code>$1</code> <code>$2</code> <code>$3</code> —— 位置参数（适合固定顺序的结构化参数）</li>
+</ul>
+<p><strong>Frontmatter 元数据</strong>：<code>description</code>（菜单描述）、<code>argument-hint</code>（参数提示）、<code>model</code>（强制指定模型，好钢用在刀刃上）、<code>allowed-tools</code>（最小权限原则，如只给 Read+Grep+<code>Bash(go vet:*)</code>）</p>
+<p><strong>嵌入Shell命令</strong>：模板中用 <code>!`git diff --staged`</code> 实现上下文自动化准备——命令先执行，输出替换到Prompt中再发给AI。这是自定义指令最强大的技巧。</p>
+<h3 id="22-hooks--事件驱动自动化">2.2 Hooks —— 事件驱动自动化</h3>
+<p><strong>核心事件</strong>：</p>
+<div class="table-wrapper"><table>
+<thead>
+<tr>
+<th>事件</th>
+<th>触发时机</th>
+<th>典型用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>PreToolUse</code></td>
+<td>工具调用前</td>
+<td>阻止危险操作（如保护main分支）</td>
+</tr>
+<tr>
+<td><code>PostToolUse</code></td>
+<td>工具调用后</td>
+<td>自动gofmt、goimports</td>
+</tr>
+<tr>
+<td><code>Notification</code></td>
+<td>AI等待用户时</td>
+<td>弹系统通知</td>
+</tr>
+<tr>
+<td><code>SessionStart/End</code></td>
+<td>会话生命周期</td>
+<td>初始化/清理</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>配置</strong>：在 <code>settings.json</code> 的 <code>hooks</code> 下按事件名配置，<code>matcher</code> 用 <code>|</code> 分隔工具名匹配，<code>command</code> 写Shell命令。stdin传JSON事件数据，<code>jq</code> 解析。退出码 <code>0</code>=放行，<code>2</code>=阻止并显示stderr。调试用 <code>claude --debug</code>。</p>
+<h3 id="23-mcp-server--连接外部系统">2.3 MCP Server —— 连接外部系统</h3>
+<p>MCP解决了直接用 <code>curl</code> 调API的四大缺陷：脆弱（Prompt里写API细节易出错）、不安全（Token暴露在对话中）、无状态（多步OAuth难管理）、发现性差（AI不知道API有哪些能力）。</p>
+<p><strong>协议三角色</strong>：</p>
+<ul>
+<li><strong>Host</strong>（主机）= Claude Code，负责协调、安全策略、用户权限审批</li>
+<li><strong>Server</strong>（服务器）= 能力提供方，暴露Tools/Resources/Prompts三类能力</li>
+<li><strong>Client</strong>（客户端）= Host内部为每个Server创建的1对1专线连接器</li>
+</ul>
+<p><strong>三大能力类型</strong>：</p>
+<ul>
+<li><strong>Tools</strong>：AI可执行的动作（如 <code>create_issue</code>），最核心</li>
+<li><strong>Resources</strong>：AI可引用的数据（如 <code>@github:issue://123</code>）</li>
+<li><strong>Prompts</strong>：封装为Slash Command的工作流模板（如 <code>/mcp__github__list_prs</code>）</li>
+</ul>
+<p><strong>安装</strong>：<code>claude mcp add --transport stdio &lt;name&gt; -- &lt;cmd&gt;</code>（本地stdio）或 <code>claude mcp add-json &lt;name&gt; '{...}'</code>（远程HTTP）。认证凭证通过环境变量注入，AI模型本身不接触Token。</p>
+<p><strong>三种Scope</strong>：<code>user</code>（个人全局）、<code>project</code>（团队共享，存 <code>.mcp.json</code>）、<code>local</code>（默认）</p>
+<p><strong>工具命名空间</strong>：<code>mcp__&lt;server_name&gt;__&lt;tool_name&gt;</code>，自动避免冲突</p>
+<p><strong>Go实现stdio服务器核心</strong>：循环读stdin JSON-RPC → 路由 <code>initialize</code>（声明能力）/<code>tools/list</code>（返回工具列表）/<code>tools/call</code>（执行逻辑） → stdout写JSON-RPC响应，每行一个JSON对象。</p>
+<h3 id="24-agent-skills--ai自主发现的专家能力">2.4 Agent Skills —— AI自主发现的专家能力</h3>
+<p><strong>核心区别</strong>：</p>
+<ul>
+<li>Slash Command = 用户主动调用（祈使句）</li>
+<li>Agent Skill = AI自主发现并调用（陈述句，基于description语义匹配）</li>
+</ul>
+<p><strong>文件结构</strong>：<code>SKILL.md</code>（入口）+ 辅助文档 + 脚本，放在 <code>.claude/skills/</code> 下</p>
+<p><strong>三层渐进式披露</strong>：①启动时只加载 name+description 到系统提示（成本极低）→ ②语义匹配成功后加载SKILL.md主体 → ③脚本/文档被引用时才加载</p>
+<p><strong>最佳实践</strong>：单一职责、description写清&quot;能做什么&quot;+&ldquo;什么时候用&rdquo;+触发关键词、版本化管理</p>
+<h3 id="25-subagent--独立上下文的专家分身">2.5 Subagent —— 独立上下文的专家分身</h3>
+<p>单一Agent处理多维度复杂任务时会&quot;精神分裂&quot;（性能优化要激进，安全审查要保守）。Subagent = 独立上下文窗口（不污染主对话）+ 专属System Prompt + 精细工具权限。</p>
+<p><strong>定义文件</strong>（<code>.claude/agents/xxx.md</code>）：YAML Frontmatter 定义 name/description/tools/model，Markdown正文为System Prompt（&ldquo;灵魂&rdquo;）。<code>description</code> 是主Agent发现和委托的依据，必须包含触发关键词。</p>
+<p><strong>三种调用模式</strong>：</p>
+<ul>
+<li>隐式：AI根据description语义匹配，自主委托</li>
+<li>显式：用户直接点名 <code>使用 go-code-security-reviewer 检查...</code></li>
+<li>链式：编排多个Subagent接力（性能优化→安全审查→测试覆盖），实现多智能体工作流</li>
+</ul>
+<p><strong>设计原则</strong>：单一职责、最小权限（只读审查员不应有Write权限）、用 <code>/agents</code> 交互式管理、Prompt中给明确指令+示例+约束</p>
+<hr>
+<h2 id="三自动化闭环">三、自动化闭环</h2>
+<h3 id="31-headless模式--ai可编程函数">3.1 Headless模式 —— AI可编程函数</h3>
+<p>让Claude Code脱离交互式终端，成为可被脚本和CI调用的&quot;纯函数&quot;：<code>f(输入) = 输出</code>。</p>
+<p><strong>核心用法</strong>：</p>
+<ul>
+<li><code>claude -p &quot;prompt&quot;</code> —— 非交互执行，结果输出到stdout后退出</li>
+<li><code>cat file | claude -p &quot;...&quot;</code> —— stdin管道传入大段上下文（日志、代码等）</li>
+<li><code>--output-format json</code> —— 结构化输出，含 <code>result</code>（最终结果）、<code>total_cost_usd</code>（成本）、<code>subtype</code>（success/error）、<code>duration_ms</code>（耗时），可用 <code>jq</code> 编程处理</li>
+<li><code>--output-format stream-json --verbose</code> —— 实时流式输出（jsonl），每步思考和工具调用立即可见</li>
+</ul>
+<p><strong>CI集成实战</strong>：checkout → 安装CC → 配置国产模型（环境变量） → <code>git diff | claude -p --output-format json</code> → <code>jq '.result'</code> 提取报告 → <code>actions/github-script</code> 评论到PR。全程无人值守。</p>
+<h3 id="32-安全体系">3.2 安全体系</h3>
+<p><strong>权限四模式</strong>：<code>default</code>（默认审批）→ <code>acceptEdits</code>（自动接受文件编辑）→ <code>plan</code>（只规划不执行）→ <code>bypassPermissions</code>（YOLO，跳过所有审批）</p>
+<p><strong>权限规则</strong>：<code>settings.json</code> 中 <code>permissions.allow/deny</code> 精确到命令级（如 <code>Bash(go test:*)</code>）</p>
+<p><strong>沙箱</strong>：基于OS原语（Linux用bubblewrap/macOS用Seatbelt）隔离文件系统和网络访问</p>
+<p><strong>Checkpointing</strong>：会话级Git快照，<code>/rewind</code> 回到任意检查点，AI犯错可时光倒流</p>
+<h3 id="33-实战全流程sdd">3.3 实战全流程（SDD）</h3>
+<p>规范驱动开发的核心思想：代码服务于规范，规范是唯一的&quot;真理之源&quot;。维护软件 = 演进规范，而非修改代码。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span><span class="lnt">9
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">模糊想法
+</span></span><span class="line"><span class="cl">  → [Prompt+角色设定+多轮澄清] → spec.md（需求规范，与技术解耦）
+</span></span><span class="line"><span class="cl">  → [AI架构师+constitution.md] → plan.md（技术方案）+ api-sketch.md（接口草图）
+</span></span><span class="line"><span class="cl">  → [AI技术组长] → tasks.md（原子任务列表，带依赖和并行标记[P]）
+</span></span><span class="line"><span class="cl">  → [TDD循环] RED→GREEN→REFACTOR → 可运行代码
+</span></span><span class="line"><span class="cl">  → [/review指令+Subagent] → 代码审查报告
+</span></span><span class="line"><span class="cl">  → [/commit指令] → Conventional Commits标准化提交
+</span></span><span class="line"><span class="cl">  → [Dockerfile+Makefile+CI] → 容器化+自动化构建+PR审查流水线
+</span></span><span class="line"><span class="cl">  → [维护阶段] Headless模式做根因分析/Checkpointing做安全重构/文档同步
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><strong>TDD要点</strong>：坚持TDD防AI&quot;自洽幻觉&quot;（代码能跑但逻辑错）；spec.md为唯一意图来源，代码是spec的&quot;编译产物&quot;；Git Worktree实现不同任务并行开发（<code>git worktree add</code> 创建隔离工作区）</p>
+<p><strong>驾驶舱框架</strong>：<code>.claude/</code>（settings.json/CLAUDE.md/commands/agents/skills/hooks）+ <code>specs/</code>（spec.md/plan.md/tasks.md）+ <code>constitution.md</code> + <code>AGENTS.md</code> + <code>.mcp.json</code></p>
+<hr>
+<h2 id="四速查关键命令清单">四、速查：关键命令清单</h2>
+<div class="table-wrapper"><table>
+<thead>
+<tr>
+<th>命令</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>/init</code></td>
+<td>生成CLAUDE.md模板</td>
+</tr>
+<tr>
+<td><code>/memory</code></td>
+<td>编辑CLAUDE.md</td>
+</tr>
+<tr>
+<td><code>/config</code></td>
+<td>配置主题/快捷键等</td>
+</tr>
+<tr>
+<td><code>/status</code></td>
+<td>查看当前模型信息</td>
+</tr>
+<tr>
+<td><code>/help</code></td>
+<td>查看所有可用指令</td>
+</tr>
+<tr>
+<td><code>/agents</code></td>
+<td>管理Subagent</td>
+</tr>
+<tr>
+<td><code>/hooks</code></td>
+<td>管理Hooks</td>
+</tr>
+<tr>
+<td><code>/mcp</code></td>
+<td>查看MCP Server状态</td>
+</tr>
+<tr>
+<td><code>/rewind</code></td>
+<td>回到检查点</td>
+</tr>
+<tr>
+<td><code>claude -p &quot;...&quot;</code></td>
+<td>Headless模式</td>
+</tr>
+<tr>
+<td><code>claude mcp add</code></td>
+<td>添加MCP Server</td>
+</tr>
+<tr>
+<td><code>claude --debug</code></td>
+<td>调试模式</td>
+</tr>
+<tr>
+<td><code>Shift+Tab</code></td>
+<td>切换Plan Mode</td>
+</tr>
+</tbody>
+</table></div>
+
+</section>
+
+
+    <footer class="article-footer">
+    
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">Related content</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/chatgpt-%E5%A6%82%E4%BD%95%E5%86%99%E5%A5%BD%E6%8F%90%E7%A4%BA%E8%AF%8D/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">ChatGPT 如何写好提示词?</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script src="https://utteranc.es/client.js" 
+        repo="ixugo/ixugo.github.io"
+        issue-term="pathname"
+        
+        crossorigin="anonymous"
+        async
+        >
+</script>
+
+<style>
+    .utterances {
+        max-width: unset;
+    }
+</style>
+
+<script>
+    function setUtterancesTheme(theme) {
+        let utterances = document.querySelector('.utterances iframe');
+        if (utterances) {
+            utterances.contentWindow.postMessage(
+                {
+                    type: 'set-theme',
+                    theme: `github-${theme}`
+                },
+                'https://utteranc.es'
+            );
+        }
+    }
+
+    addEventListener('message', event => {
+        if (event.origin !== 'https://utteranc.es') return;
+        setUtterancesTheme(document.documentElement.dataset.scheme)
+    });
+
+    window.addEventListener('onColorSchemeChange', (e) => {
+        setUtterancesTheme(e.detail)
+    })
+</script>
+
+
+    
+
+    <footer class="site-footer">
+  <section class="copyright">
+    &copy;  2018 -  2026 ixugo
+  </section>
+  
+  <script defer src="https://events.vercount.one/js"></script>
+  <section class="powerby">
+    
+    <span id="busuanzi_container_page_pv"
+      >本文阅读量
+      <span style="font-size: 14px" id="vercount_value_page_pv"></span>
+      次，</span
+    >
+    <span id="busuanzi_container_site_pv"
+      >总访问量
+      <span style="font-size: 14px" id="vercount_value_site_pv"></span>
+      次 </span
+    >，总访客数
+    <span style="font-size: 14px" id="vercount_value_site_uv"></span> 人
+    <br />
+
+    Built with <a
+      href="https://gohugo.io/"
+      target="_blank"
+      rel="noopener"
+      >Hugo</a
+    >
+    .&nbsp;&nbsp; Theme <a
+      href="https://github.com/CaiJimmy/hugo-theme-stack"
+      target="_blank"
+      rel="noopener"
+      data-version="3.16.0"
+      >Stack</a
+    > designed by <a
+      href="https://jimmycai.com"
+      target="_blank"
+      rel="noopener"
+      >Jimmy</a
+    >
+  </section>
+
+  <script>
+    
+    function count() {
+      let href = window.location.href;
+      let regexp = /^https?:\/\/blog.golang.space\/?(page\/[\d]+\/?)?$/;
+      if (regexp.test(href)) {
+        let e = document.getElementById("busuanzi_container_page_pv");
+        e.innerText = "";
+      }
+    }
+    window.onload = count;
+  </script>
+</footer>
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

@@ -8412,6 +8412,251 @@
 </description>
         </item>
         <item>
+        <title>Claude Code 与 SDD 编程</title>
+        <link>https://blog.golang.space/p/claude-code-%E4%B8%8E-sdd-%E7%BC%96%E7%A8%8B/</link>
+        <pubDate>Fri, 21 Mar 2025 00:00:00 +0000</pubDate>
+        
+        <guid>https://blog.golang.space/p/claude-code-%E4%B8%8E-sdd-%E7%BC%96%E7%A8%8B/</guid>
+        <description>&lt;img src="http://img.golang.space/img-1780019430592.png" alt="Featured image of post Claude Code 与 SDD 编程" /&gt;&lt;h2 id=&#34;一上下文体系与交互基础&#34;&gt;一、上下文体系与交互基础&lt;/h2&gt;
+&lt;h3 id=&#34;11-交互基础-与-&#34;&gt;1.1 交互基础：&lt;code&gt;@&lt;/code&gt; 与 &lt;code&gt;!&lt;/code&gt;&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;&lt;code&gt;@&lt;/code&gt;&lt;/strong&gt;（上下文注入）：&lt;code&gt;@file.go&lt;/code&gt; 引用文件，&lt;code&gt;@dir/&lt;/code&gt; 引用目录（自动遵守 &lt;code&gt;.gitignore&lt;/code&gt;）。AI读取后理解项目结构，输出自动成为下轮对话上下文。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;&lt;code&gt;!&lt;/code&gt;&lt;/strong&gt;（Shell执行）：&lt;code&gt;!go test ./...&lt;/code&gt; 直接在对话中执行命令。AI也可主动提议操作，用户审批后执行。逐行使用，无沉浸式子Shell。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id=&#34;12-claudemd--持久化长期记忆&#34;&gt;1.2 CLAUDE.md —— 持久化长期记忆&lt;/h3&gt;
+&lt;p&gt;&lt;strong&gt;五级分层加载&lt;/strong&gt;（高优先级覆盖低优先级）：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;企业级 &lt;code&gt;managed-settings.json&lt;/code&gt;（不可覆盖）&lt;/li&gt;
+&lt;li&gt;命令行参数 &lt;code&gt;--model&lt;/code&gt;（临时）&lt;/li&gt;
+&lt;li&gt;项目级个人 &lt;code&gt;.claude/settings.local.json&lt;/code&gt;（gitignore，不提交）&lt;/li&gt;
+&lt;li&gt;项目级共享 &lt;code&gt;.claude/settings.json&lt;/code&gt;（提交Git，团队共享）&lt;/li&gt;
+&lt;li&gt;用户级 &lt;code&gt;~/.claude/settings.json&lt;/code&gt;（个人全局）&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;&lt;strong&gt;CLAUDE.md 查找机制&lt;/strong&gt;：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;向上递归&lt;/strong&gt;：从cwd到根目录，沿途所有CLAUDE.md拼接加载。monorepo中极为有用：根目录放全局规范，子服务目录放专属规范，启动时自动合并。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;向下发现&lt;/strong&gt;：子目录的CLAUDE.md按需加载（AI通过 &lt;code&gt;@&lt;/code&gt; 或 Read 读取该目录文件时才触发），避免启动时撑爆上下文窗口。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;strong&gt;生命周期管理&lt;/strong&gt;：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;/init&lt;/code&gt; —— 扫描项目自动生成CLAUDE.md模板（分析go.mod、Makefile、目录结构等）&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;/memory&lt;/code&gt; —— 在编辑器中系统性编辑CLAUDE.md，保存后即时生效&lt;/li&gt;
+&lt;li&gt;直接用自然语言&amp;quot;请把这条规则记下来&amp;quot;也能追加&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;strong&gt;@ 导入语法&lt;/strong&gt;：在CLAUDE.md中写 &lt;code&gt;@~/.claude/contexts/golang-style.md&lt;/code&gt; 可导入外部文件，实现模块化组合。团队共享CLAUDE.md + 个人偏好文件 = 兼顾一致性和个性化。&lt;/p&gt;
+&lt;h3 id=&#34;13-agentsmd--跨agent行业标准&#34;&gt;1.3 AGENTS.md —— 跨Agent行业标准&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;AGENTS.md放通用规范，CLAUDE.md放CC专属指令，后者用 &lt;code&gt;@../AGENTS.md&lt;/code&gt; 导入前者&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id=&#34;14-constitutionmd--项目宪法&#34;&gt;1.4 constitution.md —— 项目&amp;quot;宪法&amp;quot;&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;定位：比CLAUDE.md更底层的&amp;quot;根本大法&amp;quot;，存放不可协商的架构原则。CLAUDE.md通过 &lt;code&gt;@constitution.md&lt;/code&gt; 导入。&lt;/li&gt;
+&lt;li&gt;内容示例：简单性原则（优先标准库）、测试先行铁律（TDD不可协商）、明确性原则（错误必须 &lt;code&gt;%w&lt;/code&gt; 包装）、单一职责原则。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;强制执行机制&lt;/strong&gt;：&lt;code&gt;plan.md&lt;/code&gt; 模板中嵌入&amp;quot;Constitution Check&amp;quot;章节，内含门禁清单（简单性/测试先行/明确性），门禁未通过须在&amp;quot;复杂性追踪&amp;quot;中给出理由。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;引导保障&lt;/strong&gt;：在 &lt;code&gt;CLAUDE.md&lt;/code&gt; 中写明，添加新功能时第一步先用 &lt;code&gt;@&lt;/code&gt; 读相关包，再对照 &lt;code&gt;constitution.md&lt;/code&gt; 原则，然后才提方案。&lt;/li&gt;
+&lt;li&gt;AI审查代码时做&amp;quot;合宪性审查&amp;quot;（Constitution Check），逐条比对宪法原则。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id=&#34;15-settingsjson-分层配置体系&#34;&gt;1.5 settings.json 分层配置体系&lt;/h3&gt;
+&lt;p&gt;五层优先级：企业级策略 &amp;gt; 命令行参数 &amp;gt; 项目级个人(local.json, gitignore) &amp;gt; 项目级共享(提交Git) &amp;gt; 用户级全局(~/.claude/)&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;引擎切换&lt;/strong&gt;：环境变量 &lt;code&gt;ANTHROPIC_BASE_URL&lt;/code&gt; + &lt;code&gt;ANTHROPIC_AUTH_TOKEN&lt;/code&gt; 重定向到国产模型；&lt;code&gt;settings.json&lt;/code&gt; 的 &lt;code&gt;env&lt;/code&gt; 中设 &lt;code&gt;ANTHROPIC_DEFAULT_SONNET_MODEL&lt;/code&gt; 覆盖默认模型。&lt;/p&gt;
+&lt;hr&gt;
+&lt;h2 id=&#34;二能力扩展四件套&#34;&gt;二、能力扩展四件套&lt;/h2&gt;
+&lt;h3 id=&#34;21-slash-commands--自定义斜杠指令&#34;&gt;2.1 Slash Commands —— 自定义斜杠指令&lt;/h3&gt;
+&lt;p&gt;&lt;strong&gt;存放位置&lt;/strong&gt;：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;项目级：&lt;code&gt;./.claude/commands/xxx.md&lt;/code&gt;（提交Git，团队共享，&lt;code&gt;/help&lt;/code&gt; 中标记为 project）&lt;/li&gt;
+&lt;li&gt;用户级：&lt;code&gt;~/.claude/commands/xxx.md&lt;/code&gt;（个人跨项目，标记为 gitignored）&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;strong&gt;参数系统&lt;/strong&gt;：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;$ARGUMENTS&lt;/code&gt; —— 捕获所有参数（适合不定长自然语言或单一ID）&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;$1&lt;/code&gt; &lt;code&gt;$2&lt;/code&gt; &lt;code&gt;$3&lt;/code&gt; —— 位置参数（适合固定顺序的结构化参数）&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;strong&gt;Frontmatter 元数据&lt;/strong&gt;：&lt;code&gt;description&lt;/code&gt;（菜单描述）、&lt;code&gt;argument-hint&lt;/code&gt;（参数提示）、&lt;code&gt;model&lt;/code&gt;（强制指定模型，好钢用在刀刃上）、&lt;code&gt;allowed-tools&lt;/code&gt;（最小权限原则，如只给 Read+Grep+&lt;code&gt;Bash(go vet:*)&lt;/code&gt;）&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;嵌入Shell命令&lt;/strong&gt;：模板中用 &lt;code&gt;!`git diff --staged`&lt;/code&gt; 实现上下文自动化准备——命令先执行，输出替换到Prompt中再发给AI。这是自定义指令最强大的技巧。&lt;/p&gt;
+&lt;h3 id=&#34;22-hooks--事件驱动自动化&#34;&gt;2.2 Hooks —— 事件驱动自动化&lt;/h3&gt;
+&lt;p&gt;&lt;strong&gt;核心事件&lt;/strong&gt;：&lt;/p&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;事件&lt;/th&gt;
+&lt;th&gt;触发时机&lt;/th&gt;
+&lt;th&gt;典型用途&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;PreToolUse&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;工具调用前&lt;/td&gt;
+&lt;td&gt;阻止危险操作（如保护main分支）&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;PostToolUse&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;工具调用后&lt;/td&gt;
+&lt;td&gt;自动gofmt、goimports&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;Notification&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;AI等待用户时&lt;/td&gt;
+&lt;td&gt;弹系统通知&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;SessionStart/End&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;会话生命周期&lt;/td&gt;
+&lt;td&gt;初始化/清理&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;&lt;strong&gt;配置&lt;/strong&gt;：在 &lt;code&gt;settings.json&lt;/code&gt; 的 &lt;code&gt;hooks&lt;/code&gt; 下按事件名配置，&lt;code&gt;matcher&lt;/code&gt; 用 &lt;code&gt;|&lt;/code&gt; 分隔工具名匹配，&lt;code&gt;command&lt;/code&gt; 写Shell命令。stdin传JSON事件数据，&lt;code&gt;jq&lt;/code&gt; 解析。退出码 &lt;code&gt;0&lt;/code&gt;=放行，&lt;code&gt;2&lt;/code&gt;=阻止并显示stderr。调试用 &lt;code&gt;claude --debug&lt;/code&gt;。&lt;/p&gt;
+&lt;h3 id=&#34;23-mcp-server--连接外部系统&#34;&gt;2.3 MCP Server —— 连接外部系统&lt;/h3&gt;
+&lt;p&gt;MCP解决了直接用 &lt;code&gt;curl&lt;/code&gt; 调API的四大缺陷：脆弱（Prompt里写API细节易出错）、不安全（Token暴露在对话中）、无状态（多步OAuth难管理）、发现性差（AI不知道API有哪些能力）。&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;协议三角色&lt;/strong&gt;：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Host&lt;/strong&gt;（主机）= Claude Code，负责协调、安全策略、用户权限审批&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Server&lt;/strong&gt;（服务器）= 能力提供方，暴露Tools/Resources/Prompts三类能力&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Client&lt;/strong&gt;（客户端）= Host内部为每个Server创建的1对1专线连接器&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;strong&gt;三大能力类型&lt;/strong&gt;：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Tools&lt;/strong&gt;：AI可执行的动作（如 &lt;code&gt;create_issue&lt;/code&gt;），最核心&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Resources&lt;/strong&gt;：AI可引用的数据（如 &lt;code&gt;@github:issue://123&lt;/code&gt;）&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Prompts&lt;/strong&gt;：封装为Slash Command的工作流模板（如 &lt;code&gt;/mcp__github__list_prs&lt;/code&gt;）&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;strong&gt;安装&lt;/strong&gt;：&lt;code&gt;claude mcp add --transport stdio &amp;lt;name&amp;gt; -- &amp;lt;cmd&amp;gt;&lt;/code&gt;（本地stdio）或 &lt;code&gt;claude mcp add-json &amp;lt;name&amp;gt; &#39;{...}&#39;&lt;/code&gt;（远程HTTP）。认证凭证通过环境变量注入，AI模型本身不接触Token。&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;三种Scope&lt;/strong&gt;：&lt;code&gt;user&lt;/code&gt;（个人全局）、&lt;code&gt;project&lt;/code&gt;（团队共享，存 &lt;code&gt;.mcp.json&lt;/code&gt;）、&lt;code&gt;local&lt;/code&gt;（默认）&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;工具命名空间&lt;/strong&gt;：&lt;code&gt;mcp__&amp;lt;server_name&amp;gt;__&amp;lt;tool_name&amp;gt;&lt;/code&gt;，自动避免冲突&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Go实现stdio服务器核心&lt;/strong&gt;：循环读stdin JSON-RPC → 路由 &lt;code&gt;initialize&lt;/code&gt;（声明能力）/&lt;code&gt;tools/list&lt;/code&gt;（返回工具列表）/&lt;code&gt;tools/call&lt;/code&gt;（执行逻辑） → stdout写JSON-RPC响应，每行一个JSON对象。&lt;/p&gt;
+&lt;h3 id=&#34;24-agent-skills--ai自主发现的专家能力&#34;&gt;2.4 Agent Skills —— AI自主发现的专家能力&lt;/h3&gt;
+&lt;p&gt;&lt;strong&gt;核心区别&lt;/strong&gt;：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Slash Command = 用户主动调用（祈使句）&lt;/li&gt;
+&lt;li&gt;Agent Skill = AI自主发现并调用（陈述句，基于description语义匹配）&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;strong&gt;文件结构&lt;/strong&gt;：&lt;code&gt;SKILL.md&lt;/code&gt;（入口）+ 辅助文档 + 脚本，放在 &lt;code&gt;.claude/skills/&lt;/code&gt; 下&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;三层渐进式披露&lt;/strong&gt;：①启动时只加载 name+description 到系统提示（成本极低）→ ②语义匹配成功后加载SKILL.md主体 → ③脚本/文档被引用时才加载&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;最佳实践&lt;/strong&gt;：单一职责、description写清&amp;quot;能做什么&amp;quot;+&amp;ldquo;什么时候用&amp;rdquo;+触发关键词、版本化管理&lt;/p&gt;
+&lt;h3 id=&#34;25-subagent--独立上下文的专家分身&#34;&gt;2.5 Subagent —— 独立上下文的专家分身&lt;/h3&gt;
+&lt;p&gt;单一Agent处理多维度复杂任务时会&amp;quot;精神分裂&amp;quot;（性能优化要激进，安全审查要保守）。Subagent = 独立上下文窗口（不污染主对话）+ 专属System Prompt + 精细工具权限。&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;定义文件&lt;/strong&gt;（&lt;code&gt;.claude/agents/xxx.md&lt;/code&gt;）：YAML Frontmatter 定义 name/description/tools/model，Markdown正文为System Prompt（&amp;ldquo;灵魂&amp;rdquo;）。&lt;code&gt;description&lt;/code&gt; 是主Agent发现和委托的依据，必须包含触发关键词。&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;三种调用模式&lt;/strong&gt;：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;隐式：AI根据description语义匹配，自主委托&lt;/li&gt;
+&lt;li&gt;显式：用户直接点名 &lt;code&gt;使用 go-code-security-reviewer 检查...&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;链式：编排多个Subagent接力（性能优化→安全审查→测试覆盖），实现多智能体工作流&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;strong&gt;设计原则&lt;/strong&gt;：单一职责、最小权限（只读审查员不应有Write权限）、用 &lt;code&gt;/agents&lt;/code&gt; 交互式管理、Prompt中给明确指令+示例+约束&lt;/p&gt;
+&lt;hr&gt;
+&lt;h2 id=&#34;三自动化闭环&#34;&gt;三、自动化闭环&lt;/h2&gt;
+&lt;h3 id=&#34;31-headless模式--ai可编程函数&#34;&gt;3.1 Headless模式 —— AI可编程函数&lt;/h3&gt;
+&lt;p&gt;让Claude Code脱离交互式终端，成为可被脚本和CI调用的&amp;quot;纯函数&amp;quot;：&lt;code&gt;f(输入) = 输出&lt;/code&gt;。&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;核心用法&lt;/strong&gt;：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;claude -p &amp;quot;prompt&amp;quot;&lt;/code&gt; —— 非交互执行，结果输出到stdout后退出&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;cat file | claude -p &amp;quot;...&amp;quot;&lt;/code&gt; —— stdin管道传入大段上下文（日志、代码等）&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;--output-format json&lt;/code&gt; —— 结构化输出，含 &lt;code&gt;result&lt;/code&gt;（最终结果）、&lt;code&gt;total_cost_usd&lt;/code&gt;（成本）、&lt;code&gt;subtype&lt;/code&gt;（success/error）、&lt;code&gt;duration_ms&lt;/code&gt;（耗时），可用 &lt;code&gt;jq&lt;/code&gt; 编程处理&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;--output-format stream-json --verbose&lt;/code&gt; —— 实时流式输出（jsonl），每步思考和工具调用立即可见&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;strong&gt;CI集成实战&lt;/strong&gt;：checkout → 安装CC → 配置国产模型（环境变量） → &lt;code&gt;git diff | claude -p --output-format json&lt;/code&gt; → &lt;code&gt;jq &#39;.result&#39;&lt;/code&gt; 提取报告 → &lt;code&gt;actions/github-script&lt;/code&gt; 评论到PR。全程无人值守。&lt;/p&gt;
+&lt;h3 id=&#34;32-安全体系&#34;&gt;3.2 安全体系&lt;/h3&gt;
+&lt;p&gt;&lt;strong&gt;权限四模式&lt;/strong&gt;：&lt;code&gt;default&lt;/code&gt;（默认审批）→ &lt;code&gt;acceptEdits&lt;/code&gt;（自动接受文件编辑）→ &lt;code&gt;plan&lt;/code&gt;（只规划不执行）→ &lt;code&gt;bypassPermissions&lt;/code&gt;（YOLO，跳过所有审批）&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;权限规则&lt;/strong&gt;：&lt;code&gt;settings.json&lt;/code&gt; 中 &lt;code&gt;permissions.allow/deny&lt;/code&gt; 精确到命令级（如 &lt;code&gt;Bash(go test:*)&lt;/code&gt;）&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;沙箱&lt;/strong&gt;：基于OS原语（Linux用bubblewrap/macOS用Seatbelt）隔离文件系统和网络访问&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Checkpointing&lt;/strong&gt;：会话级Git快照，&lt;code&gt;/rewind&lt;/code&gt; 回到任意检查点，AI犯错可时光倒流&lt;/p&gt;
+&lt;h3 id=&#34;33-实战全流程sdd&#34;&gt;3.3 实战全流程（SDD）&lt;/h3&gt;
+&lt;p&gt;规范驱动开发的核心思想：代码服务于规范，规范是唯一的&amp;quot;真理之源&amp;quot;。维护软件 = 演进规范，而非修改代码。&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;div class=&#34;chroma&#34;&gt;
+&lt;table class=&#34;lntable&#34;&gt;&lt;tr&gt;&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code&gt;&lt;span class=&#34;lnt&#34;&gt;1
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;2
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;3
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;4
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;5
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;6
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;7
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;8
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;9
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-fallback&#34; data-lang=&#34;fallback&#34;&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;模糊想法
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;  → [Prompt+角色设定+多轮澄清] → spec.md（需求规范，与技术解耦）
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;  → [AI架构师+constitution.md] → plan.md（技术方案）+ api-sketch.md（接口草图）
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;  → [AI技术组长] → tasks.md（原子任务列表，带依赖和并行标记[P]）
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;  → [TDD循环] RED→GREEN→REFACTOR → 可运行代码
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;  → [/review指令+Subagent] → 代码审查报告
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;  → [/commit指令] → Conventional Commits标准化提交
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;  → [Dockerfile+Makefile+CI] → 容器化+自动化构建+PR审查流水线
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;  → [维护阶段] Headless模式做根因分析/Checkpointing做安全重构/文档同步
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;p&gt;&lt;strong&gt;TDD要点&lt;/strong&gt;：坚持TDD防AI&amp;quot;自洽幻觉&amp;quot;（代码能跑但逻辑错）；spec.md为唯一意图来源，代码是spec的&amp;quot;编译产物&amp;quot;；Git Worktree实现不同任务并行开发（&lt;code&gt;git worktree add&lt;/code&gt; 创建隔离工作区）&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;驾驶舱框架&lt;/strong&gt;：&lt;code&gt;.claude/&lt;/code&gt;（settings.json/CLAUDE.md/commands/agents/skills/hooks）+ &lt;code&gt;specs/&lt;/code&gt;（spec.md/plan.md/tasks.md）+ &lt;code&gt;constitution.md&lt;/code&gt; + &lt;code&gt;AGENTS.md&lt;/code&gt; + &lt;code&gt;.mcp.json&lt;/code&gt;&lt;/p&gt;
+&lt;hr&gt;
+&lt;h2 id=&#34;四速查关键命令清单&#34;&gt;四、速查：关键命令清单&lt;/h2&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;命令&lt;/th&gt;
+&lt;th&gt;用途&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;/init&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;生成CLAUDE.md模板&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;/memory&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;编辑CLAUDE.md&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;/config&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;配置主题/快捷键等&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;/status&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;查看当前模型信息&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;/help&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;查看所有可用指令&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;/agents&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;管理Subagent&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;/hooks&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;管理Hooks&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;/mcp&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;查看MCP Server状态&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;/rewind&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;回到检查点&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;claude -p &amp;quot;...&amp;quot;&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;Headless模式&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;claude mcp add&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;添加MCP Server&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;claude --debug&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;调试模式&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;Shift+Tab&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;切换Plan Mode&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+</description>
+        </item>
+        <item>
         <title>Go 中的弱指针:为什么他们现在很重要?</title>
         <link>https://blog.golang.space/p/go-%E4%B8%AD%E7%9A%84%E5%BC%B1%E6%8C%87%E9%92%88%E4%B8%BA%E4%BB%80%E4%B9%88%E4%BB%96%E4%BB%AC%E7%8E%B0%E5%9C%A8%E5%BE%88%E9%87%8D%E8%A6%81/</link>
         <pubDate>Sun, 01 Dec 2024 00:00:00 +0000</pubDate>
