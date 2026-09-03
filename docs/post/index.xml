@@ -6,7 +6,783 @@
         <description>Recent content in Posts on ixugo</description>
         <generator>Hugo -- gohugo.io</generator>
         <language>zh-cn</language>
-        <lastBuildDate>Sun, 17 May 2026 00:00:00 +0000</lastBuildDate><atom:link href="https://blog.golang.space/post/index.xml" rel="self" type="application/rss+xml" /><item>
+        <lastBuildDate>Wed, 02 Sep 2026 00:00:00 +0000</lastBuildDate><atom:link href="https://blog.golang.space/post/index.xml" rel="self" type="application/rss+xml" /><item>
+        <title>信创数据库兼容笔记</title>
+        <link>https://blog.golang.space/p/%E4%BF%A1%E5%88%9B%E6%95%B0%E6%8D%AE%E5%BA%93%E5%85%BC%E5%AE%B9%E7%AC%94%E8%AE%B0/</link>
+        <pubDate>Wed, 02 Sep 2026 00:00:00 +0000</pubDate>
+        
+        <guid>https://blog.golang.space/p/%E4%BF%A1%E5%88%9B%E6%95%B0%E6%8D%AE%E5%BA%93%E5%85%BC%E5%AE%B9%E7%AC%94%E8%AE%B0/</guid>
+        <description>&lt;h2 id=&#34;1-gorm-automigrate-把-vastbase-打崩了&#34;&gt;1. GORM AutoMigrate 把 Vastbase 打崩了&lt;/h2&gt;
+&lt;h3 id=&#34;现象&#34;&gt;现象&lt;/h3&gt;
+&lt;p&gt;应用启动时 Vastbase 进程崩溃重启，所有连接收到 &lt;code&gt;connection reset by peer&lt;/code&gt;，应用 panic。&lt;/p&gt;
+&lt;h3 id=&#34;根因&#34;&gt;根因&lt;/h3&gt;
+&lt;p&gt;GORM 的 &lt;code&gt;AutoMigrate&lt;/code&gt; 每次启动都执行上百条无意义的 &lt;code&gt;ALTER TABLE ... SET DEFAULT&lt;/code&gt; 语句。&lt;br&gt;
+PostgreSQL 扛得住这种重复 DDL，Vastbase 扛不住，进程直接挂。&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;不是内存不够，不是连接数超限，不是并发问题&lt;/strong&gt;（AutoMigrate 是串行的）。&lt;br&gt;
+是 Vastbase 在 ~10 秒内连续执行 100+ 条 DDL 后内部崩溃。&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;复现环境&lt;/strong&gt;：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;镜像：&lt;code&gt;registry.cn-hangzhou.aliyuncs.com/qiluo-images/vastbase_g100:20250514160619&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;版本：Vastbase G100 V2.2 (Build 15) Release，编译于 2025-04-03，Commit 25780&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id=&#34;为什么会有上百条无意义-ddl&#34;&gt;为什么会有上百条无意义 DDL&lt;/h3&gt;
+&lt;p&gt;GORM 在 AutoMigrate 时做以下事情：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;从 &lt;code&gt;information_schema.columns&lt;/code&gt; 查出每列当前的 &lt;code&gt;column_default&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;用 &lt;code&gt;parseDefaultValueValue&lt;/code&gt; 函数清洗这个值&lt;/li&gt;
+&lt;li&gt;和 Go struct tag 中的 &lt;code&gt;default:xxx&lt;/code&gt; 做字符串比较&lt;/li&gt;
+&lt;li&gt;不一致就执行 &lt;code&gt;ALTER TABLE ... ALTER COLUMN ... SET DEFAULT&lt;/code&gt;&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;问题在第 2 步。&lt;code&gt;parseDefaultValueValue&lt;/code&gt; 做了两件事：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;div class=&#34;chroma&#34;&gt;
+&lt;table class=&#34;lntable&#34;&gt;&lt;tr&gt;&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code&gt;&lt;span class=&#34;lnt&#34;&gt;1
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;2
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;3
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;4
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;5
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;6
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;7
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-go&#34; data-lang=&#34;go&#34;&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;c1&#34;&gt;// gorm.io/driver/postgres@v1.6.0/migrator.go
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;c1&#34;&gt;&lt;/span&gt;&lt;span class=&#34;kd&#34;&gt;func&lt;/span&gt; &lt;span class=&#34;nf&#34;&gt;parseDefaultValueValue&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;nx&#34;&gt;defaultValue&lt;/span&gt; &lt;span class=&#34;kt&#34;&gt;string&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;)&lt;/span&gt; &lt;span class=&#34;kt&#34;&gt;string&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;{&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;    &lt;span class=&#34;c1&#34;&gt;// 1. 去掉 ::type 后缀：&amp;#39;zh&amp;#39;::text → &amp;#39;zh&amp;#39;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;c1&#34;&gt;&lt;/span&gt;    &lt;span class=&#34;nx&#34;&gt;value&lt;/span&gt; &lt;span class=&#34;o&#34;&gt;:=&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;regexp&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;nf&#34;&gt;MustCompile&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;s&#34;&gt;`^(.*?)(?:::.*)?$`&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;).&lt;/span&gt;&lt;span class=&#34;nf&#34;&gt;ReplaceAllString&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;nx&#34;&gt;defaultValue&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;,&lt;/span&gt; &lt;span class=&#34;s&#34;&gt;&amp;#34;$1&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;    &lt;span class=&#34;c1&#34;&gt;// 2. 去掉首尾引号：&amp;#39;zh&amp;#39; → zh
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;c1&#34;&gt;&lt;/span&gt;    &lt;span class=&#34;k&#34;&gt;return&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;strings&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;nf&#34;&gt;Trim&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;nx&#34;&gt;value&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;,&lt;/span&gt; &lt;span class=&#34;s&#34;&gt;&amp;#34;&amp;#39;&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;p&#34;&gt;}&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;p&gt;&lt;strong&gt;Vastbase 与 PostgreSQL 在原始返回值上只有一处差异&lt;/strong&gt;：&lt;/p&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;类型&lt;/th&gt;
+&lt;th&gt;DDL 定义&lt;/th&gt;
+&lt;th&gt;PostgreSQL 返回&lt;/th&gt;
+&lt;th&gt;Vastbase 返回&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;text&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;DEFAULT &#39;&#39;&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;&#39;&#39;::text&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;&#39;&#39;::text&lt;/code&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;int8&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;DEFAULT 0&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;0&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;0&lt;/code&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;bool&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;DEFAULT true&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;true&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;true&lt;/code&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;text&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;DEFAULT &#39;zh&#39;&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;&#39;zh&#39;::text&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;&#39;zh&#39;::text&lt;/code&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;jsonb&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;DEFAULT &#39;{}&#39;&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;&#39;{}&#39;::jsonb&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;&#39;{}&#39;::jsonb&lt;/code&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;text[]&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;DEFAULT &#39;{}&#39;&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;&#39;{}&#39;::text[]&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;&#39;{}&#39;::text[]&lt;/code&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;strong&gt;timestamptz&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;DEFAULT CURRENT_TIMESTAMP&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;&lt;strong&gt;&lt;code&gt;CURRENT_TIMESTAMP&lt;/code&gt;&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;&lt;strong&gt;&lt;code&gt;now()&lt;/code&gt;&lt;/strong&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;只有 timestamptz 不一样：PostgreSQL 存 &lt;code&gt;CURRENT_TIMESTAMP&lt;/code&gt;，Vastbase 存 &lt;code&gt;now()&lt;/code&gt;。&lt;/p&gt;
+&lt;h3 id=&#34;gorm-的比较逻辑migratecolumn&#34;&gt;GORM 的比较逻辑（MigrateColumn）&lt;/h3&gt;
+&lt;p&gt;GORM 按数据类型分支比较，每种类型的比较策略不同：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;div class=&#34;chroma&#34;&gt;
+&lt;table class=&#34;lntable&#34;&gt;&lt;tr&gt;&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code&gt;&lt;span class=&#34;lnt&#34;&gt; 1
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 2
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 3
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 4
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 5
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 6
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 7
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 8
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 9
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;10
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;11
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;12
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;13
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;14
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;15
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;16
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;17
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;18
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;19
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;20
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;21
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-go&#34; data-lang=&#34;go&#34;&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;c1&#34;&gt;// gorm.io/gorm@v1.31.2/migrator/migrator.go MigrateColumn 方法
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;c1&#34;&gt;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;k&#34;&gt;case&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;schema&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;nx&#34;&gt;Time&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;    &lt;span class=&#34;c1&#34;&gt;// TrimSuffix(&amp;#34;()&amp;#34;) 后忽略大小写比较
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;c1&#34;&gt;&lt;/span&gt;    &lt;span class=&#34;c1&#34;&gt;// now() → TrimSuffix(&amp;#34;()&amp;#34;) → &amp;#34;now&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;c1&#34;&gt;&lt;/span&gt;    &lt;span class=&#34;c1&#34;&gt;// CURRENT_TIMESTAMP → TrimSuffix(&amp;#34;()&amp;#34;) → &amp;#34;CURRENT_TIMESTAMP&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;c1&#34;&gt;&lt;/span&gt;    &lt;span class=&#34;c1&#34;&gt;// &amp;#34;now&amp;#34; ≠ &amp;#34;CURRENT_TIMESTAMP&amp;#34; → alterColumn = true
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;c1&#34;&gt;&lt;/span&gt;    &lt;span class=&#34;c1&#34;&gt;// ← Vastbase 在这里每次都触发 DDL
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;c1&#34;&gt;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;k&#34;&gt;case&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;schema&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;nx&#34;&gt;String&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;    &lt;span class=&#34;c1&#34;&gt;// 双重比较：先原值，再去引号
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;c1&#34;&gt;&lt;/span&gt;    &lt;span class=&#34;c1&#34;&gt;// dv=&amp;#34;zh&amp;#34;, tag=&amp;#34;&amp;#39;zh&amp;#39;&amp;#34; → Trim(&amp;#34;&amp;#39;zh&amp;#39;&amp;#34;,&amp;#34;&amp;#39;&amp;#34;) = &amp;#34;zh&amp;#34; → 不触发
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;c1&#34;&gt;&lt;/span&gt;    &lt;span class=&#34;c1&#34;&gt;// ← 这个分支已经修好了
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;c1&#34;&gt;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;k&#34;&gt;case&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;schema&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;nx&#34;&gt;Bool&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;    &lt;span class=&#34;c1&#34;&gt;// ParseBool 后比较 → 不受影响
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;c1&#34;&gt;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;k&#34;&gt;default&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;    &lt;span class=&#34;c1&#34;&gt;// 直接比较字符串
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;c1&#34;&gt;&lt;/span&gt;    &lt;span class=&#34;c1&#34;&gt;// dv=&amp;#34;{}&amp;#34;, tag=&amp;#34;&amp;#39;{}&amp;#39;&amp;#34; → &amp;#34;{}&amp;#34; ≠ &amp;#34;&amp;#39;{}&amp;#39;&amp;#34; → alterColumn = true
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;c1&#34;&gt;&lt;/span&gt;    &lt;span class=&#34;c1&#34;&gt;// ← jsonb 在这里每次都触发 DDL（PG 也一样）
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;h3 id=&#34;三类数据库经过-gorm-处理后的最终对比&#34;&gt;三类数据库经过 GORM 处理后的最终对比&lt;/h3&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;类型&lt;/th&gt;
+&lt;th&gt;DB 返回 → parseDefaultValueValue 结果&lt;/th&gt;
+&lt;th&gt;struct tag DefaultValue&lt;/th&gt;
+&lt;th&gt;PostgreSQL&lt;/th&gt;
+&lt;th&gt;Vastbase&lt;/th&gt;
+&lt;th&gt;SQLite&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;text &lt;code&gt;&#39;zh&#39;&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;zh&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;&#39;zh&#39;&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;✅（String 双重比较兜底）&lt;/td&gt;
+&lt;td&gt;✅&lt;/td&gt;
+&lt;td&gt;✅&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;text &lt;code&gt;&#39;&#39;&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;`` (空串)&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;&#39;&#39;&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;✅（String 双重比较兜底）&lt;/td&gt;
+&lt;td&gt;✅&lt;/td&gt;
+&lt;td&gt;✅&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;int8 &lt;code&gt;0&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;0&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;0&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;✅&lt;/td&gt;
+&lt;td&gt;✅&lt;/td&gt;
+&lt;td&gt;✅&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;bool &lt;code&gt;true&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;true&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;true&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;✅&lt;/td&gt;
+&lt;td&gt;✅&lt;/td&gt;
+&lt;td&gt;✅&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;jsonb &lt;code&gt;&#39;{}&#39;&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;{}&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;&#39;{}&#39;&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;❌（default 分支直接比较）&lt;/td&gt;
+&lt;td&gt;❌&lt;/td&gt;
+&lt;td&gt;—&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;text[] &lt;code&gt;&#39;{}&#39;&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;{}&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;&#39;{}&#39;&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;❌&lt;/td&gt;
+&lt;td&gt;❌&lt;/td&gt;
+&lt;td&gt;—&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;strong&gt;timestamptz&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;PG: &lt;code&gt;CURRENT_TIMESTAMP&lt;/code&gt; / &lt;strong&gt;VB: &lt;code&gt;now()&lt;/code&gt;&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;CURRENT_TIMESTAMP&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;✅&lt;/td&gt;
+&lt;td&gt;&lt;strong&gt;❌&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;✅&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;结论：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Vastbase 独有问题&lt;/strong&gt;：timestamptz（&lt;code&gt;now()&lt;/code&gt; vs &lt;code&gt;CURRENT_TIMESTAMP&lt;/code&gt;）&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;GORM 通病&lt;/strong&gt;：jsonb/数组（PostgreSQL 上也触发，只是不崩）&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;60 张表 × 2 个 timestamptz 列 = 120 条 DDL → Vastbase 崩溃。&lt;/p&gt;
+&lt;h3 id=&#34;解决方案&#34;&gt;解决方案&lt;/h3&gt;
+&lt;p&gt;自定义 GORM Dialector，只抹平 Vastbase 与 PostgreSQL 的唯一差异：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;div class=&#34;chroma&#34;&gt;
+&lt;table class=&#34;lntable&#34;&gt;&lt;tr&gt;&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code&gt;&lt;span class=&#34;lnt&#34;&gt;1
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;2
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;3
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;4
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;5
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;6
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-go&#34; data-lang=&#34;go&#34;&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;c1&#34;&gt;// pkg/vastbasecompat/dialector.go
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;c1&#34;&gt;// VastbaseMigrator.ColumnTypes 中
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;c1&#34;&gt;&lt;/span&gt;&lt;span class=&#34;k&#34;&gt;if&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;col&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;nx&#34;&gt;DefaultValueValue&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;nx&#34;&gt;String&lt;/span&gt; &lt;span class=&#34;o&#34;&gt;==&lt;/span&gt; &lt;span class=&#34;s&#34;&gt;&amp;#34;now()&amp;#34;&lt;/span&gt; &lt;span class=&#34;o&#34;&gt;&amp;amp;&amp;amp;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;    &lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;nx&#34;&gt;col&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;nx&#34;&gt;DataTypeValue&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;nx&#34;&gt;String&lt;/span&gt; &lt;span class=&#34;o&#34;&gt;==&lt;/span&gt; &lt;span class=&#34;s&#34;&gt;&amp;#34;timestamptz&amp;#34;&lt;/span&gt; &lt;span class=&#34;o&#34;&gt;||&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;col&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;nx&#34;&gt;DataTypeValue&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;nx&#34;&gt;String&lt;/span&gt; &lt;span class=&#34;o&#34;&gt;==&lt;/span&gt; &lt;span class=&#34;s&#34;&gt;&amp;#34;timestamp&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;)&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;{&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;    &lt;span class=&#34;nx&#34;&gt;col&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;nx&#34;&gt;DefaultValueValue&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;nx&#34;&gt;String&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;=&lt;/span&gt; &lt;span class=&#34;s&#34;&gt;&amp;#34;CURRENT_TIMESTAMP&amp;#34;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;p&#34;&gt;}&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;p&gt;修复后 Vastbase 上的 AutoMigrate 行为与 PostgreSQL 完全一致。&lt;/p&gt;
+&lt;hr&gt;
+&lt;h2 id=&#34;2-gorm-jsonb数组-default-每次都-alter已知-bug&#34;&gt;2. GORM jsonb/数组 DEFAULT 每次都 ALTER（已知 Bug）&lt;/h2&gt;
+&lt;p&gt;这个问题在 PostgreSQL 上也存在，不是 Vastbase 特有的。&lt;/p&gt;
+&lt;h3 id=&#34;issue-链路&#34;&gt;Issue 链路&lt;/h3&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;Issue/PR&lt;/th&gt;
+&lt;th&gt;状态&lt;/th&gt;
+&lt;th&gt;描述&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;a class=&#34;link&#34; href=&#34;https://github.com/go-gorm/gorm/issues/7553&#34;  target=&#34;_blank&#34; rel=&#34;noopener&#34;
+    &gt;go-gorm/gorm#7553&lt;/a&gt;&lt;/td&gt;
+&lt;td&gt;&lt;strong&gt;Open&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;jsonb 列每次 AutoMigrate 都执行 SET DEFAULT（2025-08-11）&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;a class=&#34;link&#34; href=&#34;https://github.com/go-gorm/gorm/issues/7590&#34;  target=&#34;_blank&#34; rel=&#34;noopener&#34;
+    &gt;go-gorm/gorm#7590&lt;/a&gt;&lt;/td&gt;
+&lt;td&gt;Closed&lt;/td&gt;
+&lt;td&gt;serializer tag 触发同样问题&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;a class=&#34;link&#34; href=&#34;https://github.com/go-gorm/gorm/pull/7591&#34;  target=&#34;_blank&#34; rel=&#34;noopener&#34;
+    &gt;go-gorm/gorm#7591&lt;/a&gt;&lt;/td&gt;
+&lt;td&gt;&lt;strong&gt;Merged&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;修了 &lt;code&gt;schema.String&lt;/code&gt; 分支的引号比较（gorm v1.31.2 已包含）&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;a class=&#34;link&#34; href=&#34;https://github.com/go-gorm/gorm/pull/7770&#34;  target=&#34;_blank&#34; rel=&#34;noopener&#34;
+    &gt;go-gorm/gorm#7770&lt;/a&gt;&lt;/td&gt;
+&lt;td&gt;&lt;strong&gt;Closed（未合并）&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;尝试修 &lt;code&gt;default&lt;/code&gt; 分支（jsonb 等非 String 类型），被关闭&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;a class=&#34;link&#34; href=&#34;https://github.com/go-gorm/gorm/pull/7806&#34;  target=&#34;_blank&#34; rel=&#34;noopener&#34;
+    &gt;go-gorm/gorm#7806&lt;/a&gt;&lt;/td&gt;
+&lt;td&gt;Merged&lt;/td&gt;
+&lt;td&gt;修了 DEFAULT NULL 无限循环，未覆盖 jsonb&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;a class=&#34;link&#34; href=&#34;https://github.com/go-gorm/postgres/issues/225&#34;  target=&#34;_blank&#34; rel=&#34;noopener&#34;
+    &gt;go-gorm/postgres#225&lt;/a&gt;&lt;/td&gt;
+&lt;td&gt;&lt;strong&gt;Open&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;v1.5.4 改变了 jsonb 默认值生成（2023-11-21）&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;h3 id=&#34;为什么一直没修&#34;&gt;为什么一直没修&lt;/h3&gt;
+&lt;ol&gt;
+&lt;li&gt;jinzhu 先合并了 #7591，修了 &lt;code&gt;schema.String&lt;/code&gt; 分支 → text 列的问题解决了&lt;/li&gt;
+&lt;li&gt;jsonb 走的是 &lt;code&gt;MigrateColumn&lt;/code&gt; 中的 &lt;code&gt;default&lt;/code&gt; 分支（不是 &lt;code&gt;schema.String&lt;/code&gt;），#7591 的修复对它无效&lt;/li&gt;
+&lt;li&gt;有人提了 #7770，给 &lt;code&gt;default&lt;/code&gt; 分支加了同样的 &lt;code&gt;strings.Trim&lt;/code&gt; 去引号逻辑，但被关闭了&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;根因在代码里一目了然：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;div class=&#34;chroma&#34;&gt;
+&lt;table class=&#34;lntable&#34;&gt;&lt;tr&gt;&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code&gt;&lt;span class=&#34;lnt&#34;&gt; 1
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 2
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 3
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 4
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 5
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 6
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 7
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 8
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 9
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;10
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;11
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;12
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-go&#34; data-lang=&#34;go&#34;&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;c1&#34;&gt;// MigrateColumn 中的两个分支对比
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;c1&#34;&gt;&lt;/span&gt;&lt;span class=&#34;k&#34;&gt;case&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;schema&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;nx&#34;&gt;String&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;    &lt;span class=&#34;c1&#34;&gt;// 已修复：加了去引号的第二次比较
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;c1&#34;&gt;&lt;/span&gt;    &lt;span class=&#34;k&#34;&gt;if&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;dv&lt;/span&gt; &lt;span class=&#34;o&#34;&gt;!=&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;field&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;nx&#34;&gt;DefaultValue&lt;/span&gt; &lt;span class=&#34;o&#34;&gt;&amp;amp;&amp;amp;&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;dv&lt;/span&gt; &lt;span class=&#34;o&#34;&gt;!=&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;strings&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;nf&#34;&gt;Trim&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;nx&#34;&gt;field&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;nx&#34;&gt;DefaultValue&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;,&lt;/span&gt; &lt;span class=&#34;s&#34;&gt;&amp;#34;&amp;#39;\&amp;#34;&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;)&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;{&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;        &lt;span class=&#34;nx&#34;&gt;alterColumn&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;=&lt;/span&gt; &lt;span class=&#34;kc&#34;&gt;true&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;    &lt;span class=&#34;p&#34;&gt;}&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;k&#34;&gt;default&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;    &lt;span class=&#34;c1&#34;&gt;// 未修复：只有直接比较，jsonb 走这里
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;c1&#34;&gt;&lt;/span&gt;    &lt;span class=&#34;k&#34;&gt;if&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;dv&lt;/span&gt; &lt;span class=&#34;o&#34;&gt;!=&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;field&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;nx&#34;&gt;DefaultValue&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;{&lt;/span&gt;  &lt;span class=&#34;c1&#34;&gt;// &amp;#34;{}&amp;#34; ≠ &amp;#34;&amp;#39;{}&amp;#39;&amp;#34; → 每次都触发
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;c1&#34;&gt;&lt;/span&gt;        &lt;span class=&#34;nx&#34;&gt;alterColumn&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;=&lt;/span&gt; &lt;span class=&#34;kc&#34;&gt;true&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;    &lt;span class=&#34;p&#34;&gt;}&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;p&gt;jsonb 字段的 GORMDataType 是自定义类型名（如 &lt;code&gt;jsonb&lt;/code&gt;），不是 &lt;code&gt;String&lt;/code&gt;，所以走 &lt;code&gt;default&lt;/code&gt; 分支。&lt;/p&gt;
+&lt;h3 id=&#34;处理建议&#34;&gt;处理建议&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;PostgreSQL 上无害，忽略即可&lt;/li&gt;
+&lt;li&gt;Vastbase 上如果 DDL 总量（timestamptz + jsonb）足以让服务端崩溃，先修 timestamptz（上一节方案），jsonb 部分等 GORM 上游修&lt;/li&gt;
+&lt;li&gt;关注 &lt;a class=&#34;link&#34; href=&#34;https://github.com/go-gorm/gorm/issues/7553&#34;  target=&#34;_blank&#34; rel=&#34;noopener&#34;
+    &gt;go-gorm/gorm#7553&lt;/a&gt;，上游修复后升级 GORM 即可&lt;/li&gt;
+&lt;li&gt;如果等不了，可以在自定义 Migrator 中补上 jsonb 的归一化&lt;/li&gt;
+&lt;/ul&gt;
+&lt;hr&gt;
+&lt;h2 id=&#34;3-sql-语法差异&#34;&gt;3. SQL 语法差异&lt;/h2&gt;
+&lt;p&gt;Vastbase 不支持部分 PostgreSQL 高版本语法，需要在驱动层做 SQL 重写。&lt;/p&gt;
+&lt;h3 id=&#34;31-make_interval-不支持&#34;&gt;3.1 make_interval 不支持&lt;/h3&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;div class=&#34;chroma&#34;&gt;
+&lt;table class=&#34;lntable&#34;&gt;&lt;tr&gt;&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code&gt;&lt;span class=&#34;lnt&#34;&gt;1
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;2
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;3
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;4
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;5
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-sql&#34; data-lang=&#34;sql&#34;&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;c1&#34;&gt;-- PostgreSQL（River 生成）
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;c1&#34;&gt;&lt;/span&gt;&lt;span class=&#34;k&#34;&gt;WHERE&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;n&#34;&gt;scheduled_at&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;o&#34;&gt;&amp;lt;=&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;n&#34;&gt;now&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;()&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;o&#34;&gt;+&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;n&#34;&gt;make_interval&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;secs&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;o&#34;&gt;=&amp;gt;&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;err&#34;&gt;$&lt;/span&gt;&lt;span class=&#34;mi&#34;&gt;3&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;)&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;w&#34;&gt;&lt;/span&gt;&lt;span class=&#34;c1&#34;&gt;-- Vastbase 改写
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;c1&#34;&gt;&lt;/span&gt;&lt;span class=&#34;k&#34;&gt;WHERE&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;n&#34;&gt;scheduled_at&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;o&#34;&gt;&amp;lt;=&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;n&#34;&gt;now&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;()&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;o&#34;&gt;+&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;err&#34;&gt;$&lt;/span&gt;&lt;span class=&#34;mi&#34;&gt;3&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;o&#34;&gt;*&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;nb&#34;&gt;interval&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;s1&#34;&gt;&amp;#39;1 second&amp;#39;&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;h3 id=&#34;32-数组切片-arrstart-不支持&#34;&gt;3.2 数组切片 arr[start:] 不支持&lt;/h3&gt;
+&lt;p&gt;Vastbase 不支持 PostgreSQL 的数组切片语法 &lt;code&gt;arr[start:]&lt;/code&gt;。River 用这个语法裁剪 &lt;code&gt;attempted_by&lt;/code&gt; 数组：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;div class=&#34;chroma&#34;&gt;
+&lt;table class=&#34;lntable&#34;&gt;&lt;tr&gt;&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code&gt;&lt;span class=&#34;lnt&#34;&gt; 1
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 2
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 3
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 4
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 5
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 6
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 7
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 8
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 9
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;10
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;11
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-sql&#34; data-lang=&#34;sql&#34;&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;c1&#34;&gt;-- PostgreSQL（River 生成）
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;c1&#34;&gt;&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;array_append&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;w&#34;&gt;    &lt;/span&gt;&lt;span class=&#34;k&#34;&gt;CASE&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;k&#34;&gt;WHEN&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;n&#34;&gt;array_length&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;attempted_by&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;,&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;mi&#34;&gt;1&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;)&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;o&#34;&gt;&amp;gt;=&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;err&#34;&gt;$&lt;/span&gt;&lt;span class=&#34;mi&#34;&gt;2&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;w&#34;&gt;    &lt;/span&gt;&lt;span class=&#34;k&#34;&gt;THEN&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;n&#34;&gt;attempted_by&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;[&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;array_length&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;attempted_by&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;,&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;mi&#34;&gt;1&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;)&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;o&#34;&gt;+&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;mi&#34;&gt;2&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;o&#34;&gt;-&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;err&#34;&gt;$&lt;/span&gt;&lt;span class=&#34;mi&#34;&gt;2&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;:]&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;w&#34;&gt;    &lt;/span&gt;&lt;span class=&#34;k&#34;&gt;ELSE&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;n&#34;&gt;attempted_by&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;k&#34;&gt;END&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;,&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;w&#34;&gt;    &lt;/span&gt;&lt;span class=&#34;err&#34;&gt;$&lt;/span&gt;&lt;span class=&#34;mi&#34;&gt;3&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;::&lt;/span&gt;&lt;span class=&#34;nb&#34;&gt;text&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;)&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;w&#34;&gt;&lt;/span&gt;&lt;span class=&#34;c1&#34;&gt;-- Vastbase 改写（跳过裁剪，直接追加）
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;c1&#34;&gt;&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;array_append&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;w&#34;&gt;    &lt;/span&gt;&lt;span class=&#34;k&#34;&gt;CASE&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;k&#34;&gt;WHEN&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;err&#34;&gt;$&lt;/span&gt;&lt;span class=&#34;mi&#34;&gt;2&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;o&#34;&gt;&amp;gt;=&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;mi&#34;&gt;0&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;k&#34;&gt;THEN&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;n&#34;&gt;attempted_by&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;k&#34;&gt;ELSE&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;n&#34;&gt;attempted_by&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;k&#34;&gt;END&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;,&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;w&#34;&gt;    &lt;/span&gt;&lt;span class=&#34;err&#34;&gt;$&lt;/span&gt;&lt;span class=&#34;mi&#34;&gt;3&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;::&lt;/span&gt;&lt;span class=&#34;nb&#34;&gt;text&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;)&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;p&gt;裁剪的目的是防止数组无限增长，但 &lt;code&gt;attempted_by&lt;/code&gt; 受 &lt;code&gt;max_attempts&lt;/code&gt;（默认 25）自然约束，不裁剪也不会超过 25 个元素。语义上无影响。&lt;/p&gt;
+&lt;h3 id=&#34;33-on-conflict--where-不支持&#34;&gt;3.3 ON CONFLICT &amp;hellip; WHERE 不支持&lt;/h3&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;div class=&#34;chroma&#34;&gt;
+&lt;table class=&#34;lntable&#34;&gt;&lt;tr&gt;&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code&gt;&lt;span class=&#34;lnt&#34;&gt;1
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;2
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;3
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;4
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;5
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-sql&#34; data-lang=&#34;sql&#34;&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;c1&#34;&gt;-- PostgreSQL
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;c1&#34;&gt;&lt;/span&gt;&lt;span class=&#34;k&#34;&gt;ON&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;n&#34;&gt;CONFLICT&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;kind&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;)&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;k&#34;&gt;WHERE&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;n&#34;&gt;unique_states&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;k&#34;&gt;IS&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;k&#34;&gt;NOT&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;k&#34;&gt;NULL&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;k&#34;&gt;DO&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;k&#34;&gt;UPDATE&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;k&#34;&gt;SET&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;p&#34;&gt;...&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;w&#34;&gt;&lt;/span&gt;&lt;span class=&#34;c1&#34;&gt;-- Vastbase 改写（去掉 WHERE）
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;c1&#34;&gt;&lt;/span&gt;&lt;span class=&#34;k&#34;&gt;ON&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;n&#34;&gt;CONFLICT&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;kind&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;)&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;k&#34;&gt;DO&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;k&#34;&gt;UPDATE&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;k&#34;&gt;SET&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;p&#34;&gt;...&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;p&gt;注意去掉 WHERE 可能影响条件化唯一索引的语义，需要评估。&lt;/p&gt;
+&lt;h3 id=&#34;34-with--insert--on-conflict-do-update-不支持&#34;&gt;3.4 WITH &amp;hellip; INSERT &amp;hellip; ON CONFLICT DO UPDATE 不支持&lt;/h3&gt;
+&lt;p&gt;Vastbase 不支持 CTE 与 ON CONFLICT DO UPDATE 组合使用。改写方式是将 CTE 内联为 FROM 子查询。&lt;/p&gt;
+&lt;h3 id=&#34;35-xid-类型不支持与-integer-直接比较&#34;&gt;3.5 xid 类型不支持与 integer 直接比较&lt;/h3&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;div class=&#34;chroma&#34;&gt;
+&lt;table class=&#34;lntable&#34;&gt;&lt;tr&gt;&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code&gt;&lt;span class=&#34;lnt&#34;&gt;1
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;2
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;3
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;4
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;5
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-sql&#34; data-lang=&#34;sql&#34;&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;c1&#34;&gt;-- PostgreSQL
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;c1&#34;&gt;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;xmax&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;o&#34;&gt;!=&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;mi&#34;&gt;0&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;)&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;k&#34;&gt;AS&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;n&#34;&gt;unique_skipped_as_duplicate&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;w&#34;&gt;&lt;/span&gt;&lt;span class=&#34;c1&#34;&gt;-- Vastbase 改写
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;c1&#34;&gt;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;xmax&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;::&lt;/span&gt;&lt;span class=&#34;nb&#34;&gt;text&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;o&#34;&gt;!=&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;s1&#34;&gt;&amp;#39;0&amp;#39;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;)&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;k&#34;&gt;AS&lt;/span&gt;&lt;span class=&#34;w&#34;&gt; &lt;/span&gt;&lt;span class=&#34;n&#34;&gt;unique_skipped_as_duplicate&lt;/span&gt;&lt;span class=&#34;w&#34;&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;h3 id=&#34;36-dsn-特殊字符&#34;&gt;3.6 DSN 特殊字符&lt;/h3&gt;
+&lt;p&gt;Vastbase DSN 中密码的特殊字符需要 URL 编码。&lt;/p&gt;
+&lt;hr&gt;
+&lt;h2 id=&#34;4-连接行为差异&#34;&gt;4. 连接行为差异&lt;/h2&gt;
+&lt;h3 id=&#34;41-认证方式&#34;&gt;4.1 认证方式&lt;/h3&gt;
+&lt;p&gt;Vastbase 默认用 &lt;code&gt;sha256&lt;/code&gt; 认证（&lt;code&gt;pg_hba.conf&lt;/code&gt;），pgx 驱动天然支持，无需适配。&lt;/p&gt;
+&lt;h3 id=&#34;42-密集-ddl-时的稳定性&#34;&gt;4.2 密集 DDL 时的稳定性&lt;/h3&gt;
+&lt;p&gt;Vastbase 在短时间内密集执行 DDL 时容易崩溃。&lt;br&gt;
+应对：减少不必要的 DDL，合理设置连接池参数。&lt;/p&gt;
+&lt;h3 id=&#34;43-vastbase-兼容模式&#34;&gt;4.3 vastbase 兼容模式&lt;/h3&gt;
+&lt;p&gt;vastbase 支持多种数据库的协议连接，部署的时候固定，如果选择了 mysql 模式，则 postgresql 连接会出现很多故障。&lt;/p&gt;
+&lt;p&gt;&lt;code&gt;SHOW dbcompatibility;&lt;/code&gt; 查看兼容模式&lt;/p&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;返回值&lt;/th&gt;
+&lt;th&gt;兼容模式&lt;/th&gt;
+&lt;th&gt;说明&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;A&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;Oracle&lt;/td&gt;
+&lt;td&gt;兼容 Oracle 语法和协议&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;B&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;MySQL&lt;/td&gt;
+&lt;td&gt;兼容 MySQL 语法和部分协议&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;C&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;TD (Teradata)&lt;/td&gt;
+&lt;td&gt;兼容 Teradata 语法&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;PG&lt;/code&gt; / 空&lt;/td&gt;
+&lt;td&gt;PostgreSQL&lt;/td&gt;
+&lt;td&gt;原生 openGauss/PG 模式&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+</description>
+        </item>
+        <item>
+        <title>数据库瓶颈优化</title>
+        <link>https://blog.golang.space/p/%E6%95%B0%E6%8D%AE%E5%BA%93%E7%93%B6%E9%A2%88%E4%BC%98%E5%8C%96/</link>
+        <pubDate>Sun, 14 Jun 2026 00:00:00 +0000</pubDate>
+        
+        <guid>https://blog.golang.space/p/%E6%95%B0%E6%8D%AE%E5%BA%93%E7%93%B6%E9%A2%88%E4%BC%98%E5%8C%96/</guid>
+        <description>&lt;p&gt;我在本地进行压测，这是一个短信业务，地下截图是模拟测试者，它会向平台发送 1 万条消息，并发 1000。&lt;/p&gt;
+&lt;p&gt;一万条消息 p99 是 2317 毫秒，发送用时 13 秒。&lt;/p&gt;
+&lt;p&gt;平台收到消息，在处理完成任务后，将结果进行回调到压测程序，从截图可以看到接收延迟 p99 是 14 秒。1 个消息发出去 14 秒后才能收到结果，想想办法怎么优化。&lt;/p&gt;
+&lt;p&gt;在程序中，最容易出现瓶颈的就是数据库读写，根据日志找到慢 SQL。&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;http://img.golang.space/img-1781452186824.png&#34;
+	
+	
+	
+	loading=&#34;lazy&#34;
+	
+		alt=&#34;image-20260614234946537&#34;
+	
+	
+&gt;&lt;/p&gt;
+&lt;h2 id=&#34;数据库相关业务优化&#34;&gt;数据库相关业务优化&lt;/h2&gt;
+&lt;p&gt;&lt;strong&gt;插入优化&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;如果出现插入的慢 SQL，检查是不是大量一条数据一条数据插入的，可以合并为一次请求，批量插入。&lt;/p&gt;
+&lt;p&gt;重要的不可丢失的数据，先入消息队列，批量接收一定量或达到超时时间，就入库。&lt;/p&gt;
+&lt;p&gt;允许存在丢失的，用 channel 接收处理入库即可，达到 100 条或 10 秒入库一次，这样最大丢失也就 100 条。&lt;/p&gt;
+&lt;p&gt;在多轮测试中，批次大小也不是越大越好，随着批次越大，越靠近收益边际，大概在 BatchSize=200 左右。&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;读取优化&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;采用缓存机制，可启动时预热缓存，读取 redis 效率比读取 pg 更高。&lt;/p&gt;
+&lt;h3 id=&#34;优化效果&#34;&gt;优化效果&lt;/h3&gt;
+&lt;p&gt;发送耗时减少了一倍，主要原因是回调接收对数据库的读写减轻，机器的性能也就提高了，所以发送耗时 间接 受益。&lt;/p&gt;
+&lt;p&gt;接收降低 50%，得益于读取优化，减少读的瓶颈。&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;优化前&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;总发送&lt;strong&gt;用时 21秒，接收 p99 20秒&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;优化后&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;总发送&lt;strong&gt;用时 12 秒，接收 p99 11秒&lt;/strong&gt;，&lt;strong&gt;发送和接收提升了 50%&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;发送的 p99 是 2 秒，这 2 秒是本地的写消息队列涉及到持久化到磁盘，可采用分布式消息队列或异步落盘优化，接收的 p99 是 11 秒，&lt;code&gt;11-2=8&lt;/code&gt;，平台执行任务花了 8 秒，说明还有优化空间。&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;http://img.golang.space/img-1781457250041.png&#34;
+	
+	
+	
+	loading=&#34;lazy&#34;
+	
+		alt=&#34;image-20260615011409690&#34;
+	
+	
+&gt;&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;更新优化&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;每收到一条回调，都需要更新数据库中该条记录的状态，如果改成批量更新呢? 消息先入消息队列，批量获取数据，一次性几百条更新到数据库。&lt;/p&gt;
+&lt;p&gt;先说结果，在高并发的情况下，每条独立更新，耗时 300 毫秒左右，批量百条更新，耗时 250 毫秒左右，从耗时上看差距不大，但是数据确实百倍处理了。&lt;/p&gt;
+&lt;p&gt;从压测的结果来看，&lt;strong&gt;p99 提升了 17%&lt;/strong&gt;，p50 升高了，因为批量入队需要凑满一定数据才会一次性更新到数据库。&lt;/p&gt;
+&lt;p&gt;如果尝试将 batchSize 改成 1000 呢? 得到 &lt;code&gt;P99:  12484ms&lt;/code&gt;，效率反而下降了，批量 update 的尾部效应。&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;http://img.golang.space/img-1781485258544.png&#34;
+	
+	
+	
+	loading=&#34;lazy&#34;
+	
+		alt=&#34;image-20260615090058165&#34;
+	
+	
+&gt;&lt;/p&gt;
+&lt;h3 id=&#34;从火焰图看消耗&#34;&gt;从火焰图看消耗&lt;/h3&gt;
+&lt;p&gt;Redis / PostgreSQL / Service / 消息队列全都部署在本地机器，同时读写磁盘，以及平台在 debug 的状态下会打印大量日志，通过 pprof 拿到的火焰图，可以看出数据库相关还可以优化。主要是 &amp;ldquo;插入优化&amp;rdquo;，这里是一个事务级的连表插入。&lt;/p&gt;
+&lt;p&gt;在正式环境中，采用更高级别的日志，防止 debug 输出太多内容，以及拆分中间件服务器，和多副本部署，测试结果会更好。&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;http://img.golang.space/img-1781487854286.png&#34;
+	
+	
+	
+	loading=&#34;lazy&#34;
+	
+		alt=&#34;image-20260615094414006&#34;
+	
+	
+&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;http://img.golang.space/img-1781487960802.png&#34;
+	
+	
+	
+	loading=&#34;lazy&#34;
+	
+		alt=&#34;image-20260615094600635&#34;
+	
+	
+&gt;&lt;/p&gt;
+&lt;h3 id=&#34;最佳配置&#34;&gt;最佳配置&lt;/h3&gt;
+&lt;p&gt;在上面的测试中，涉及到 batchSize 等配置，到底怎样是最佳配置?&lt;/p&gt;
+&lt;p&gt;以下内容基于本地电脑环境测试。&lt;/p&gt;
+&lt;p&gt;我们写一点 benchmark，用于测试 3 个问题:&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;事务插入2 表 与无事务插入2 表&lt;/li&gt;
+&lt;li&gt;批量插入, batchSize 在 100,300,500,700,1000 下的性能&lt;/li&gt;
+&lt;li&gt;批量更新，batchSize 在 100,300,500,700,1000 下的性能&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;&lt;img src=&#34;http://img.golang.space/img-1781491479626.png&#34;
+	
+	
+	
+	loading=&#34;lazy&#34;
+	
+		alt=&#34;image-20260615104439269&#34;
+	
+	
+&gt;&lt;/p&gt;
+&lt;h2 id=&#34;压测结果汇总&#34;&gt;压测结果汇总&lt;/h2&gt;
+&lt;h3 id=&#34;测试-1事务-vs-无事务-insertsms_sessions--sms_messages&#34;&gt;测试 1：事务 vs 无事务 INSERT（sms_sessions + sms_messages）&lt;/h3&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th style=&#34;text-align:left&#34;&gt;Benchmark&lt;/th&gt;
+&lt;th style=&#34;text-align:left&#34;&gt;N&lt;/th&gt;
+&lt;th style=&#34;text-align:left&#34;&gt;ns/op&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td style=&#34;text-align:left&#34;&gt;TxInsert_Serial&lt;/td&gt;
+&lt;td style=&#34;text-align:left&#34;&gt;956&lt;/td&gt;
+&lt;td style=&#34;text-align:left&#34;&gt;3.31 ms&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style=&#34;text-align:left&#34;&gt;NoTxInsert_Serial&lt;/td&gt;
+&lt;td style=&#34;text-align:left&#34;&gt;1840&lt;/td&gt;
+&lt;td style=&#34;text-align:left&#34;&gt;3.25 ms&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style=&#34;text-align:left&#34;&gt;TxInsert_Parallel500&lt;/td&gt;
+&lt;td style=&#34;text-align:left&#34;&gt;6987&lt;/td&gt;
+&lt;td style=&#34;text-align:left&#34;&gt;632 µs&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style=&#34;text-align:left&#34;&gt;NoTxInsert_Parallel500&lt;/td&gt;
+&lt;td style=&#34;text-align:left&#34;&gt;&lt;strong&gt;23041&lt;/strong&gt;&lt;/td&gt;
+&lt;td style=&#34;text-align:left&#34;&gt;138 µs&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;串行差距小，并发下无事务吞吐量高出 ~4.5 倍。如果有兜底机制比如消息队列，可以关闭事务插入。&lt;/p&gt;
+&lt;h3 id=&#34;测试-2批量插入-channel_http_logs&#34;&gt;测试 2：批量插入 channel_http_logs&lt;/h3&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th style=&#34;text-align:left&#34;&gt;Batch Size&lt;/th&gt;
+&lt;th style=&#34;text-align:left&#34;&gt;N&lt;/th&gt;
+&lt;th style=&#34;text-align:left&#34;&gt;ms/op&lt;/th&gt;
+&lt;th style=&#34;text-align:left&#34;&gt;rows/s&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td style=&#34;text-align:left&#34;&gt;100&lt;/td&gt;
+&lt;td style=&#34;text-align:left&#34;&gt;100&lt;/td&gt;
+&lt;td style=&#34;text-align:left&#34;&gt;31.43&lt;/td&gt;
+&lt;td style=&#34;text-align:left&#34;&gt;3,181&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style=&#34;text-align:left&#34;&gt;300&lt;/td&gt;
+&lt;td style=&#34;text-align:left&#34;&gt;814&lt;/td&gt;
+&lt;td style=&#34;text-align:left&#34;&gt;4.64&lt;/td&gt;
+&lt;td style=&#34;text-align:left&#34;&gt;&lt;strong&gt;64,647&lt;/strong&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style=&#34;text-align:left&#34;&gt;500&lt;/td&gt;
+&lt;td style=&#34;text-align:left&#34;&gt;583&lt;/td&gt;
+&lt;td style=&#34;text-align:left&#34;&gt;6.31&lt;/td&gt;
+&lt;td style=&#34;text-align:left&#34;&gt;&lt;strong&gt;79,215&lt;/strong&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style=&#34;text-align:left&#34;&gt;700&lt;/td&gt;
+&lt;td style=&#34;text-align:left&#34;&gt;396&lt;/td&gt;
+&lt;td style=&#34;text-align:left&#34;&gt;14.37&lt;/td&gt;
+&lt;td style=&#34;text-align:left&#34;&gt;48,710&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style=&#34;text-align:left&#34;&gt;1000&lt;/td&gt;
+&lt;td style=&#34;text-align:left&#34;&gt;186&lt;/td&gt;
+&lt;td style=&#34;text-align:left&#34;&gt;21.55&lt;/td&gt;
+&lt;td style=&#34;text-align:left&#34;&gt;46,397&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;rows/s 在 300~500 达到峰值，500 最优（79k rows/s）。700/1000 反而下降。&lt;/p&gt;
+&lt;h3 id=&#34;测试-3批量更新-channel_http_logs&#34;&gt;测试 3：批量更新 channel_http_logs&lt;/h3&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th style=&#34;text-align:left&#34;&gt;Batch Size&lt;/th&gt;
+&lt;th style=&#34;text-align:left&#34;&gt;N&lt;/th&gt;
+&lt;th style=&#34;text-align:left&#34;&gt;ms/op&lt;/th&gt;
+&lt;th style=&#34;text-align:left&#34;&gt;rows/s&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td style=&#34;text-align:left&#34;&gt;100&lt;/td&gt;
+&lt;td style=&#34;text-align:left&#34;&gt;2376&lt;/td&gt;
+&lt;td style=&#34;text-align:left&#34;&gt;1.52&lt;/td&gt;
+&lt;td style=&#34;text-align:left&#34;&gt;65,623&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style=&#34;text-align:left&#34;&gt;300&lt;/td&gt;
+&lt;td style=&#34;text-align:left&#34;&gt;758&lt;/td&gt;
+&lt;td style=&#34;text-align:left&#34;&gt;4.58&lt;/td&gt;
+&lt;td style=&#34;text-align:left&#34;&gt;65,492&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style=&#34;text-align:left&#34;&gt;500&lt;/td&gt;
+&lt;td style=&#34;text-align:left&#34;&gt;564&lt;/td&gt;
+&lt;td style=&#34;text-align:left&#34;&gt;7.12&lt;/td&gt;
+&lt;td style=&#34;text-align:left&#34;&gt;&lt;strong&gt;70,252&lt;/strong&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style=&#34;text-align:left&#34;&gt;700&lt;/td&gt;
+&lt;td style=&#34;text-align:left&#34;&gt;324&lt;/td&gt;
+&lt;td style=&#34;text-align:left&#34;&gt;10.52&lt;/td&gt;
+&lt;td style=&#34;text-align:left&#34;&gt;66,521&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style=&#34;text-align:left&#34;&gt;1000&lt;/td&gt;
+&lt;td style=&#34;text-align:left&#34;&gt;246&lt;/td&gt;
+&lt;td style=&#34;text-align:left&#34;&gt;13.07&lt;/td&gt;
+&lt;td style=&#34;text-align:left&#34;&gt;76,497&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;更新场景 rows/s 各 size 差距不大（6.5~7.6 万），吞吐量基本持平。&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;最终结论，期间还延长了 benchtime 多测了几轮，batchSize 不是越大越好，300 左右是个稳定点，实际可以根据不同的项目进一步确认&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;这三步的优化，降低了 p50 延迟 2s 左右，对 p90 的改善不显著。&lt;/p&gt;
+</description>
+        </item>
+        <item>
+        <title>一致性哈希</title>
+        <link>https://blog.golang.space/p/%E4%B8%80%E8%87%B4%E6%80%A7%E5%93%88%E5%B8%8C/</link>
+        <pubDate>Wed, 10 Jun 2026 00:00:00 +0000</pubDate>
+        
+        <guid>https://blog.golang.space/p/%E4%B8%80%E8%87%B4%E6%80%A7%E5%93%88%E5%B8%8C/</guid>
+        <description>&lt;h2 id=&#34;分布式缓存应用场景&#34;&gt;分布式缓存应用场景&lt;/h2&gt;
+&lt;p&gt;假设 3 台缓存服务器，&lt;code&gt;s0,s1,s2&lt;/code&gt;&lt;/p&gt;
+&lt;p&gt;需要将图片均匀缓存到 3 台服务器上，最简单的方式是 hash 计算并取模判断属于哪个服务器&lt;/p&gt;
+&lt;p&gt;&lt;code&gt;hash(唯一标识) % 机器数量&lt;/code&gt; = 0/1/2&lt;/p&gt;
+&lt;p&gt;相同标识进行哈希计算的值是不变的，所以可以将图片缓存到各个节点上。&lt;/p&gt;
+&lt;p&gt;但是有一个缺点，假设新增了一个服务器，机器数量发生了变化，余数就会不同，此时在读取缓存数据就会抛错节点。&lt;/p&gt;
+&lt;h2 id=&#34;一致性哈希&#34;&gt;一致性哈希&lt;/h2&gt;
+&lt;p&gt;假设有个哈希环，由 &lt;code&gt;2^32&lt;/code&gt; 个点组成&lt;/p&gt;
+&lt;p&gt;假设有 3 台服务器，根据服务器的编号 hash 并对 2^32 取模&lt;/p&gt;
+&lt;p&gt;将被缓存的图片也映射到哈希环上，从图片的位置开始，顺时针查找，遇到的第一个节点服务器，就是缓存服务器。&lt;/p&gt;
+&lt;p&gt;如果新增了服务器，先映射到哈希环上，按照顺时针会找到新服务器。&lt;/p&gt;
+&lt;p&gt;但有一个问题，哈希偏斜，即 0/1/2 三台服务器在哈希环的位置相近，缓存不均匀，可能大量缓存在 1 个服务器上，最好是服务器越多越均匀，增加虚拟节点。&lt;/p&gt;
+&lt;p&gt;例如 a 节点，引入 a1,a2,a3&amp;hellip;an 虚拟节点，这样就会在哈希环上分布比较均匀，先找到虚拟节点，再找真实节点。&lt;/p&gt;
+&lt;h2 id=&#34;最高随机权重-highest-random-weight&#34;&gt;最高随机权重 Highest Random Weight&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;每个 key 和每个节点组合计算 H(key:node)，得分最高者胜&lt;/li&gt;
+&lt;li&gt;因为哈希函数对不同输入均匀输出，所以每个节点&amp;quot;赢&amp;quot;的概率天然相等&lt;/li&gt;
+&lt;li&gt;不需要环、不需要虚拟节点、不需要排序查找&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;代价： 选节点时需遍历所有节点算分，复杂度 O(N)。一致性哈希是 O(log N)。节点数少（&amp;lt; 几百）时无感知差异，节点上千才需要权衡。&lt;/p&gt;
+&lt;p&gt;可使用 splitmix64 终混器，全部打散，防止过于集中某个节点&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;div class=&#34;chroma&#34;&gt;
+&lt;table class=&#34;lntable&#34;&gt;&lt;tr&gt;&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code&gt;&lt;span class=&#34;lnt&#34;&gt; 1
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 2
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 3
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 4
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 5
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 6
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 7
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 8
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 9
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;10
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;11
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;12
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;13
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;14
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;15
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-go&#34; data-lang=&#34;go&#34;&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;kd&#34;&gt;func&lt;/span&gt; &lt;span class=&#34;nf&#34;&gt;splitmix64&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;nx&#34;&gt;x&lt;/span&gt; &lt;span class=&#34;kt&#34;&gt;uint64&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;)&lt;/span&gt; &lt;span class=&#34;kt&#34;&gt;uint64&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;{&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;	&lt;span class=&#34;nx&#34;&gt;x&lt;/span&gt; &lt;span class=&#34;o&#34;&gt;+=&lt;/span&gt; &lt;span class=&#34;mh&#34;&gt;0x9e3779b97f4a7c15&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;	&lt;span class=&#34;nx&#34;&gt;x&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;=&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;nx&#34;&gt;x&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;^&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;nx&#34;&gt;x&lt;/span&gt; &lt;span class=&#34;o&#34;&gt;&amp;gt;&amp;gt;&lt;/span&gt; &lt;span class=&#34;mi&#34;&gt;30&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;))&lt;/span&gt; &lt;span class=&#34;o&#34;&gt;*&lt;/span&gt; &lt;span class=&#34;mh&#34;&gt;0xbf58476d1ce4e5b9&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;	&lt;span class=&#34;nx&#34;&gt;x&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;=&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;nx&#34;&gt;x&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;^&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;nx&#34;&gt;x&lt;/span&gt; &lt;span class=&#34;o&#34;&gt;&amp;gt;&amp;gt;&lt;/span&gt; &lt;span class=&#34;mi&#34;&gt;27&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;))&lt;/span&gt; &lt;span class=&#34;o&#34;&gt;*&lt;/span&gt; &lt;span class=&#34;mh&#34;&gt;0x94d049bb133111eb&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;	&lt;span class=&#34;k&#34;&gt;return&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;x&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;^&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;nx&#34;&gt;x&lt;/span&gt; &lt;span class=&#34;o&#34;&gt;&amp;gt;&amp;gt;&lt;/span&gt; &lt;span class=&#34;mi&#34;&gt;31&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;p&#34;&gt;}&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;c1&#34;&gt;// hrwScore 计算节点对卡的 HRW 得分。
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;c1&#34;&gt;&lt;/span&gt;&lt;span class=&#34;kd&#34;&gt;func&lt;/span&gt; &lt;span class=&#34;nf&#34;&gt;hrwScore&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;nx&#34;&gt;nodeID&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;,&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;phone&lt;/span&gt; &lt;span class=&#34;kt&#34;&gt;string&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;)&lt;/span&gt; &lt;span class=&#34;kt&#34;&gt;uint64&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;{&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;	&lt;span class=&#34;nx&#34;&gt;h&lt;/span&gt; &lt;span class=&#34;o&#34;&gt;:=&lt;/span&gt; &lt;span class=&#34;nx&#34;&gt;fnv&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;nf&#34;&gt;New64a&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;()&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;	&lt;span class=&#34;nx&#34;&gt;h&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;nf&#34;&gt;Write&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;([]&lt;/span&gt;&lt;span class=&#34;nb&#34;&gt;byte&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;nx&#34;&gt;nodeID&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;))&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;	&lt;span class=&#34;nx&#34;&gt;h&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;nf&#34;&gt;Write&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;([]&lt;/span&gt;&lt;span class=&#34;kt&#34;&gt;byte&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;{&lt;/span&gt;&lt;span class=&#34;sc&#34;&gt;&amp;#39;:&amp;#39;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;})&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;	&lt;span class=&#34;nx&#34;&gt;h&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;nf&#34;&gt;Write&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;([]&lt;/span&gt;&lt;span class=&#34;nb&#34;&gt;byte&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;nx&#34;&gt;phone&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;))&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;	&lt;span class=&#34;k&#34;&gt;return&lt;/span&gt; &lt;span class=&#34;nf&#34;&gt;splitmix64&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;nx&#34;&gt;h&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;nf&#34;&gt;Sum64&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;())&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;p&#34;&gt;}&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;</description>
+        </item>
+        <item>
         <title>小米 BE7000 路由器部署 AdGuard Home 全攻略</title>
         <link>https://blog.golang.space/p/%E5%B0%8F%E7%B1%B3-be7000-%E8%B7%AF%E7%94%B1%E5%99%A8%E9%83%A8%E7%BD%B2-adguard-home-%E5%85%A8%E6%94%BB%E7%95%A5/</link>
         <pubDate>Sun, 17 May 2026 00:00:00 +0000</pubDate>
@@ -7720,11 +8496,11 @@
 </description>
         </item>
         <item>
-        <title>记一次性能优化</title>
-        <link>https://blog.golang.space/p/%E8%AE%B0%E4%B8%80%E6%AC%A1%E6%80%A7%E8%83%BD%E4%BC%98%E5%8C%96/</link>
+        <title>RTMP 性能优化</title>
+        <link>https://blog.golang.space/p/rtmp-%E6%80%A7%E8%83%BD%E4%BC%98%E5%8C%96/</link>
         <pubDate>Thu, 22 May 2025 00:00:00 +0000</pubDate>
         
-        <guid>https://blog.golang.space/p/%E8%AE%B0%E4%B8%80%E6%AC%A1%E6%80%A7%E8%83%BD%E4%BC%98%E5%8C%96/</guid>
+        <guid>https://blog.golang.space/p/rtmp-%E6%80%A7%E8%83%BD%E4%BC%98%E5%8C%96/</guid>
         <description>&lt;p&gt;流媒体服务器 16 核 64GB 存储，尝试 RTMP 推流 1000 路，服务器没有跑满，但是画面产生了延迟或停顿，以及断开连接。&lt;/p&gt;
 &lt;p&gt;以下是记录我的解决方案:&lt;/p&gt;
 &lt;h2 id=&#34;查询-memstats-信息&#34;&gt;查询 memstats 信息&lt;/h2&gt;

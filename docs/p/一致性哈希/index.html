@@ -1,18 +1,57 @@
 <!DOCTYPE html>
 <html lang="zh-cn" dir="ltr">
     <head><meta charset='utf-8'>
-<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='流媒体服务器 16 核 64GB 存储，尝试 RTMP 推流 1000 路，服务器没有跑满，但是画面产生了延迟或停顿，以及断开连接。'>
-<title>记一次性能优化</title>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='分布式缓存应用场景 假设 3 台缓存服务器，s0,s1,s2
+需要将图片均匀缓存到 3 台服务器上，最简单的方式是 hash 计算并取模判断属于哪个服务器
+hash(唯一标识) % 机器数量 = 0/1/2
+相同标识进行哈希计算的值是不变的，所以可以将图片缓存到各个节点上。
+但是有一个缺点，假设新增了一个服务器，机器数量发生了变化，余数就会不同，此时在读取缓存数据就会抛错节点。
+一致性哈希 假设有个哈希环，由 2^32 个点组成
+假设有 3 台服务器，根据服务器的编号 hash 并对 2^32 取模
+将被缓存的图片也映射到哈希环上，从图片的位置开始，顺时针查找，遇到的第一个节点服务器，就是缓存服务器。
+如果新增了服务器，先映射到哈希环上，按照顺时针会找到新服务器。
+但有一个问题，哈希偏斜，即 0/1/2 三台服务器在哈希环的位置相近，缓存不均匀，可能大量缓存在 1 个服务器上，最好是服务器越多越均匀，增加虚拟节点。
+例如 a 节点，引入 a1,a2,a3&amp;hellip;an 虚拟节点，这样就会在哈希环上分布比较均匀，先找到虚拟节点，再找真实节点。
+最高随机权重 Highest Random Weight 每个 key 和每个节点组合计算 H(key:node)，得分最高者胜 因为哈希函数对不同输入均匀输出，所以每个节点&amp;quot;赢&amp;quot;的概率天然相等 不需要环、不需要虚拟节点、不需要排序查找 代价： 选节点时需遍历所有节点算分，复杂度 O(N)。一致性哈希是 O(log N)。节点数少（&amp;lt; 几百）时无感知差异，节点上千才需要权衡。
+可使用 splitmix64 终混器，全部打散，防止过于集中某个节点
+1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 func splitmix64(x uint64) uint64 { x &#43;= 0x9e3779b97f4a7c15 x = (x ^ (x &amp;gt;&amp;gt; 30)) * 0xbf58476d1ce4e5b9 x = (x ^ (x &amp;gt;&amp;gt; 27)) * 0x94d049bb133111eb return x ^ (x &amp;gt;&amp;gt; 31) } // hrwScore 计算节点对卡的 HRW 得分。 func hrwScore(nodeID, phone string) uint64 { h := fnv.'>
+<title>一致性哈希</title>
 
-<link rel='canonical' href='https://blog.golang.space/p/%E8%AE%B0%E4%B8%80%E6%AC%A1%E6%80%A7%E8%83%BD%E4%BC%98%E5%8C%96/'>
+<link rel='canonical' href='https://blog.golang.space/p/%E4%B8%80%E8%87%B4%E6%80%A7%E5%93%88%E5%B8%8C/'>
 
-<link rel="stylesheet" href="/scss/style.min.8191399262444ab68b72a18c97392f5349be20a1615d77445be51e974c144cff.css"><meta property='og:title' content='记一次性能优化'>
-<meta property='og:description' content='流媒体服务器 16 核 64GB 存储，尝试 RTMP 推流 1000 路，服务器没有跑满，但是画面产生了延迟或停顿，以及断开连接。'>
-<meta property='og:url' content='https://blog.golang.space/p/%E8%AE%B0%E4%B8%80%E6%AC%A1%E6%80%A7%E8%83%BD%E4%BC%98%E5%8C%96/'>
+<link rel="stylesheet" href="/scss/style.min.8191399262444ab68b72a18c97392f5349be20a1615d77445be51e974c144cff.css"><meta property='og:title' content='一致性哈希'>
+<meta property='og:description' content='分布式缓存应用场景 假设 3 台缓存服务器，s0,s1,s2
+需要将图片均匀缓存到 3 台服务器上，最简单的方式是 hash 计算并取模判断属于哪个服务器
+hash(唯一标识) % 机器数量 = 0/1/2
+相同标识进行哈希计算的值是不变的，所以可以将图片缓存到各个节点上。
+但是有一个缺点，假设新增了一个服务器，机器数量发生了变化，余数就会不同，此时在读取缓存数据就会抛错节点。
+一致性哈希 假设有个哈希环，由 2^32 个点组成
+假设有 3 台服务器，根据服务器的编号 hash 并对 2^32 取模
+将被缓存的图片也映射到哈希环上，从图片的位置开始，顺时针查找，遇到的第一个节点服务器，就是缓存服务器。
+如果新增了服务器，先映射到哈希环上，按照顺时针会找到新服务器。
+但有一个问题，哈希偏斜，即 0/1/2 三台服务器在哈希环的位置相近，缓存不均匀，可能大量缓存在 1 个服务器上，最好是服务器越多越均匀，增加虚拟节点。
+例如 a 节点，引入 a1,a2,a3&amp;hellip;an 虚拟节点，这样就会在哈希环上分布比较均匀，先找到虚拟节点，再找真实节点。
+最高随机权重 Highest Random Weight 每个 key 和每个节点组合计算 H(key:node)，得分最高者胜 因为哈希函数对不同输入均匀输出，所以每个节点&amp;quot;赢&amp;quot;的概率天然相等 不需要环、不需要虚拟节点、不需要排序查找 代价： 选节点时需遍历所有节点算分，复杂度 O(N)。一致性哈希是 O(log N)。节点数少（&amp;lt; 几百）时无感知差异，节点上千才需要权衡。
+可使用 splitmix64 终混器，全部打散，防止过于集中某个节点
+1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 func splitmix64(x uint64) uint64 { x &#43;= 0x9e3779b97f4a7c15 x = (x ^ (x &amp;gt;&amp;gt; 30)) * 0xbf58476d1ce4e5b9 x = (x ^ (x &amp;gt;&amp;gt; 27)) * 0x94d049bb133111eb return x ^ (x &amp;gt;&amp;gt; 31) } // hrwScore 计算节点对卡的 HRW 得分。 func hrwScore(nodeID, phone string) uint64 { h := fnv.'>
+<meta property='og:url' content='https://blog.golang.space/p/%E4%B8%80%E8%87%B4%E6%80%A7%E5%93%88%E5%B8%8C/'>
 <meta property='og:site_name' content='ixugo'>
-<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='Go' /><meta property='article:tag' content='PProf' /><meta property='article:published_time' content='2025-05-22T00:00:00&#43;00:00'/><meta property='article:modified_time' content='2025-05-22T00:00:00&#43;00:00'/>
-<meta name="twitter:title" content="记一次性能优化">
-<meta name="twitter:description" content="流媒体服务器 16 核 64GB 存储，尝试 RTMP 推流 1000 路，服务器没有跑满，但是画面产生了延迟或停顿，以及断开连接。">
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:published_time' content='2026-06-10T00:00:00&#43;00:00'/><meta property='article:modified_time' content='2026-06-10T00:00:00&#43;00:00'/>
+<meta name="twitter:title" content="一致性哈希">
+<meta name="twitter:description" content="分布式缓存应用场景 假设 3 台缓存服务器，s0,s1,s2
+需要将图片均匀缓存到 3 台服务器上，最简单的方式是 hash 计算并取模判断属于哪个服务器
+hash(唯一标识) % 机器数量 = 0/1/2
+相同标识进行哈希计算的值是不变的，所以可以将图片缓存到各个节点上。
+但是有一个缺点，假设新增了一个服务器，机器数量发生了变化，余数就会不同，此时在读取缓存数据就会抛错节点。
+一致性哈希 假设有个哈希环，由 2^32 个点组成
+假设有 3 台服务器，根据服务器的编号 hash 并对 2^32 取模
+将被缓存的图片也映射到哈希环上，从图片的位置开始，顺时针查找，遇到的第一个节点服务器，就是缓存服务器。
+如果新增了服务器，先映射到哈希环上，按照顺时针会找到新服务器。
+但有一个问题，哈希偏斜，即 0/1/2 三台服务器在哈希环的位置相近，缓存不均匀，可能大量缓存在 1 个服务器上，最好是服务器越多越均匀，增加虚拟节点。
+例如 a 节点，引入 a1,a2,a3&amp;hellip;an 虚拟节点，这样就会在哈希环上分布比较均匀，先找到虚拟节点，再找真实节点。
+最高随机权重 Highest Random Weight 每个 key 和每个节点组合计算 H(key:node)，得分最高者胜 因为哈希函数对不同输入均匀输出，所以每个节点&amp;quot;赢&amp;quot;的概率天然相等 不需要环、不需要虚拟节点、不需要排序查找 代价： 选节点时需遍历所有节点算分，复杂度 O(N)。一致性哈希是 O(log N)。节点数少（&amp;lt; 几百）时无感知差异，节点上千才需要权衡。
+可使用 splitmix64 终混器，全部打散，防止过于集中某个节点
+1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 func splitmix64(x uint64) uint64 { x &#43;= 0x9e3779b97f4a7c15 x = (x ^ (x &amp;gt;&amp;gt; 30)) * 0xbf58476d1ce4e5b9 x = (x ^ (x &amp;gt;&amp;gt; 27)) * 0x94d049bb133111eb return x ^ (x &amp;gt;&amp;gt; 31) } // hrwScore 计算节点对卡的 HRW 得分。 func hrwScore(nodeID, phone string) uint64 { h := fnv.">
     <link rel="shortcut icon" href="img/favicon.ico" />
 
 <script type="application/javascript">
@@ -239,8 +278,9 @@ if (!doNotTrack) {
         <div class="widget--toc">
             <nav id="TableOfContents">
   <ol>
-    <li><a href="#查询-memstats-信息">查询 memstats 信息</a></li>
-    <li><a href="#看看-cpu-运行消耗">看看 cpu 运行消耗</a></li>
+    <li><a href="#分布式缓存应用场景">分布式缓存应用场景</a></li>
+    <li><a href="#一致性哈希">一致性哈希</a></li>
+    <li><a href="#最高随机权重-highest-random-weight">最高随机权重 Highest Random Weight</a></li>
   </ol>
 </nav>
         </div>
@@ -257,24 +297,12 @@ if (!doNotTrack) {
 
     <div class="article-details">
     
-    <header class="article-category">
-        
-            <a href="/categories/go/" >
-                Go
-            </a>
-        
-    </header>
-    
 
     <div class="article-title-wrapper">
         <h2 class="article-title">
-            <a href="/p/%E8%AE%B0%E4%B8%80%E6%AC%A1%E6%80%A7%E8%83%BD%E4%BC%98%E5%8C%96/">记一次性能优化</a>
+            <a href="/p/%E4%B8%80%E8%87%B4%E6%80%A7%E5%93%88%E5%B8%8C/">一致性哈希</a>
         </h2>
     
-        
-        <h3 class="article-subtitle">
-            流媒体服务器 16 核 64GB 存储，尝试 RTMP 推流 1000 路，服务器没有跑满，但是画面产生了延迟或停顿，以及断开连接。
-        </h3>
         
     </div>
 
@@ -294,7 +322,7 @@ if (!doNotTrack) {
   <path d="M3 11h16" />
   <path d="M18 16.496v1.504l1 1" />
 </svg>
-                <time class="article-time--published">May 22, 2025</time>
+                <time class="article-time--published">Jun 10, 2026</time>
             </div>
         
 
@@ -324,109 +352,69 @@ if (!doNotTrack) {
     <section class="article-content">
     
     
-    <p>流媒体服务器 16 核 64GB 存储，尝试 RTMP 推流 1000 路，服务器没有跑满，但是画面产生了延迟或停顿，以及断开连接。</p>
-<p>以下是记录我的解决方案:</p>
-<h2 id="查询-memstats-信息">查询 memstats 信息</h2>
-<p>我尝试通过 <code>/debug/vars</code> 查询程序内信息，此时 GC 次数是 168 次，占用 CPU 比例是 2%，GC 总共停止时间是 263毫秒。</p>
-<p>当前数值的消耗，不应该对程序影响那么大。</p>
-<p><img src="http://img.golang.space/img-1747884098669.png"
-	
-	
-	
-	loading="lazy"
-	
-		alt="image-20250522112138586"
-	
-	
-></p>
-<h2 id="看看-cpu-运行消耗">看看 cpu 运行消耗</h2>
-<p>取一下 CPU 信息，<code>/debug/pprof/profile?seconds=30s</code></p>
-<p><img src="http://img.golang.space/img-1747884491961.png"
-	
-	
-	
-	loading="lazy"
-	
-		alt="image-20250522112811795"
-	
-	
-></p>
-<p>局部放大</p>
-<p><img src="http://img.golang.space/img-1747886967914.png"
-	
-	
-	
-	loading="lazy"
-	
-		alt="image-20250522120927723"
-	
-	
-></p>
+    <h2 id="分布式缓存应用场景">分布式缓存应用场景</h2>
+<p>假设 3 台缓存服务器，<code>s0,s1,s2</code></p>
+<p>需要将图片均匀缓存到 3 台服务器上，最简单的方式是 hash 计算并取模判断属于哪个服务器</p>
+<p><code>hash(唯一标识) % 机器数量</code> = 0/1/2</p>
+<p>相同标识进行哈希计算的值是不变的，所以可以将图片缓存到各个节点上。</p>
+<p>但是有一个缺点，假设新增了一个服务器，机器数量发生了变化，余数就会不同，此时在读取缓存数据就会抛错节点。</p>
+<h2 id="一致性哈希">一致性哈希</h2>
+<p>假设有个哈希环，由 <code>2^32</code> 个点组成</p>
+<p>假设有 3 台服务器，根据服务器的编号 hash 并对 2^32 取模</p>
+<p>将被缓存的图片也映射到哈希环上，从图片的位置开始，顺时针查找，遇到的第一个节点服务器，就是缓存服务器。</p>
+<p>如果新增了服务器，先映射到哈希环上，按照顺时针会找到新服务器。</p>
+<p>但有一个问题，哈希偏斜，即 0/1/2 三台服务器在哈希环的位置相近，缓存不均匀，可能大量缓存在 1 个服务器上，最好是服务器越多越均匀，增加虚拟节点。</p>
+<p>例如 a 节点，引入 a1,a2,a3&hellip;an 虚拟节点，这样就会在哈希环上分布比较均匀，先找到虚拟节点，再找真实节点。</p>
+<h2 id="最高随机权重-highest-random-weight">最高随机权重 Highest Random Weight</h2>
 <ul>
-<li>小对象(mallocgcSmallNoscan)分配占用 34.18%</li>
-<li>堆扩容(growslice)占用 7.31%</li>
+<li>每个 key 和每个节点组合计算 H(key:node)，得分最高者胜</li>
+<li>因为哈希函数对不同输入均匀输出，所以每个节点&quot;赢&quot;的概率天然相等</li>
+<li>不需要环、不需要虚拟节点、不需要排序查找</li>
 </ul>
-<p>将涉及到频繁分配对象的代码注释掉，再压测一下看看视频流确实流畅多了，但依然存在卡顿。</p>
-<p>再抓一次 cpu 信息，可以看到主要消耗是系统调用</p>
-<p><img src="http://img.golang.space/img-1747897026853.png"
-	
-	
-	
-	loading="lazy"
-	
-		alt="image-20250522145706685"
-	
-	
-></p>
-<p>多推一会流，在抓 cpu，grow 是一个内存分配的函数，程序在频繁内存扩容</p>
-<p><img src="http://img.golang.space/img-1747977871180.png"
-	
-	
-	
-	loading="lazy"
-	
-		alt="image-20250523132430984"
-	
-	
-></p>
-<p>提前创建一定大小的内存，避免扩容后，节省一半性能</p>
-<p><img src="http://img.golang.space/img-1747977951431.png"
-	
-	
-	
-	loading="lazy"
-	
-		alt="image-20250523132551286"
-	
-	
-></p>
-<p>网络情况</p>
-<p>tx 是出站</p>
-<p>tx 是入站</p>
-<p><img src="http://img.golang.space/img-1747980993370.png"
-	
-	
-	
-	loading="lazy"
-	
-		alt="image-20250523141633187"
-	
-	
-></p>
-
+<p>代价： 选节点时需遍历所有节点算分，复杂度 O(N)。一致性哈希是 O(log N)。节点数少（&lt; 几百）时无感知差异，节点上千才需要权衡。</p>
+<p>可使用 splitmix64 终混器，全部打散，防止过于集中某个节点</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">splitmix64</span><span class="p">(</span><span class="nx">x</span> <span class="kt">uint64</span><span class="p">)</span> <span class="kt">uint64</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">x</span> <span class="o">+=</span> <span class="mh">0x9e3779b97f4a7c15</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">x</span> <span class="p">=</span> <span class="p">(</span><span class="nx">x</span> <span class="p">^</span> <span class="p">(</span><span class="nx">x</span> <span class="o">&gt;&gt;</span> <span class="mi">30</span><span class="p">))</span> <span class="o">*</span> <span class="mh">0xbf58476d1ce4e5b9</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">x</span> <span class="p">=</span> <span class="p">(</span><span class="nx">x</span> <span class="p">^</span> <span class="p">(</span><span class="nx">x</span> <span class="o">&gt;&gt;</span> <span class="mi">27</span><span class="p">))</span> <span class="o">*</span> <span class="mh">0x94d049bb133111eb</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="nx">x</span> <span class="p">^</span> <span class="p">(</span><span class="nx">x</span> <span class="o">&gt;&gt;</span> <span class="mi">31</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// hrwScore 计算节点对卡的 HRW 得分。
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="nf">hrwScore</span><span class="p">(</span><span class="nx">nodeID</span><span class="p">,</span> <span class="nx">phone</span> <span class="kt">string</span><span class="p">)</span> <span class="kt">uint64</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">h</span> <span class="o">:=</span> <span class="nx">fnv</span><span class="p">.</span><span class="nf">New64a</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">h</span><span class="p">.</span><span class="nf">Write</span><span class="p">([]</span><span class="nb">byte</span><span class="p">(</span><span class="nx">nodeID</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">h</span><span class="p">.</span><span class="nf">Write</span><span class="p">([]</span><span class="kt">byte</span><span class="p">{</span><span class="sc">&#39;:&#39;</span><span class="p">})</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">h</span><span class="p">.</span><span class="nf">Write</span><span class="p">([]</span><span class="nb">byte</span><span class="p">(</span><span class="nx">phone</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="nf">splitmix64</span><span class="p">(</span><span class="nx">h</span><span class="p">.</span><span class="nf">Sum64</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div>
 </section>
 
 
     <footer class="article-footer">
     
-    <section class="article-tags">
-        
-            <a href="/tags/go/">Go</a>
-        
-            <a href="/tags/pprof/">PProf</a>
-        
-    </section>
-
 
     
     <section class="article-copyright">
@@ -449,80 +437,6 @@ if (!doNotTrack) {
     
 
     
-
-<aside class="related-content--wrapper">
-    <h2 class="section-title">Related content</h2>
-    <div class="related-content">
-        <div class="flex article-list--tile">
-            
-                
-<article class="">
-    <a href="/p/%E5%88%AB%E5%9C%A8%E5%8F%8D%E5%90%91%E4%BC%98%E5%8C%96-md5/">
-        
-        
-
-        <div class="article-details">
-            <h2 class="article-title">别在反向优化 MD5</h2>
-        </div>
-    </a>
-</article>
-
-            
-                
-<article class="">
-    <a href="/p/go-1.23/">
-        
-        
-
-        <div class="article-details">
-            <h2 class="article-title">Go 1.23</h2>
-        </div>
-    </a>
-</article>
-
-            
-                
-<article class="">
-    <a href="/p/go-traces/">
-        
-        
-
-        <div class="article-details">
-            <h2 class="article-title">Go Traces</h2>
-        </div>
-    </a>
-</article>
-
-            
-                
-<article class="">
-    <a href="/p/nps-%E5%A4%9A%E8%B7%AF%E5%A4%8D%E7%94%A8/">
-        
-        
-
-        <div class="article-details">
-            <h2 class="article-title">NPS 多路复用</h2>
-        </div>
-    </a>
-</article>
-
-            
-                
-<article class="">
-    <a href="/p/15-%E4%B8%AA%E4%BD%A0%E5%8F%AF%E8%83%BD%E4%B8%8D%E7%9F%A5%E9%81%93%E7%9A%84-go-%E6%8A%80%E5%B7%A7/">
-        
-        
-
-        <div class="article-details">
-            <h2 class="article-title">15 个你可能不知道的 Go 技巧</h2>
-        </div>
-    </a>
-</article>
-
-            
-        </div>
-    </div>
-</aside>
 
      
     

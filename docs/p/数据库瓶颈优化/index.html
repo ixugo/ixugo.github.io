@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='我在本地进行压测，这是一个短信业务，地下截图是模拟测试者，它会向平台发送 1 万条消息，并发 1000。
+一万条消息 p99 是 2317 毫秒，发送用时 13 秒。
+平台收到消息，在处理完成任务后，将结果进行回调到压测程序，从截图可以看到接收延迟 p99 是 14 秒。1 个消息发出去 14 秒后才能收到结果，想想办法怎么优化。
+在程序中，最容易出现瓶颈的就是数据库读写，根据日志找到慢 SQL。
+数据库相关业务优化 插入优化
+如果出现插入的慢 SQL，检查是不是大量一条数据一条数据插入的，可以合并为一次请求，批量插入。
+重要的不可丢失的数据，先入消息队列，批量接收一定量或达到超时时间，就入库。
+允许存在丢失的，用 channel 接收处理入库即可，达到 100 条或 10 秒入库一次，这样最大丢失也就 100 条。
+在多轮测试中，批次大小也不是越大越好，随着批次越大，越靠近收益边际，大概在 BatchSize=200 左右。
+读取优化
+采用缓存机制，可启动时预热缓存，读取 redis 效率比读取 pg 更高。
+优化效果 发送耗时减少了一倍，主要原因是回调接收对数据库的读写减轻，机器的性能也就提高了，所以发送耗时 间接 受益。
+接收降低 50%，得益于读取优化，减少读的瓶颈。
+优化前
+总发送用时 21秒，接收 p99 20秒
+优化后
+总发送用时 12 秒，接收 p99 11秒，发送和接收提升了 50%
+发送的 p99 是 2 秒，这 2 秒是本地的写消息队列涉及到持久化到磁盘，可采用分布式消息队列或异步落盘优化，接收的 p99 是 11 秒，11-2=8，平台执行任务花了 8 秒，说明还有优化空间。'>
+<title>数据库瓶颈优化</title>
+
+<link rel='canonical' href='https://blog.golang.space/p/%E6%95%B0%E6%8D%AE%E5%BA%93%E7%93%B6%E9%A2%88%E4%BC%98%E5%8C%96/'>
+
+<link rel="stylesheet" href="/scss/style.min.8191399262444ab68b72a18c97392f5349be20a1615d77445be51e974c144cff.css"><meta property='og:title' content='数据库瓶颈优化'>
+<meta property='og:description' content='我在本地进行压测，这是一个短信业务，地下截图是模拟测试者，它会向平台发送 1 万条消息，并发 1000。
+一万条消息 p99 是 2317 毫秒，发送用时 13 秒。
+平台收到消息，在处理完成任务后，将结果进行回调到压测程序，从截图可以看到接收延迟 p99 是 14 秒。1 个消息发出去 14 秒后才能收到结果，想想办法怎么优化。
+在程序中，最容易出现瓶颈的就是数据库读写，根据日志找到慢 SQL。
+数据库相关业务优化 插入优化
+如果出现插入的慢 SQL，检查是不是大量一条数据一条数据插入的，可以合并为一次请求，批量插入。
+重要的不可丢失的数据，先入消息队列，批量接收一定量或达到超时时间，就入库。
+允许存在丢失的，用 channel 接收处理入库即可，达到 100 条或 10 秒入库一次，这样最大丢失也就 100 条。
+在多轮测试中，批次大小也不是越大越好，随着批次越大，越靠近收益边际，大概在 BatchSize=200 左右。
+读取优化
+采用缓存机制，可启动时预热缓存，读取 redis 效率比读取 pg 更高。
+优化效果 发送耗时减少了一倍，主要原因是回调接收对数据库的读写减轻，机器的性能也就提高了，所以发送耗时 间接 受益。
+接收降低 50%，得益于读取优化，减少读的瓶颈。
+优化前
+总发送用时 21秒，接收 p99 20秒
+优化后
+总发送用时 12 秒，接收 p99 11秒，发送和接收提升了 50%
+发送的 p99 是 2 秒，这 2 秒是本地的写消息队列涉及到持久化到磁盘，可采用分布式消息队列或异步落盘优化，接收的 p99 是 11 秒，11-2=8，平台执行任务花了 8 秒，说明还有优化空间。'>
+<meta property='og:url' content='https://blog.golang.space/p/%E6%95%B0%E6%8D%AE%E5%BA%93%E7%93%B6%E9%A2%88%E4%BC%98%E5%8C%96/'>
+<meta property='og:site_name' content='ixugo'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='Postgresql' /><meta property='article:published_time' content='2026-06-14T00:00:00&#43;00:00'/><meta property='article:modified_time' content='2026-06-14T00:00:00&#43;00:00'/>
+<meta name="twitter:title" content="数据库瓶颈优化">
+<meta name="twitter:description" content="我在本地进行压测，这是一个短信业务，地下截图是模拟测试者，它会向平台发送 1 万条消息，并发 1000。
+一万条消息 p99 是 2317 毫秒，发送用时 13 秒。
+平台收到消息，在处理完成任务后，将结果进行回调到压测程序，从截图可以看到接收延迟 p99 是 14 秒。1 个消息发出去 14 秒后才能收到结果，想想办法怎么优化。
+在程序中，最容易出现瓶颈的就是数据库读写，根据日志找到慢 SQL。
+数据库相关业务优化 插入优化
+如果出现插入的慢 SQL，检查是不是大量一条数据一条数据插入的，可以合并为一次请求，批量插入。
+重要的不可丢失的数据，先入消息队列，批量接收一定量或达到超时时间，就入库。
+允许存在丢失的，用 channel 接收处理入库即可，达到 100 条或 10 秒入库一次，这样最大丢失也就 100 条。
+在多轮测试中，批次大小也不是越大越好，随着批次越大，越靠近收益边际，大概在 BatchSize=200 左右。
+读取优化
+采用缓存机制，可启动时预热缓存，读取 redis 效率比读取 pg 更高。
+优化效果 发送耗时减少了一倍，主要原因是回调接收对数据库的读写减轻，机器的性能也就提高了，所以发送耗时 间接 受益。
+接收降低 50%，得益于读取优化，减少读的瓶颈。
+优化前
+总发送用时 21秒，接收 p99 20秒
+优化后
+总发送用时 12 秒，接收 p99 11秒，发送和接收提升了 50%
+发送的 p99 是 2 秒，这 2 秒是本地的写消息队列涉及到持久化到磁盘，可采用分布式消息队列或异步落盘优化，接收的 p99 是 11 秒，11-2=8，平台执行任务花了 8 秒，说明还有优化空间。">
+    <link rel="shortcut icon" href="img/favicon.ico" />
+
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+	(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+	m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+	})(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+	ga('create', 'UA-192125643-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="Toggle Menu">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu0b04ba6d7249c9f90c92db974439eb8c_208246_300x0_resize_box_3.png" width="300"
+                            height="321" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🧐</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">ixugo</a></h1>
+            <h2 class="site-description">走出舒适区</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/ixugo'
+                        target="_blank"
+                        title="GitHub"
+                        rel="me"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>Home</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/about/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>About</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>Archives</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>Search</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>Dark Mode</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">Table of contents</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#数据库相关业务优化">数据库相关业务优化</a>
+      <ol>
+        <li><a href="#优化效果">优化效果</a></li>
+        <li><a href="#从火焰图看消耗">从火焰图看消耗</a></li>
+        <li><a href="#最佳配置">最佳配置</a></li>
+      </ol>
+    </li>
+    <li><a href="#压测结果汇总">压测结果汇总</a>
+      <ol>
+        <li><a href="#测试-1事务-vs-无事务-insertsms_sessions--sms_messages">测试 1：事务 vs 无事务 INSERT（sms_sessions + sms_messages）</a></li>
+        <li><a href="#测试-2批量插入-channel_http_logs">测试 2：批量插入 channel_http_logs</a></li>
+        <li><a href="#测试-3批量更新-channel_http_logs">测试 3：批量更新 channel_http_logs</a></li>
+      </ol>
+    </li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+            <main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+    <header class="article-category">
+        
+            <a href="/categories/http/" >
+                HTTP
+            </a>
+        
+    </header>
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/%E6%95%B0%E6%8D%AE%E5%BA%93%E7%93%B6%E9%A2%88%E4%BC%98%E5%8C%96/">数据库瓶颈优化</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    
+    
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Jun 14, 2026</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    2 minute read
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+
+</header>
+
+    <section class="article-content">
+    
+    
+    <p>我在本地进行压测，这是一个短信业务，地下截图是模拟测试者，它会向平台发送 1 万条消息，并发 1000。</p>
+<p>一万条消息 p99 是 2317 毫秒，发送用时 13 秒。</p>
+<p>平台收到消息，在处理完成任务后，将结果进行回调到压测程序，从截图可以看到接收延迟 p99 是 14 秒。1 个消息发出去 14 秒后才能收到结果，想想办法怎么优化。</p>
+<p>在程序中，最容易出现瓶颈的就是数据库读写，根据日志找到慢 SQL。</p>
+<p><img src="http://img.golang.space/img-1781452186824.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20260614234946537"
+	
+	
+></p>
+<h2 id="数据库相关业务优化">数据库相关业务优化</h2>
+<p><strong>插入优化</strong></p>
+<p>如果出现插入的慢 SQL，检查是不是大量一条数据一条数据插入的，可以合并为一次请求，批量插入。</p>
+<p>重要的不可丢失的数据，先入消息队列，批量接收一定量或达到超时时间，就入库。</p>
+<p>允许存在丢失的，用 channel 接收处理入库即可，达到 100 条或 10 秒入库一次，这样最大丢失也就 100 条。</p>
+<p>在多轮测试中，批次大小也不是越大越好，随着批次越大，越靠近收益边际，大概在 BatchSize=200 左右。</p>
+<p><strong>读取优化</strong></p>
+<p>采用缓存机制，可启动时预热缓存，读取 redis 效率比读取 pg 更高。</p>
+<h3 id="优化效果">优化效果</h3>
+<p>发送耗时减少了一倍，主要原因是回调接收对数据库的读写减轻，机器的性能也就提高了，所以发送耗时 间接 受益。</p>
+<p>接收降低 50%，得益于读取优化，减少读的瓶颈。</p>
+<p><strong>优化前</strong></p>
+<p>总发送<strong>用时 21秒，接收 p99 20秒</strong></p>
+<p><strong>优化后</strong></p>
+<p>总发送<strong>用时 12 秒，接收 p99 11秒</strong>，<strong>发送和接收提升了 50%</strong></p>
+<p>发送的 p99 是 2 秒，这 2 秒是本地的写消息队列涉及到持久化到磁盘，可采用分布式消息队列或异步落盘优化，接收的 p99 是 11 秒，<code>11-2=8</code>，平台执行任务花了 8 秒，说明还有优化空间。</p>
+<p><img src="http://img.golang.space/img-1781457250041.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20260615011409690"
+	
+	
+></p>
+<p><strong>更新优化</strong></p>
+<p>每收到一条回调，都需要更新数据库中该条记录的状态，如果改成批量更新呢? 消息先入消息队列，批量获取数据，一次性几百条更新到数据库。</p>
+<p>先说结果，在高并发的情况下，每条独立更新，耗时 300 毫秒左右，批量百条更新，耗时 250 毫秒左右，从耗时上看差距不大，但是数据确实百倍处理了。</p>
+<p>从压测的结果来看，<strong>p99 提升了 17%</strong>，p50 升高了，因为批量入队需要凑满一定数据才会一次性更新到数据库。</p>
+<p>如果尝试将 batchSize 改成 1000 呢? 得到 <code>P99:  12484ms</code>，效率反而下降了，批量 update 的尾部效应。</p>
+<p><img src="http://img.golang.space/img-1781485258544.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20260615090058165"
+	
+	
+></p>
+<h3 id="从火焰图看消耗">从火焰图看消耗</h3>
+<p>Redis / PostgreSQL / Service / 消息队列全都部署在本地机器，同时读写磁盘，以及平台在 debug 的状态下会打印大量日志，通过 pprof 拿到的火焰图，可以看出数据库相关还可以优化。主要是 &ldquo;插入优化&rdquo;，这里是一个事务级的连表插入。</p>
+<p>在正式环境中，采用更高级别的日志，防止 debug 输出太多内容，以及拆分中间件服务器，和多副本部署，测试结果会更好。</p>
+<p><img src="http://img.golang.space/img-1781487854286.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20260615094414006"
+	
+	
+></p>
+<p><img src="http://img.golang.space/img-1781487960802.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20260615094600635"
+	
+	
+></p>
+<h3 id="最佳配置">最佳配置</h3>
+<p>在上面的测试中，涉及到 batchSize 等配置，到底怎样是最佳配置?</p>
+<p>以下内容基于本地电脑环境测试。</p>
+<p>我们写一点 benchmark，用于测试 3 个问题:</p>
+<ol>
+<li>事务插入2 表 与无事务插入2 表</li>
+<li>批量插入, batchSize 在 100,300,500,700,1000 下的性能</li>
+<li>批量更新，batchSize 在 100,300,500,700,1000 下的性能</li>
+</ol>
+<p><img src="http://img.golang.space/img-1781491479626.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20260615104439269"
+	
+	
+></p>
+<h2 id="压测结果汇总">压测结果汇总</h2>
+<h3 id="测试-1事务-vs-无事务-insertsms_sessions--sms_messages">测试 1：事务 vs 无事务 INSERT（sms_sessions + sms_messages）</h3>
+<div class="table-wrapper"><table>
+<thead>
+<tr>
+<th style="text-align:left">Benchmark</th>
+<th style="text-align:left">N</th>
+<th style="text-align:left">ns/op</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">TxInsert_Serial</td>
+<td style="text-align:left">956</td>
+<td style="text-align:left">3.31 ms</td>
+</tr>
+<tr>
+<td style="text-align:left">NoTxInsert_Serial</td>
+<td style="text-align:left">1840</td>
+<td style="text-align:left">3.25 ms</td>
+</tr>
+<tr>
+<td style="text-align:left">TxInsert_Parallel500</td>
+<td style="text-align:left">6987</td>
+<td style="text-align:left">632 µs</td>
+</tr>
+<tr>
+<td style="text-align:left">NoTxInsert_Parallel500</td>
+<td style="text-align:left"><strong>23041</strong></td>
+<td style="text-align:left">138 µs</td>
+</tr>
+</tbody>
+</table></div>
+<p>串行差距小，并发下无事务吞吐量高出 ~4.5 倍。如果有兜底机制比如消息队列，可以关闭事务插入。</p>
+<h3 id="测试-2批量插入-channel_http_logs">测试 2：批量插入 channel_http_logs</h3>
+<div class="table-wrapper"><table>
+<thead>
+<tr>
+<th style="text-align:left">Batch Size</th>
+<th style="text-align:left">N</th>
+<th style="text-align:left">ms/op</th>
+<th style="text-align:left">rows/s</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">100</td>
+<td style="text-align:left">100</td>
+<td style="text-align:left">31.43</td>
+<td style="text-align:left">3,181</td>
+</tr>
+<tr>
+<td style="text-align:left">300</td>
+<td style="text-align:left">814</td>
+<td style="text-align:left">4.64</td>
+<td style="text-align:left"><strong>64,647</strong></td>
+</tr>
+<tr>
+<td style="text-align:left">500</td>
+<td style="text-align:left">583</td>
+<td style="text-align:left">6.31</td>
+<td style="text-align:left"><strong>79,215</strong></td>
+</tr>
+<tr>
+<td style="text-align:left">700</td>
+<td style="text-align:left">396</td>
+<td style="text-align:left">14.37</td>
+<td style="text-align:left">48,710</td>
+</tr>
+<tr>
+<td style="text-align:left">1000</td>
+<td style="text-align:left">186</td>
+<td style="text-align:left">21.55</td>
+<td style="text-align:left">46,397</td>
+</tr>
+</tbody>
+</table></div>
+<p>rows/s 在 300~500 达到峰值，500 最优（79k rows/s）。700/1000 反而下降。</p>
+<h3 id="测试-3批量更新-channel_http_logs">测试 3：批量更新 channel_http_logs</h3>
+<div class="table-wrapper"><table>
+<thead>
+<tr>
+<th style="text-align:left">Batch Size</th>
+<th style="text-align:left">N</th>
+<th style="text-align:left">ms/op</th>
+<th style="text-align:left">rows/s</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">100</td>
+<td style="text-align:left">2376</td>
+<td style="text-align:left">1.52</td>
+<td style="text-align:left">65,623</td>
+</tr>
+<tr>
+<td style="text-align:left">300</td>
+<td style="text-align:left">758</td>
+<td style="text-align:left">4.58</td>
+<td style="text-align:left">65,492</td>
+</tr>
+<tr>
+<td style="text-align:left">500</td>
+<td style="text-align:left">564</td>
+<td style="text-align:left">7.12</td>
+<td style="text-align:left"><strong>70,252</strong></td>
+</tr>
+<tr>
+<td style="text-align:left">700</td>
+<td style="text-align:left">324</td>
+<td style="text-align:left">10.52</td>
+<td style="text-align:left">66,521</td>
+</tr>
+<tr>
+<td style="text-align:left">1000</td>
+<td style="text-align:left">246</td>
+<td style="text-align:left">13.07</td>
+<td style="text-align:left">76,497</td>
+</tr>
+</tbody>
+</table></div>
+<p>更新场景 rows/s 各 size 差距不大（6.5~7.6 万），吞吐量基本持平。</p>
+<p><strong>最终结论，期间还延长了 benchtime 多测了几轮，batchSize 不是越大越好，300 左右是个稳定点，实际可以根据不同的项目进一步确认</strong></p>
+<p>这三步的优化，降低了 p50 延迟 2s 左右，对 p90 的改善不显著。</p>
+
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/postgresql/">PostgreSQL</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">Related content</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/%E4%BD%BF%E7%94%A8-x-forwarded/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">使用 X-Forwarded</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/go-h2c/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Go H2C</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/%E7%9F%A5%E9%81%93%E4%BD%95%E6%97%B6-go-%E7%9A%84-http.defaultclient-%E6%96%AD%E5%BC%80/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">知道何时 Go 的 http.DefaultClient 断开</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/http-%E6%B5%81%E5%BC%8F%E4%BC%A0%E8%BE%93/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">HTTP 流式传输</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/restful-api-%E8%AE%BE%E8%AE%A1%E6%8C%87%E5%8D%97/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">RESTful API 设计指南</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script src="https://utteranc.es/client.js" 
+        repo="ixugo/ixugo.github.io"
+        issue-term="pathname"
+        
+        crossorigin="anonymous"
+        async
+        >
+</script>
+
+<style>
+    .utterances {
+        max-width: unset;
+    }
+</style>
+
+<script>
+    function setUtterancesTheme(theme) {
+        let utterances = document.querySelector('.utterances iframe');
+        if (utterances) {
+            utterances.contentWindow.postMessage(
+                {
+                    type: 'set-theme',
+                    theme: `github-${theme}`
+                },
+                'https://utteranc.es'
+            );
+        }
+    }
+
+    addEventListener('message', event => {
+        if (event.origin !== 'https://utteranc.es') return;
+        setUtterancesTheme(document.documentElement.dataset.scheme)
+    });
+
+    window.addEventListener('onColorSchemeChange', (e) => {
+        setUtterancesTheme(e.detail)
+    })
+</script>
+
+
+    
+
+    <footer class="site-footer">
+  <section class="copyright">
+    &copy;  2018 -  2026 ixugo
+  </section>
+  
+  <script defer src="https://events.vercount.one/js"></script>
+  <section class="powerby">
+    
+    <span id="busuanzi_container_page_pv"
+      >本文阅读量
+      <span style="font-size: 14px" id="vercount_value_page_pv"></span>
+      次，</span
+    >
+    <span id="busuanzi_container_site_pv"
+      >总访问量
+      <span style="font-size: 14px" id="vercount_value_site_pv"></span>
+      次 </span
+    >，总访客数
+    <span style="font-size: 14px" id="vercount_value_site_uv"></span> 人
+    <br />
+
+    Built with <a
+      href="https://gohugo.io/"
+      target="_blank"
+      rel="noopener"
+      >Hugo</a
+    >
+    .&nbsp;&nbsp; Theme <a
+      href="https://github.com/CaiJimmy/hugo-theme-stack"
+      target="_blank"
+      rel="noopener"
+      data-version="3.16.0"
+      >Stack</a
+    > designed by <a
+      href="https://jimmycai.com"
+      target="_blank"
+      rel="noopener"
+      >Jimmy</a
+    >
+  </section>
+
+  <script>
+    
+    function count() {
+      let href = window.location.href;
+      let regexp = /^https?:\/\/blog.golang.space\/?(page\/[\d]+\/?)?$/;
+      if (regexp.test(href)) {
+        let e = document.getElementById("busuanzi_container_page_pv");
+        e.innerText = "";
+      }
+    }
+    window.onload = count;
+  </script>
+</footer>
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

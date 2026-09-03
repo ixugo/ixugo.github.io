@@ -1,0 +1,1088 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='1. GORM AutoMigrate 把 Vastbase 打崩了 现象 应用启动时 Vastbase 进程崩溃重启，所有连接收到 connection reset by peer，应用 panic。
+根因 GORM 的 AutoMigrate 每次启动都执行上百条无意义的 ALTER TABLE ... SET DEFAULT 语句。
+PostgreSQL 扛得住这种重复 DDL，Vastbase 扛不住，进程直接挂。
+不是内存不够，不是连接数超限，不是并发问题（AutoMigrate 是串行的）。
+是 Vastbase 在 ~10 秒内连续执行 100&#43; 条 DDL 后内部崩溃。
+复现环境：
+镜像：registry.cn-hangzhou.aliyuncs.com/qiluo-images/vastbase_g100:20250514160619 版本：Vastbase G100 V2.2 (Build 15) Release，编译于 2025-04-03，Commit 25780 为什么会有上百条无意义 DDL GORM 在 AutoMigrate 时做以下事情：
+从 information_schema.columns 查出每列当前的 column_default 用 parseDefaultValueValue 函数清洗这个值 和 Go struct tag 中的 default:xxx 做字符串比较 不一致就执行 ALTER TABLE .'>
+<title>信创数据库兼容笔记</title>
+
+<link rel='canonical' href='https://blog.golang.space/p/%E4%BF%A1%E5%88%9B%E6%95%B0%E6%8D%AE%E5%BA%93%E5%85%BC%E5%AE%B9%E7%AC%94%E8%AE%B0/'>
+
+<link rel="stylesheet" href="/scss/style.min.8191399262444ab68b72a18c97392f5349be20a1615d77445be51e974c144cff.css"><meta property='og:title' content='信创数据库兼容笔记'>
+<meta property='og:description' content='1. GORM AutoMigrate 把 Vastbase 打崩了 现象 应用启动时 Vastbase 进程崩溃重启，所有连接收到 connection reset by peer，应用 panic。
+根因 GORM 的 AutoMigrate 每次启动都执行上百条无意义的 ALTER TABLE ... SET DEFAULT 语句。
+PostgreSQL 扛得住这种重复 DDL，Vastbase 扛不住，进程直接挂。
+不是内存不够，不是连接数超限，不是并发问题（AutoMigrate 是串行的）。
+是 Vastbase 在 ~10 秒内连续执行 100&#43; 条 DDL 后内部崩溃。
+复现环境：
+镜像：registry.cn-hangzhou.aliyuncs.com/qiluo-images/vastbase_g100:20250514160619 版本：Vastbase G100 V2.2 (Build 15) Release，编译于 2025-04-03，Commit 25780 为什么会有上百条无意义 DDL GORM 在 AutoMigrate 时做以下事情：
+从 information_schema.columns 查出每列当前的 column_default 用 parseDefaultValueValue 函数清洗这个值 和 Go struct tag 中的 default:xxx 做字符串比较 不一致就执行 ALTER TABLE .'>
+<meta property='og:url' content='https://blog.golang.space/p/%E4%BF%A1%E5%88%9B%E6%95%B0%E6%8D%AE%E5%BA%93%E5%85%BC%E5%AE%B9%E7%AC%94%E8%AE%B0/'>
+<meta property='og:site_name' content='ixugo'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='Postgresql' /><meta property='article:tag' content='GORM' /><meta property='article:tag' content='Vastbase' /><meta property='article:published_time' content='2026-09-02T00:00:00&#43;00:00'/><meta property='article:modified_time' content='2026-09-02T00:00:00&#43;00:00'/>
+<meta name="twitter:title" content="信创数据库兼容笔记">
+<meta name="twitter:description" content="1. GORM AutoMigrate 把 Vastbase 打崩了 现象 应用启动时 Vastbase 进程崩溃重启，所有连接收到 connection reset by peer，应用 panic。
+根因 GORM 的 AutoMigrate 每次启动都执行上百条无意义的 ALTER TABLE ... SET DEFAULT 语句。
+PostgreSQL 扛得住这种重复 DDL，Vastbase 扛不住，进程直接挂。
+不是内存不够，不是连接数超限，不是并发问题（AutoMigrate 是串行的）。
+是 Vastbase 在 ~10 秒内连续执行 100&#43; 条 DDL 后内部崩溃。
+复现环境：
+镜像：registry.cn-hangzhou.aliyuncs.com/qiluo-images/vastbase_g100:20250514160619 版本：Vastbase G100 V2.2 (Build 15) Release，编译于 2025-04-03，Commit 25780 为什么会有上百条无意义 DDL GORM 在 AutoMigrate 时做以下事情：
+从 information_schema.columns 查出每列当前的 column_default 用 parseDefaultValueValue 函数清洗这个值 和 Go struct tag 中的 default:xxx 做字符串比较 不一致就执行 ALTER TABLE .">
+    <link rel="shortcut icon" href="img/favicon.ico" />
+
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+	(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+	m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+	})(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+	ga('create', 'UA-192125643-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="Toggle Menu">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu0b04ba6d7249c9f90c92db974439eb8c_208246_300x0_resize_box_3.png" width="300"
+                            height="321" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🧐</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">ixugo</a></h1>
+            <h2 class="site-description">走出舒适区</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/ixugo'
+                        target="_blank"
+                        title="GitHub"
+                        rel="me"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>Home</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/about/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>About</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>Archives</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>Search</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>Dark Mode</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">Table of contents</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#1-gorm-automigrate-把-vastbase-打崩了">1. GORM AutoMigrate 把 Vastbase 打崩了</a>
+      <ol>
+        <li><a href="#现象">现象</a></li>
+        <li><a href="#根因">根因</a></li>
+        <li><a href="#为什么会有上百条无意义-ddl">为什么会有上百条无意义 DDL</a></li>
+        <li><a href="#gorm-的比较逻辑migratecolumn">GORM 的比较逻辑（MigrateColumn）</a></li>
+        <li><a href="#三类数据库经过-gorm-处理后的最终对比">三类数据库经过 GORM 处理后的最终对比</a></li>
+        <li><a href="#解决方案">解决方案</a></li>
+      </ol>
+    </li>
+    <li><a href="#2-gorm-jsonb数组-default-每次都-alter已知-bug">2. GORM jsonb/数组 DEFAULT 每次都 ALTER（已知 Bug）</a>
+      <ol>
+        <li><a href="#issue-链路">Issue 链路</a></li>
+        <li><a href="#为什么一直没修">为什么一直没修</a></li>
+        <li><a href="#处理建议">处理建议</a></li>
+      </ol>
+    </li>
+    <li><a href="#3-sql-语法差异">3. SQL 语法差异</a>
+      <ol>
+        <li><a href="#31-make_interval-不支持">3.1 make_interval 不支持</a></li>
+        <li><a href="#32-数组切片-arrstart-不支持">3.2 数组切片 arr[start:] 不支持</a></li>
+        <li><a href="#33-on-conflict--where-不支持">3.3 ON CONFLICT &hellip; WHERE 不支持</a></li>
+        <li><a href="#34-with--insert--on-conflict-do-update-不支持">3.4 WITH &hellip; INSERT &hellip; ON CONFLICT DO UPDATE 不支持</a></li>
+        <li><a href="#35-xid-类型不支持与-integer-直接比较">3.5 xid 类型不支持与 integer 直接比较</a></li>
+        <li><a href="#36-dsn-特殊字符">3.6 DSN 特殊字符</a></li>
+      </ol>
+    </li>
+    <li><a href="#4-连接行为差异">4. 连接行为差异</a>
+      <ol>
+        <li><a href="#41-认证方式">4.1 认证方式</a></li>
+        <li><a href="#42-密集-ddl-时的稳定性">4.2 密集 DDL 时的稳定性</a></li>
+        <li><a href="#43-vastbase-兼容模式">4.3 vastbase 兼容模式</a></li>
+      </ol>
+    </li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+            <main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+    <header class="article-category">
+        
+            <a href="/categories/db/" >
+                DB
+            </a>
+        
+    </header>
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/%E4%BF%A1%E5%88%9B%E6%95%B0%E6%8D%AE%E5%BA%93%E5%85%BC%E5%AE%B9%E7%AC%94%E8%AE%B0/">信创数据库兼容笔记</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    
+    
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Sep 02, 2026</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    4 minute read
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+
+</header>
+
+    <section class="article-content">
+    
+    
+    <h2 id="1-gorm-automigrate-把-vastbase-打崩了">1. GORM AutoMigrate 把 Vastbase 打崩了</h2>
+<h3 id="现象">现象</h3>
+<p>应用启动时 Vastbase 进程崩溃重启，所有连接收到 <code>connection reset by peer</code>，应用 panic。</p>
+<h3 id="根因">根因</h3>
+<p>GORM 的 <code>AutoMigrate</code> 每次启动都执行上百条无意义的 <code>ALTER TABLE ... SET DEFAULT</code> 语句。<br>
+PostgreSQL 扛得住这种重复 DDL，Vastbase 扛不住，进程直接挂。</p>
+<p><strong>不是内存不够，不是连接数超限，不是并发问题</strong>（AutoMigrate 是串行的）。<br>
+是 Vastbase 在 ~10 秒内连续执行 100+ 条 DDL 后内部崩溃。</p>
+<p><strong>复现环境</strong>：</p>
+<ul>
+<li>镜像：<code>registry.cn-hangzhou.aliyuncs.com/qiluo-images/vastbase_g100:20250514160619</code></li>
+<li>版本：Vastbase G100 V2.2 (Build 15) Release，编译于 2025-04-03，Commit 25780</li>
+</ul>
+<h3 id="为什么会有上百条无意义-ddl">为什么会有上百条无意义 DDL</h3>
+<p>GORM 在 AutoMigrate 时做以下事情：</p>
+<ol>
+<li>从 <code>information_schema.columns</code> 查出每列当前的 <code>column_default</code></li>
+<li>用 <code>parseDefaultValueValue</code> 函数清洗这个值</li>
+<li>和 Go struct tag 中的 <code>default:xxx</code> 做字符串比较</li>
+<li>不一致就执行 <code>ALTER TABLE ... ALTER COLUMN ... SET DEFAULT</code></li>
+</ol>
+<p>问题在第 2 步。<code>parseDefaultValueValue</code> 做了两件事：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// gorm.io/driver/postgres@v1.6.0/migrator.go
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="nf">parseDefaultValueValue</span><span class="p">(</span><span class="nx">defaultValue</span> <span class="kt">string</span><span class="p">)</span> <span class="kt">string</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 1. 去掉 ::type 后缀：&#39;zh&#39;::text → &#39;zh&#39;
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="nx">value</span> <span class="o">:=</span> <span class="nx">regexp</span><span class="p">.</span><span class="nf">MustCompile</span><span class="p">(</span><span class="s">`^(.*?)(?:::.*)?$`</span><span class="p">).</span><span class="nf">ReplaceAllString</span><span class="p">(</span><span class="nx">defaultValue</span><span class="p">,</span> <span class="s">&#34;$1&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 2. 去掉首尾引号：&#39;zh&#39; → zh
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="k">return</span> <span class="nx">strings</span><span class="p">.</span><span class="nf">Trim</span><span class="p">(</span><span class="nx">value</span><span class="p">,</span> <span class="s">&#34;&#39;&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><strong>Vastbase 与 PostgreSQL 在原始返回值上只有一处差异</strong>：</p>
+<div class="table-wrapper"><table>
+<thead>
+<tr>
+<th>类型</th>
+<th>DDL 定义</th>
+<th>PostgreSQL 返回</th>
+<th>Vastbase 返回</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>text</td>
+<td><code>DEFAULT ''</code></td>
+<td><code>''::text</code></td>
+<td><code>''::text</code></td>
+</tr>
+<tr>
+<td>int8</td>
+<td><code>DEFAULT 0</code></td>
+<td><code>0</code></td>
+<td><code>0</code></td>
+</tr>
+<tr>
+<td>bool</td>
+<td><code>DEFAULT true</code></td>
+<td><code>true</code></td>
+<td><code>true</code></td>
+</tr>
+<tr>
+<td>text</td>
+<td><code>DEFAULT 'zh'</code></td>
+<td><code>'zh'::text</code></td>
+<td><code>'zh'::text</code></td>
+</tr>
+<tr>
+<td>jsonb</td>
+<td><code>DEFAULT '{}'</code></td>
+<td><code>'{}'::jsonb</code></td>
+<td><code>'{}'::jsonb</code></td>
+</tr>
+<tr>
+<td>text[]</td>
+<td><code>DEFAULT '{}'</code></td>
+<td><code>'{}'::text[]</code></td>
+<td><code>'{}'::text[]</code></td>
+</tr>
+<tr>
+<td><strong>timestamptz</strong></td>
+<td><code>DEFAULT CURRENT_TIMESTAMP</code></td>
+<td><strong><code>CURRENT_TIMESTAMP</code></strong></td>
+<td><strong><code>now()</code></strong></td>
+</tr>
+</tbody>
+</table></div>
+<p>只有 timestamptz 不一样：PostgreSQL 存 <code>CURRENT_TIMESTAMP</code>，Vastbase 存 <code>now()</code>。</p>
+<h3 id="gorm-的比较逻辑migratecolumn">GORM 的比较逻辑（MigrateColumn）</h3>
+<p>GORM 按数据类型分支比较，每种类型的比较策略不同：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// gorm.io/gorm@v1.31.2/migrator/migrator.go MigrateColumn 方法
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>
+</span></span><span class="line"><span class="cl"><span class="k">case</span> <span class="nx">schema</span><span class="p">.</span><span class="nx">Time</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// TrimSuffix(&#34;()&#34;) 后忽略大小写比较
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="c1">// now() → TrimSuffix(&#34;()&#34;) → &#34;now&#34;
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="c1">// CURRENT_TIMESTAMP → TrimSuffix(&#34;()&#34;) → &#34;CURRENT_TIMESTAMP&#34;
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="c1">// &#34;now&#34; ≠ &#34;CURRENT_TIMESTAMP&#34; → alterColumn = true
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="c1">// ← Vastbase 在这里每次都触发 DDL
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>
+</span></span><span class="line"><span class="cl"><span class="k">case</span> <span class="nx">schema</span><span class="p">.</span><span class="nx">String</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 双重比较：先原值，再去引号
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="c1">// dv=&#34;zh&#34;, tag=&#34;&#39;zh&#39;&#34; → Trim(&#34;&#39;zh&#39;&#34;,&#34;&#39;&#34;) = &#34;zh&#34; → 不触发
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="c1">// ← 这个分支已经修好了
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>
+</span></span><span class="line"><span class="cl"><span class="k">case</span> <span class="nx">schema</span><span class="p">.</span><span class="nx">Bool</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// ParseBool 后比较 → 不受影响
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>
+</span></span><span class="line"><span class="cl"><span class="k">default</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 直接比较字符串
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="c1">// dv=&#34;{}&#34;, tag=&#34;&#39;{}&#39;&#34; → &#34;{}&#34; ≠ &#34;&#39;{}&#39;&#34; → alterColumn = true
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="c1">// ← jsonb 在这里每次都触发 DDL（PG 也一样）
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="三类数据库经过-gorm-处理后的最终对比">三类数据库经过 GORM 处理后的最终对比</h3>
+<div class="table-wrapper"><table>
+<thead>
+<tr>
+<th>类型</th>
+<th>DB 返回 → parseDefaultValueValue 结果</th>
+<th>struct tag DefaultValue</th>
+<th>PostgreSQL</th>
+<th>Vastbase</th>
+<th>SQLite</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>text <code>'zh'</code></td>
+<td><code>zh</code></td>
+<td><code>'zh'</code></td>
+<td>✅（String 双重比较兜底）</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>text <code>''</code></td>
+<td>`` (空串)</td>
+<td><code>''</code></td>
+<td>✅（String 双重比较兜底）</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>int8 <code>0</code></td>
+<td><code>0</code></td>
+<td><code>0</code></td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>bool <code>true</code></td>
+<td><code>true</code></td>
+<td><code>true</code></td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>jsonb <code>'{}'</code></td>
+<td><code>{}</code></td>
+<td><code>'{}'</code></td>
+<td>❌（default 分支直接比较）</td>
+<td>❌</td>
+<td>—</td>
+</tr>
+<tr>
+<td>text[] <code>'{}'</code></td>
+<td><code>{}</code></td>
+<td><code>'{}'</code></td>
+<td>❌</td>
+<td>❌</td>
+<td>—</td>
+</tr>
+<tr>
+<td><strong>timestamptz</strong></td>
+<td>PG: <code>CURRENT_TIMESTAMP</code> / <strong>VB: <code>now()</code></strong></td>
+<td><code>CURRENT_TIMESTAMP</code></td>
+<td>✅</td>
+<td><strong>❌</strong></td>
+<td>✅</td>
+</tr>
+</tbody>
+</table></div>
+<p>结论：</p>
+<ul>
+<li><strong>Vastbase 独有问题</strong>：timestamptz（<code>now()</code> vs <code>CURRENT_TIMESTAMP</code>）</li>
+<li><strong>GORM 通病</strong>：jsonb/数组（PostgreSQL 上也触发，只是不崩）</li>
+</ul>
+<p>60 张表 × 2 个 timestamptz 列 = 120 条 DDL → Vastbase 崩溃。</p>
+<h3 id="解决方案">解决方案</h3>
+<p>自定义 GORM Dialector，只抹平 Vastbase 与 PostgreSQL 的唯一差异：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// pkg/vastbasecompat/dialector.go
+</span></span></span><span class="line"><span class="cl"><span class="c1">// VastbaseMigrator.ColumnTypes 中
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="k">if</span> <span class="nx">col</span><span class="p">.</span><span class="nx">DefaultValueValue</span><span class="p">.</span><span class="nx">String</span> <span class="o">==</span> <span class="s">&#34;now()&#34;</span> <span class="o">&amp;&amp;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">(</span><span class="nx">col</span><span class="p">.</span><span class="nx">DataTypeValue</span><span class="p">.</span><span class="nx">String</span> <span class="o">==</span> <span class="s">&#34;timestamptz&#34;</span> <span class="o">||</span> <span class="nx">col</span><span class="p">.</span><span class="nx">DataTypeValue</span><span class="p">.</span><span class="nx">String</span> <span class="o">==</span> <span class="s">&#34;timestamp&#34;</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">col</span><span class="p">.</span><span class="nx">DefaultValueValue</span><span class="p">.</span><span class="nx">String</span> <span class="p">=</span> <span class="s">&#34;CURRENT_TIMESTAMP&#34;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>修复后 Vastbase 上的 AutoMigrate 行为与 PostgreSQL 完全一致。</p>
+<hr>
+<h2 id="2-gorm-jsonb数组-default-每次都-alter已知-bug">2. GORM jsonb/数组 DEFAULT 每次都 ALTER（已知 Bug）</h2>
+<p>这个问题在 PostgreSQL 上也存在，不是 Vastbase 特有的。</p>
+<h3 id="issue-链路">Issue 链路</h3>
+<div class="table-wrapper"><table>
+<thead>
+<tr>
+<th>Issue/PR</th>
+<th>状态</th>
+<th>描述</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a class="link" href="https://github.com/go-gorm/gorm/issues/7553"  target="_blank" rel="noopener"
+    >go-gorm/gorm#7553</a></td>
+<td><strong>Open</strong></td>
+<td>jsonb 列每次 AutoMigrate 都执行 SET DEFAULT（2025-08-11）</td>
+</tr>
+<tr>
+<td><a class="link" href="https://github.com/go-gorm/gorm/issues/7590"  target="_blank" rel="noopener"
+    >go-gorm/gorm#7590</a></td>
+<td>Closed</td>
+<td>serializer tag 触发同样问题</td>
+</tr>
+<tr>
+<td><a class="link" href="https://github.com/go-gorm/gorm/pull/7591"  target="_blank" rel="noopener"
+    >go-gorm/gorm#7591</a></td>
+<td><strong>Merged</strong></td>
+<td>修了 <code>schema.String</code> 分支的引号比较（gorm v1.31.2 已包含）</td>
+</tr>
+<tr>
+<td><a class="link" href="https://github.com/go-gorm/gorm/pull/7770"  target="_blank" rel="noopener"
+    >go-gorm/gorm#7770</a></td>
+<td><strong>Closed（未合并）</strong></td>
+<td>尝试修 <code>default</code> 分支（jsonb 等非 String 类型），被关闭</td>
+</tr>
+<tr>
+<td><a class="link" href="https://github.com/go-gorm/gorm/pull/7806"  target="_blank" rel="noopener"
+    >go-gorm/gorm#7806</a></td>
+<td>Merged</td>
+<td>修了 DEFAULT NULL 无限循环，未覆盖 jsonb</td>
+</tr>
+<tr>
+<td><a class="link" href="https://github.com/go-gorm/postgres/issues/225"  target="_blank" rel="noopener"
+    >go-gorm/postgres#225</a></td>
+<td><strong>Open</strong></td>
+<td>v1.5.4 改变了 jsonb 默认值生成（2023-11-21）</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="为什么一直没修">为什么一直没修</h3>
+<ol>
+<li>jinzhu 先合并了 #7591，修了 <code>schema.String</code> 分支 → text 列的问题解决了</li>
+<li>jsonb 走的是 <code>MigrateColumn</code> 中的 <code>default</code> 分支（不是 <code>schema.String</code>），#7591 的修复对它无效</li>
+<li>有人提了 #7770，给 <code>default</code> 分支加了同样的 <code>strings.Trim</code> 去引号逻辑，但被关闭了</li>
+</ol>
+<p>根因在代码里一目了然：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// MigrateColumn 中的两个分支对比
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="k">case</span> <span class="nx">schema</span><span class="p">.</span><span class="nx">String</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 已修复：加了去引号的第二次比较
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="k">if</span> <span class="nx">dv</span> <span class="o">!=</span> <span class="nx">field</span><span class="p">.</span><span class="nx">DefaultValue</span> <span class="o">&amp;&amp;</span> <span class="nx">dv</span> <span class="o">!=</span> <span class="nx">strings</span><span class="p">.</span><span class="nf">Trim</span><span class="p">(</span><span class="nx">field</span><span class="p">.</span><span class="nx">DefaultValue</span><span class="p">,</span> <span class="s">&#34;&#39;\&#34;&#34;</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">alterColumn</span> <span class="p">=</span> <span class="kc">true</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">default</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 未修复：只有直接比较，jsonb 走这里
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="k">if</span> <span class="nx">dv</span> <span class="o">!=</span> <span class="nx">field</span><span class="p">.</span><span class="nx">DefaultValue</span> <span class="p">{</span>  <span class="c1">// &#34;{}&#34; ≠ &#34;&#39;{}&#39;&#34; → 每次都触发
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>        <span class="nx">alterColumn</span> <span class="p">=</span> <span class="kc">true</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>jsonb 字段的 GORMDataType 是自定义类型名（如 <code>jsonb</code>），不是 <code>String</code>，所以走 <code>default</code> 分支。</p>
+<h3 id="处理建议">处理建议</h3>
+<ul>
+<li>PostgreSQL 上无害，忽略即可</li>
+<li>Vastbase 上如果 DDL 总量（timestamptz + jsonb）足以让服务端崩溃，先修 timestamptz（上一节方案），jsonb 部分等 GORM 上游修</li>
+<li>关注 <a class="link" href="https://github.com/go-gorm/gorm/issues/7553"  target="_blank" rel="noopener"
+    >go-gorm/gorm#7553</a>，上游修复后升级 GORM 即可</li>
+<li>如果等不了，可以在自定义 Migrator 中补上 jsonb 的归一化</li>
+</ul>
+<hr>
+<h2 id="3-sql-语法差异">3. SQL 语法差异</h2>
+<p>Vastbase 不支持部分 PostgreSQL 高版本语法，需要在驱动层做 SQL 重写。</p>
+<h3 id="31-make_interval-不支持">3.1 make_interval 不支持</h3>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-sql" data-lang="sql"><span class="line"><span class="cl"><span class="c1">-- PostgreSQL（River 生成）
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="k">WHERE</span><span class="w"> </span><span class="n">scheduled_at</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">now</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">make_interval</span><span class="p">(</span><span class="n">secs</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="err">$</span><span class="mi">3</span><span class="p">)</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="c1">-- Vastbase 改写
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="k">WHERE</span><span class="w"> </span><span class="n">scheduled_at</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">now</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="err">$</span><span class="mi">3</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="nb">interval</span><span class="w"> </span><span class="s1">&#39;1 second&#39;</span><span class="w">
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="32-数组切片-arrstart-不支持">3.2 数组切片 arr[start:] 不支持</h3>
+<p>Vastbase 不支持 PostgreSQL 的数组切片语法 <code>arr[start:]</code>。River 用这个语法裁剪 <code>attempted_by</code> 数组：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-sql" data-lang="sql"><span class="line"><span class="cl"><span class="c1">-- PostgreSQL（River 生成）
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="n">array_append</span><span class="p">(</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="k">CASE</span><span class="w"> </span><span class="k">WHEN</span><span class="w"> </span><span class="n">array_length</span><span class="p">(</span><span class="n">attempted_by</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="err">$</span><span class="mi">2</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="k">THEN</span><span class="w"> </span><span class="n">attempted_by</span><span class="p">[</span><span class="n">array_length</span><span class="p">(</span><span class="n">attempted_by</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="err">$</span><span class="mi">2</span><span class="p">:]</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="k">ELSE</span><span class="w"> </span><span class="n">attempted_by</span><span class="w"> </span><span class="k">END</span><span class="p">,</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="err">$</span><span class="mi">3</span><span class="p">::</span><span class="nb">text</span><span class="p">)</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="c1">-- Vastbase 改写（跳过裁剪，直接追加）
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="n">array_append</span><span class="p">(</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="k">CASE</span><span class="w"> </span><span class="k">WHEN</span><span class="w"> </span><span class="err">$</span><span class="mi">2</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="k">THEN</span><span class="w"> </span><span class="n">attempted_by</span><span class="w"> </span><span class="k">ELSE</span><span class="w"> </span><span class="n">attempted_by</span><span class="w"> </span><span class="k">END</span><span class="p">,</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="err">$</span><span class="mi">3</span><span class="p">::</span><span class="nb">text</span><span class="p">)</span><span class="w">
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><p>裁剪的目的是防止数组无限增长，但 <code>attempted_by</code> 受 <code>max_attempts</code>（默认 25）自然约束，不裁剪也不会超过 25 个元素。语义上无影响。</p>
+<h3 id="33-on-conflict--where-不支持">3.3 ON CONFLICT &hellip; WHERE 不支持</h3>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-sql" data-lang="sql"><span class="line"><span class="cl"><span class="c1">-- PostgreSQL
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="k">ON</span><span class="w"> </span><span class="n">CONFLICT</span><span class="w"> </span><span class="p">(</span><span class="n">kind</span><span class="p">)</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">unique_states</span><span class="w"> </span><span class="k">IS</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">DO</span><span class="w"> </span><span class="k">UPDATE</span><span class="w"> </span><span class="k">SET</span><span class="w"> </span><span class="p">...</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="c1">-- Vastbase 改写（去掉 WHERE）
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="k">ON</span><span class="w"> </span><span class="n">CONFLICT</span><span class="w"> </span><span class="p">(</span><span class="n">kind</span><span class="p">)</span><span class="w"> </span><span class="k">DO</span><span class="w"> </span><span class="k">UPDATE</span><span class="w"> </span><span class="k">SET</span><span class="w"> </span><span class="p">...</span><span class="w">
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><p>注意去掉 WHERE 可能影响条件化唯一索引的语义，需要评估。</p>
+<h3 id="34-with--insert--on-conflict-do-update-不支持">3.4 WITH &hellip; INSERT &hellip; ON CONFLICT DO UPDATE 不支持</h3>
+<p>Vastbase 不支持 CTE 与 ON CONFLICT DO UPDATE 组合使用。改写方式是将 CTE 内联为 FROM 子查询。</p>
+<h3 id="35-xid-类型不支持与-integer-直接比较">3.5 xid 类型不支持与 integer 直接比较</h3>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-sql" data-lang="sql"><span class="line"><span class="cl"><span class="c1">-- PostgreSQL
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="p">(</span><span class="n">xmax</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">unique_skipped_as_duplicate</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="c1">-- Vastbase 改写
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="p">(</span><span class="n">xmax</span><span class="p">::</span><span class="nb">text</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="s1">&#39;0&#39;</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">unique_skipped_as_duplicate</span><span class="w">
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="36-dsn-特殊字符">3.6 DSN 特殊字符</h3>
+<p>Vastbase DSN 中密码的特殊字符需要 URL 编码。</p>
+<hr>
+<h2 id="4-连接行为差异">4. 连接行为差异</h2>
+<h3 id="41-认证方式">4.1 认证方式</h3>
+<p>Vastbase 默认用 <code>sha256</code> 认证（<code>pg_hba.conf</code>），pgx 驱动天然支持，无需适配。</p>
+<h3 id="42-密集-ddl-时的稳定性">4.2 密集 DDL 时的稳定性</h3>
+<p>Vastbase 在短时间内密集执行 DDL 时容易崩溃。<br>
+应对：减少不必要的 DDL，合理设置连接池参数。</p>
+<h3 id="43-vastbase-兼容模式">4.3 vastbase 兼容模式</h3>
+<p>vastbase 支持多种数据库的协议连接，部署的时候固定，如果选择了 mysql 模式，则 postgresql 连接会出现很多故障。</p>
+<p><code>SHOW dbcompatibility;</code> 查看兼容模式</p>
+<div class="table-wrapper"><table>
+<thead>
+<tr>
+<th>返回值</th>
+<th>兼容模式</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>A</code></td>
+<td>Oracle</td>
+<td>兼容 Oracle 语法和协议</td>
+</tr>
+<tr>
+<td><code>B</code></td>
+<td>MySQL</td>
+<td>兼容 MySQL 语法和部分协议</td>
+</tr>
+<tr>
+<td><code>C</code></td>
+<td>TD (Teradata)</td>
+<td>兼容 Teradata 语法</td>
+</tr>
+<tr>
+<td><code>PG</code> / 空</td>
+<td>PostgreSQL</td>
+<td>原生 openGauss/PG 模式</td>
+</tr>
+</tbody>
+</table></div>
+
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/postgresql/">PostgreSQL</a>
+        
+            <a href="/tags/gorm/">GORM</a>
+        
+            <a href="/tags/vastbase/">Vastbase</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+     
+    
+        
+    <script src="https://utteranc.es/client.js" 
+        repo="ixugo/ixugo.github.io"
+        issue-term="pathname"
+        
+        crossorigin="anonymous"
+        async
+        >
+</script>
+
+<style>
+    .utterances {
+        max-width: unset;
+    }
+</style>
+
+<script>
+    function setUtterancesTheme(theme) {
+        let utterances = document.querySelector('.utterances iframe');
+        if (utterances) {
+            utterances.contentWindow.postMessage(
+                {
+                    type: 'set-theme',
+                    theme: `github-${theme}`
+                },
+                'https://utteranc.es'
+            );
+        }
+    }
+
+    addEventListener('message', event => {
+        if (event.origin !== 'https://utteranc.es') return;
+        setUtterancesTheme(document.documentElement.dataset.scheme)
+    });
+
+    window.addEventListener('onColorSchemeChange', (e) => {
+        setUtterancesTheme(e.detail)
+    })
+</script>
+
+
+    
+
+    <footer class="site-footer">
+  <section class="copyright">
+    &copy;  2018 -  2026 ixugo
+  </section>
+  
+  <script defer src="https://events.vercount.one/js"></script>
+  <section class="powerby">
+    
+    <span id="busuanzi_container_page_pv"
+      >本文阅读量
+      <span style="font-size: 14px" id="vercount_value_page_pv"></span>
+      次，</span
+    >
+    <span id="busuanzi_container_site_pv"
+      >总访问量
+      <span style="font-size: 14px" id="vercount_value_site_pv"></span>
+      次 </span
+    >，总访客数
+    <span style="font-size: 14px" id="vercount_value_site_uv"></span> 人
+    <br />
+
+    Built with <a
+      href="https://gohugo.io/"
+      target="_blank"
+      rel="noopener"
+      >Hugo</a
+    >
+    .&nbsp;&nbsp; Theme <a
+      href="https://github.com/CaiJimmy/hugo-theme-stack"
+      target="_blank"
+      rel="noopener"
+      data-version="3.16.0"
+      >Stack</a
+    > designed by <a
+      href="https://jimmycai.com"
+      target="_blank"
+      rel="noopener"
+      >Jimmy</a
+    >
+  </section>
+
+  <script>
+    
+    function count() {
+      let href = window.location.href;
+      let regexp = /^https?:\/\/blog.golang.space\/?(page\/[\d]+\/?)?$/;
+      if (regexp.test(href)) {
+        let e = document.getElementById("busuanzi_container_page_pv");
+        e.innerText = "";
+      }
+    }
+    window.onload = count;
+  </script>
+</footer>
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>
