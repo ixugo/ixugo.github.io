@@ -20,6 +20,10 @@ menu:
 + Github https://github.com/ixugo
 + 邮箱   xx@golang.space
 
+## 我的开源
++ GoWVP  http://gowvp.golang.space:15123
++ GoDDD  https://goddd.golang.space
+
 ## 图片说明
 图片用的是 HTTP，网站使用的是 HTTPS，涉及到 https
 
